@@ -1,0 +1,151 @@
+// 移植元 v1 test/check.mjs の format-values helpers / text provenance /
+// expand invariant セクション相当 (代表ケース)。
+
+import { describe, expect, it } from 'vitest';
+import type { Format, FormatGroup } from './types';
+import {
+  collectFormatItemIndicesWithData,
+  commitDraftTextEntry,
+  decidePresetToggle,
+  formatItemDeleteBlocked,
+  formatItemKindChangeBlocked,
+  formatItemReorderBlocked,
+  formatValueHasInput,
+  isLastExpandInPanel,
+  formatRemovalBreaksAnyGroupExpand,
+  mergeTagsAdd,
+  mergeTagsRemove,
+  missingExpandPanelsForGroup,
+  normalizeTextEntry,
+  readNumericEntry,
+  repairGroupExpandInvariant,
+  validateGroupHasExpandedFormatForEveryPanel,
+} from './formatValues';
+import { makeDefaultPatient } from './normalize';
+
+describe('値の正規化と入力判定', () => {
+  it('readNumericEntry: 旧文字列も新オブジェクトも {value,note} に正規化', () => {
+    expect(readNumericEntry('96')).toEqual({ value: '96', note: '' });
+    expect(readNumericEntry({ value: '96', note: 'O2 2L' })).toEqual({ value: '96', note: 'O2 2L' });
+    expect(readNumericEntry(null)).toEqual({ value: '', note: '' });
+  });
+
+  it('formatValueHasInput: 文字列/オブジェクト/空/スラッシュのみ を正しく判定', () => {
+    expect(formatValueHasInput('96')).toBe(true);
+    expect(formatValueHasInput('')).toBe(false);
+    expect(formatValueHasInput('/')).toBe(false); // fraction 未入力
+    expect(formatValueHasInput({ value: '', note: 'O2 2L' })).toBe(true);
+    expect(formatValueHasInput({ value: '', note: '' })).toBe(false);
+    expect(formatValueHasInput({ value: '120/53', note: '' })).toBe(true);
+  });
+});
+
+describe('text provenance (Phase 6)', () => {
+  it('normalizeTextEntry: source 明示は信頼 / legacy は現正常文で推論', () => {
+    expect(normalizeTextEntry({ value: 'x', source: 'manual' }, 'x')).toEqual({
+      value: 'x',
+      source: 'manual',
+    });
+    expect(normalizeTextEntry('良好', '良好')).toEqual({ value: '良好', source: 'preset' });
+    expect(normalizeTextEntry('独自メモ', '良好')).toEqual({ value: '独自メモ', source: 'manual' });
+    expect(normalizeTextEntry('', '良好')).toEqual({ value: '', source: 'empty' });
+  });
+
+  it('decidePresetToggle: 空→write / preset一致→clear / manual・不一致→openEditor', () => {
+    expect(decidePresetToggle('', '良好')).toEqual({
+      action: 'write',
+      value: { value: '良好', source: 'preset' },
+    });
+    expect(decidePresetToggle({ value: '良好', source: 'preset' }, '良好')).toEqual({
+      action: 'clear',
+      value: '',
+    });
+    expect(decidePresetToggle({ value: 'メモ', source: 'manual' }, '良好')).toEqual({
+      action: 'openEditor',
+    });
+    // 正常文を変更済み (preset 値 ≠ 現 normal) も openEditor (黙って上書きしない)
+    expect(decidePresetToggle({ value: '旧正常文', source: 'preset' }, '新正常文')).toEqual({
+      action: 'openEditor',
+    });
+  });
+
+  it('commitDraftTextEntry: 変化した item だけ manual 化 / 未変化は出所保持 / 空は ""', () => {
+    const preset = { value: '良好', source: 'preset' };
+    expect(commitDraftTextEntry(preset, '良好')).toBe(preset); // 未変更 → 出所保持
+    expect(commitDraftTextEntry(preset, '悪化')).toEqual({ value: '悪化', source: 'manual' });
+    expect(commitDraftTextEntry(preset, '')).toBe('');
+  });
+});
+
+describe('タグ delta merge', () => {
+  it('mergeTagsAdd / mergeTagsRemove: 付与・除去 (手編集タグは保持・順序保持)', () => {
+    expect(mergeTagsAdd(['a', 'b'], ['b', 'c'])).toEqual(['a', 'b', 'c']);
+    expect(mergeTagsRemove(['a', 'b', 'c'], ['b'])).toEqual(['a', 'c']);
+    expect(mergeTagsAdd(null, ['x'])).toEqual(['x']);
+  });
+});
+
+describe('破壊防止判定 (fail-closed)', () => {
+  it('collectFormatItemIndicesWithData: 入力がある item index を患者横断で収集', () => {
+    const p1 = makeDefaultPatient();
+    p1.formatValues = { f1: { 0: '96', 2: '' } };
+    const p2 = makeDefaultPatient();
+    p2.formatValues = { f1: { 1: { value: '', note: 'メモ' } }, f2: { 5: 'x' } };
+    const got = collectFormatItemIndicesWithData([p1, p2], 'f1');
+    expect([...got].sort()).toEqual([0, 1]);
+  });
+
+  it('delete/reorder/kind 変更: 不明 (null) は fail-closed で全ブロック', () => {
+    expect(formatItemDeleteBlocked(null, 0)).toBe('data');
+    expect(formatItemReorderBlocked(null)).toBe(true);
+    expect(formatItemKindChangeBlocked(null, 0)).toBe(true);
+    const ds = new Set([2]);
+    expect(formatItemDeleteBlocked(ds, 2)).toBe('data');
+    expect(formatItemDeleteBlocked(ds, 1)).toBe('shift'); // 後方に入力 → ずれる
+    expect(formatItemDeleteBlocked(ds, 3)).toBeNull();
+    expect(formatItemReorderBlocked(new Set())).toBe(false);
+  });
+});
+
+describe('expand invariant (修正1)', () => {
+  const formats: Format[] = [
+    { id: 'fS', name: 'S1', panel: 'S', joiner: ', ', labelSep: '：', titleWrap: '', tags: [], items: [] },
+    { id: 'fO1', name: 'O1', panel: 'O', joiner: ', ', labelSep: ' ', titleWrap: '', tags: [], items: [] },
+    { id: 'fO2', name: 'O2', panel: 'O', joiner: ', ', labelSep: ' ', titleWrap: '', tags: [], items: [] },
+  ];
+  const g = (over: Partial<FormatGroup>): FormatGroup => ({
+    id: 'g1',
+    name: 'G',
+    isDefault: false,
+    formatIds: [],
+    defaultFormatIds: [],
+    expandFormatIds: [],
+    ...over,
+  });
+
+  it('含むパネルに expand が無いと欠落検出 / 含まないパネルは対象外', () => {
+    const grp = g({ formatIds: ['fS', 'fO1'], expandFormatIds: ['fS'] });
+    expect(missingExpandPanelsForGroup(grp, formats)).toEqual(['O']);
+    expect(validateGroupHasExpandedFormatForEveryPanel(grp, formats)).toBe(false);
+    const onlyO = g({ formatIds: ['fO1'], expandFormatIds: ['fO1'] });
+    expect(missingExpandPanelsForGroup(onlyO, formats)).toEqual([]); // S は含まないので対象外
+  });
+
+  it('repairGroupExpandInvariant: 欠けたパネルの先頭フォーマットを expand に昇格 (冪等)', () => {
+    const grp = g({ formatIds: ['fS', 'fO2', 'fO1'], expandFormatIds: ['fS'] });
+    repairGroupExpandInvariant(grp, formats);
+    // O パネル所属の formatIds 先頭 = fO2 が昇格
+    expect(grp.expandFormatIds).toEqual(['fS', 'fO2']);
+    const before = grp.expandFormatIds.slice();
+    repairGroupExpandInvariant(grp, formats); // 冪等
+    expect(grp.expandFormatIds).toEqual(before);
+  });
+
+  it('isLastExpandInPanel / formatRemovalBreaksAnyGroupExpand', () => {
+    const grp = g({ formatIds: ['fO1', 'fO2'], expandFormatIds: ['fO1'] });
+    expect(isLastExpandInPanel(grp, formats, 'fO1', 'O')).toBe(true);
+    expect(isLastExpandInPanel(grp, formats, 'fO2', 'O')).toBe(false);
+    expect(formatRemovalBreaksAnyGroupExpand('fO1', formats, [grp])).toBe(true);
+    expect(formatRemovalBreaksAnyGroupExpand('fO2', formats, [grp])).toBe(false);
+  });
+});
