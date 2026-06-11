@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
-import { DEFAULT_USER_ID, DB_NAME, USERS_ID, settingsIdFor } from './constants';
+import { DEFAULT_USER_ID, DB_NAME, STORE_BUNDLES, USERS_ID, settingsIdFor } from './constants';
 import { projectBundle, SECTION } from './bundle';
 import { createHrStorage, type HrStorage } from './storage';
 import { defaultSettings, normalizePatientArray } from '../domain/normalize';
@@ -216,6 +216,85 @@ describe('ユーザー登録簿と backfill', () => {
     expect(await storage.loadGlobalSettings(uid)).toBeNull();
     // 他ユーザーのデータは無傷
     expect((await storage.loadUsers()).some((u) => u.id === DEFAULT_USER_ID)).toBe(true);
+  });
+});
+
+describe('buildWorkspaceRecord / writeImportBatch (アーカイブ取込の原子バッチ・Codex 監査 M3)', () => {
+  // n 回目以降の put を同期 throw させる (runWrite の fn 内で発火 → 明示 abort → 全 rollback)。
+  function injectPutFailureAt(n: number): void {
+    const realPut = IDBObjectStore.prototype.put;
+    let calls = 0;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      calls += 1;
+      if (calls >= n) throw new Error('injected put failure');
+      return realPut.apply(this, args);
+    });
+  }
+
+  it('buildWorkspaceRecord は書き込まずにレコードを組み立てる (ID 採番 + meta title 反映)', async () => {
+    await storage.ensureUsersInitialized();
+    const rec = storage.buildWorkspaceRecord('病棟X', freshBundle('タイトルX'));
+    expect(rec.id).toMatch(/^ws_/);
+    expect(rec.label).toBe('病棟X');
+    expect(rec.title).toBe('タイトルX');
+    expect(rec.userId).toBe(DEFAULT_USER_ID); // override 無し → 現ユーザー
+    expect(rec.updatedAt).toBeGreaterThan(0);
+    expect(await storage.loadBundle(rec.id)).toBeNull(); // まだ書かれていない
+    expect(storage.buildWorkspaceRecord('w', freshBundle(), 'usr_o').userId).toBe('usr_o');
+  });
+
+  it('writeImportBatch は users / settings / ws を一括で書く (createWorkspaceRecord と同形)', async () => {
+    await storage.ensureUsersInitialized();
+    const users = await storage.loadUsers();
+    users.push({ id: 'usr_x', name: 'X', createdAt: 1, activeWorkspaceId: '', passhash: null });
+    const ws = storage.buildWorkspaceRecord('一括病棟', freshBundle('一括'), 'usr_x');
+    await storage.writeImportBatch({
+      usersRecord: users,
+      settingsRecords: [{ userId: 'usr_x', settings: defaultSettings() }],
+      workspaceRecords: [ws],
+    });
+    expect((await storage.loadUsers()).some((u) => u.id === 'usr_x')).toBe(true);
+    expect(await storage.loadGlobalSettings('usr_x')).not.toBeNull();
+    expect(await storage.loadBundle(ws.id)).not.toBeNull();
+    const listed = (await storage.listAllWorkspaces()).find((w) => w.id === ws.id);
+    expect(listed).toMatchObject({ label: '一括病棟', title: '一括', userId: 'usr_x' });
+  });
+
+  it('原子性: 途中の put 失敗で全 rollback (先に発行済みの users / settings も残らない)', async () => {
+    await storage.ensureUsersInitialized();
+    await storage.saveGlobalSettings(defaultSettings(), 'usr_x');
+    const usersBefore = await storage.loadUsers();
+    const idsBefore = (await storage.db.getAll<{ id: string }>(STORE_BUNDLES))
+      .map((r) => r.id)
+      .sort();
+
+    const users = [
+      ...usersBefore,
+      { id: 'usr_x', name: 'X', createdAt: 1, activeWorkspaceId: '', passhash: null },
+    ];
+    const s = defaultSettings();
+    s.tags = ['置換後'];
+    const ws = storage.buildWorkspaceRecord('w', freshBundle(), 'usr_x');
+    injectPutFailureAt(3); // 1=__users__, 2=settings は発行済み → 3=ws で throw
+    await expect(
+      storage.writeImportBatch({
+        usersRecord: users,
+        settingsRecords: [{ userId: 'usr_x', settings: s }],
+        workspaceRecords: [ws],
+      }),
+    ).rejects.toThrow('injected put failure');
+    vi.restoreAllMocks();
+
+    // 全レコード不変: 登録簿・既存 settings は元のまま、ws も増えていない
+    expect(await storage.loadUsers()).toEqual(usersBefore);
+    expect(((await storage.loadGlobalSettings('usr_x')) as { tags: string[] }).tags).toEqual([]);
+    const idsAfter = (await storage.db.getAll<{ id: string }>(STORE_BUNDLES))
+      .map((r) => r.id)
+      .sort();
+    expect(idsAfter).toEqual(idsBefore);
   });
 });
 

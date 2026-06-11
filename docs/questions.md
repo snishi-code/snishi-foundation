@@ -63,5 +63,5 @@
 
 ### Q9. SL-v2 の revision フィールド運用
 
-- **内容**: foundation `createImportPipeline` は revision 衝突を検出する仕組みを持つ。SL-v2 は `meta.revision` を export に載せているが、revision のインクリメント運用(どの操作で +1 するか)を仕様化していない。
+- **内容**: foundation `createImportPipeline` は revision 衝突を検出する仕組みを持ち、SL-v2 の repository は保存時に revision を進める経路(`writeWithRevision`)を実装済み。残るのは「どの操作で +1 するか」の**運用ルールの文書化**(未仕様ではなく文書化の余地。Codex 監査でも同判定)。
 - **カテゴリ**: §18 — データ設計

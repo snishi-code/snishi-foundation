@@ -48,6 +48,18 @@ test('manifest が installable な内容で読める', async ({ page }) => {
   expect(sizes).toContain('512x512');
 });
 
+test('data-env が prod 以外のとき SW は登録されない (M2: 明示 prod のみ登録)', async ({
+  page,
+}) => {
+  // forceProdEnv を使わず test 判定のままロード → serviceWorker registration が存在しない
+  await page.goto('./');
+  const hasRegistration = await page.evaluate(async () => {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    return regs.length > 0;
+  });
+  expect(hasRegistration).toBe(false);
+});
+
 test('SW が登録・activate される（凍結ポリシー: 初回ページは claim されない）', async ({
   page,
 }) => {
@@ -64,6 +76,27 @@ test('SW が登録・activate される（凍結ポリシー: 初回ページは
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
     timeout: 10_000,
   });
+});
+
+test('SW activate が他アプリの cache を削除しない (M1: prefix 限定削除)', async ({ page }) => {
+  // 検証方針: SW activate の前に外部キャッシュを seed し、activate 完了後も生存することを確認する。
+  // 凍結 SW は skipWaiting/claim を呼ばないため activate 済みの SW を再発火させることはできない。
+  // そこで「SW が activate される前に seed → ready を待って生存確認」という手順を取る。
+  // addInitScript で SW register より前に foreign cache を作成し、ready 後に has() で確認する。
+  await page.addInitScript(() => {
+    // SW が登録される前に外部キャッシュを作成する。
+    // activate ハンドラが実行される前にこのキャッシュが存在することを保証するため
+    // init script(ページスクリプト実行前)で開いておく。
+    void caches.open('foreign-app-cache-test');
+  });
+  await forceProdEnv(page);
+  await page.goto('./');
+  const survived = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    // activate が完了した後でも外部キャッシュが残っているかを確認する。
+    return caches.has('foreign-app-cache-test');
+  });
+  expect(survived).toBe(true);
 });
 
 test('オフラインでも app shell が起動する（凍結 SW の cache-first）', async ({ page, context }) => {

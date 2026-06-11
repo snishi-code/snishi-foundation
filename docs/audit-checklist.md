@@ -171,3 +171,9 @@ npm run lint
 - マルチページ QR の実カメラ読取(e2e はページ表記・組み立てロジックまで)
 
 なお Playwright E2E(chromium)と 3 サイズ(390/820/1280)の visual check は `apps/*/e2e/` で実施済み(`npm run test:e2e -w apps/hospital-rounds-v2` / `-w apps/simple-ledger-v2`)。
+
+## 追補(2026-06-11 Codex 監査対応後)
+
+- [ ] SW activate の cache 削除が **自アプリ prefix 限定**か: `grep -n "startsWith(CACHE_PREFIX)" apps/*/public/sw.js packages/foundation/src/pwa/sw.template.js`(prefix 条件なしの全削除 `filter((k) => k !== CACHE)` が無いこと)
+- [ ] SW 登録が **明示 prod のみ**か: `packages/foundation/src/pwa/useServiceWorker.ts` に https fallback が無く `getEnv() !== 'prod'` で return すること
+- [ ] HR アーカイブ取込が**原子的**か: `apps/hospital-rounds-v2/src/data/storage.ts` の `writeImportBatch`(単一 runWrite)を import 経路が使っていること。put 失敗注入テスト(storage.test.ts / store.test.ts)が存在すること

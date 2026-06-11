@@ -41,8 +41,18 @@ describe('sw.template.js (凍結 SW ポリシーの歩哨)', () => {
   });
 
   it('置換用プレースホルダを持つ', () => {
+    expect(src).toContain("'__CACHE_PREFIX__'");
     expect(src).toContain("'__CACHE_NAME__'");
     expect(src).toContain('__PRECACHE_PATHS__');
+  });
+
+  it('activate の削除条件が自アプリ prefix 限定になっている (M1: 他アプリ cache を消さない)', () => {
+    // (a) prefix 限定の startsWith 条件が存在する
+    expect(code).toContain('startsWith(CACHE_PREFIX)');
+    // (b) prefix 条件なしの全削除パターン (k !== CACHE のみで filter) が存在しない
+    //     "k !== CACHE" だけで filter していれば全 cache を消す旧バグ。
+    //     startsWith を伴わない単純な k !== CACHE フィルタが残っていないことを確認。
+    expect(code).not.toMatch(/\.filter\s*\(\s*\([^)]*\)\s*=>\s*\w+\s*!==\s*CACHE\s*\)/);
   });
 
   it('cache-first + SPA shell fallback の構造を保持している', () => {

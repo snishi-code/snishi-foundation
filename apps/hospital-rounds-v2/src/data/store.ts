@@ -30,7 +30,7 @@ import {
 } from '../domain/normalize';
 import { collectFormatItemIndicesWithData } from '../domain/formatValues';
 import { SECTION, getSection, parseBundle, projectBundle, type Bundle } from './bundle';
-import { createHrStorage, type HrStorage } from './storage';
+import { createHrStorage, type HrStorage, type HrWorkspaceRecord } from './storage';
 
 /** オートセーブの debounce (v1 と同じ 180ms) */
 export const SAVE_DEBOUNCE_MS = 180;
@@ -632,6 +632,13 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
 
     // アーカイブを取り込む (非破壊)。各 ws を新規作成し、includeSettings ならユーザー設定を
     // 置換する。既存 ws は消さない (= 再取込で重複し得るが、データ消失は避ける)。
+    //
+    // 原子性 (Codex 監査 M3): v1 は settings 保存 → ws 逐次作成の逐次書込で、途中失敗時に
+    // 「settings だけ置換済み・一部 ws だけ作成済み」の部分適用が残り得た。v2 は仕様§8
+    // (import は fail-closed) に従い、全レコードを事前構築して writeImportBatch (単一
+    // トランザクション) で一括書込する = 全体成功 or 全体失敗。settings を ws より先に
+    // 書く順序 (取り込んだ病棟の formatValues が参照するフォーマット ID の確定) は
+    // 同一 tx 内の書き込み順として維持する。
     async importArchive(archive, opts) {
       const includeSettings = !!(opts && opts.includeSettings);
       const wss = Array.isArray(archive && archive.workspaces) ? archive.workspaces : [];
@@ -643,18 +650,8 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       );
       const targetSettings = replaceSettings ? normalizeSettings(archive.settings) : settings;
 
-      // includeSettings 時は **workspace 作成の前に** 設定を確定保存する (fail-closed:
-      // IDB 不可の no-op 保存も「保存できていない事実」として失敗扱い)。
-      if (replaceSettings) {
-        if (!(await storage.isStorageAvailable())) {
-          throw new Error('importArchive: storage unavailable (IDB not usable), cannot persist settings');
-        }
-        await storage.saveGlobalSettings(targetSettings);
-        settings = targetSettings;
-      }
-
-      // 病棟を作成する (中身のない ws はスキップ)。
-      let created = 0;
+      // Pass 1: 病棟レコードを事前構築する (中身のない ws はスキップ)。まだ何も書かない。
+      const workspaceRecords: HrWorkspaceRecord[] = [];
       for (const w of wss) {
         const patients = Array.isArray(w && w.patients) ? w.patients : [];
         const norm = normalizeLoaded({ title: (w && w.title) || defaultTitle, patients }, defaultTitle);
@@ -664,10 +661,26 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
           settings: targetSettings,
           sections: [SECTION.META, SECTION.PATIENTS],
         });
-        await storage.createWorkspaceRecord(String((w && w.label) || ''), bundle);
-        created++;
+        workspaceRecords.push(storage.buildWorkspaceRecord(String((w && w.label) || ''), bundle));
       }
-      return created;
+
+      // 書くものが無ければストレージに触らず終了。
+      if (!replaceSettings && !workspaceRecords.length) return 0;
+
+      // fail-closed: IDB 不可 (no-op 保存) も「保存できていない事実」として失敗扱い。
+      if (!(await storage.isStorageAvailable())) {
+        throw new Error('importArchive: storage unavailable (IDB not usable)');
+      }
+      // Pass 2: 単一トランザクションで一括書込 (1 件でも失敗すれば全 rollback で throw)。
+      await storage.writeImportBatch({
+        settingsRecords: replaceSettings
+          ? [{ userId: storage.getCurrentUserId(), settings: targetSettings }]
+          : undefined,
+        workspaceRecords,
+      });
+      // 書込が成功してから in-memory を更新する (失敗時は live state も無傷)。
+      if (replaceSettings) settings = targetSettings;
+      return workspaceRecords.length;
     },
 
     // ============================
@@ -715,22 +728,38 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
     },
 
     // 端末まるごとアーカイブを取り込む (非破壊)。同名ユーザーは既存に合流、無ければ新規作成。
+    //
+    // 原子性 (Codex 監査 M3): v1 相当の実装は user 作成 → settings 保存 (失敗時はその
+    // ユーザーだけ skip) → ws 逐次作成で、「user は作られたが ws ゼロ」等の中間状態が
+    // あり得た。v2 は仕様§8 (import は fail-closed) に従い、読み・解決フェーズ (登録簿
+    // 読込・同名合流/新規 uid 採番・設定解決・空 ws スキップ) を全て先に済ませ、
+    // `__users__` 登録簿 + settings×N + ws×M を 1 回の writeImportBatch (単一トランザク
+    // ション) で書く = 全体成功 or 全体失敗。旧来の「settings 保存失敗 → そのユーザー
+    // だけ continue」の縮退は廃止した (部分適用を残さない)。
     async importDeviceArchive(archive) {
       const arr = Array.isArray(archive && archive.users) ? archive.users : [];
+
+      // ── 読み・解決フェーズ (ストレージへは一切書かない) ──
+      const registry: User[] = await storage.loadUsers();
+      let registryDirty = false;
       let createdUsers = 0;
-      let createdWs = 0;
-      let registry: User[] = await storage.loadUsers();
+      const settingsRecords: Array<{ userId: string; settings: unknown }> = [];
+      const workspaceRecords: HrWorkspaceRecord[] = [];
+
       for (const au of arr) {
         const name = String((au && au.name) || '').trim();
         const wss = Array.isArray(au && au.workspaces) ? au.workspaces : [];
         // 名前も病棟も無いユーザーはスキップ
         if (!name && !wss.length) continue;
-        // 同名ユーザーは合流、無ければ新規作成
+        // 同名ユーザーは合流、無ければ新規 (registry はローカルコピー。ここで push した
+        // 新規ユーザーも後続の同名合流の対象になる)
         const target = registry.find((u) => (u.name || '').trim() === name && !!name);
 
         // そのユーザーの実効設定 (us) を解決する。
         //   - archive に設定あり: それで置換 (= 必ず保存)。
         //   - archive 設定なし・既存ユーザー: 現設定 (backfill 差分があれば保存)。
+        //     ※ 同一 batch 内で解決済みの settings があればそれを「現設定」とみなす
+        //       (同名ユーザーが archive に複数いる縮退ケース)。
         //   - archive 設定なし・新規ユーザー: defaults を seed (必ず保存)。
         let us: Settings;
         let needSettingsSave: boolean;
@@ -738,11 +767,14 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
           us = normalizeSettings(au.settings);
           needSettingsSave = true;
         } else if (target) {
-          let existing: unknown = null;
-          try {
-            existing = await storage.loadGlobalSettings(target.id);
-          } catch {
-            /* 読めなければ default 扱い */
+          const pending = settingsRecords.find((r) => r.userId === target.id);
+          let existing: unknown = pending ? pending.settings : null;
+          if (!existing) {
+            try {
+              existing = await storage.loadGlobalSettings(target.id);
+            } catch {
+              /* 読めなければ default 扱い */
+            }
           }
           us = existing ? normalizeSettings(existing) : defaultSettings();
           needSettingsSave = !existing || hasBackfilledDefaultFormats(existing, us);
@@ -751,28 +783,28 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
           needSettingsSave = true;
         }
 
-        // user 確定 (merge or 新規作成)。
+        // user 確定 (merge or 新規)。新規は uid 採番とローカル registry への追加のみ行い、
+        // `__users__` レコードの書込は writeImportBatch に寄せる。
         let uid: string;
         if (target) {
           uid = target.id;
         } else {
-          uid = await storage.createUser(name || storage.getDefaultUserName());
-          registry = await storage.loadUsers();
+          uid = storage.newUserId();
+          registry.push({
+            id: uid,
+            name: name || storage.getDefaultUserName(),
+            createdAt: now(),
+            activeWorkspaceId: '',
+            passhash: null,
+          });
+          registryDirty = true;
           createdUsers++;
         }
-        if (needSettingsSave) {
-          // fail-closed: 設定を保存できないと取り込んだ病棟の formatValues が参照する
-          // フォーマット ID が確定せず孤立する。そのユーザーの病棟作成へは進めず次へ。
-          try {
-            if (!(await storage.isStorageAvailable())) {
-              throw new Error('storage unavailable (IDB not usable)');
-            }
-            await storage.saveGlobalSettings(us, uid);
-          } catch (e) {
-            console.error('importDeviceArchive: settings save failed, skipping user workspaces:', e);
-            continue;
-          }
-        }
+        // ドメイン順序: 設定が保存されないと取り込んだ病棟の formatValues が参照する
+        // フォーマット ID が確定せず孤立する。settings は writeImportBatch の書き込み順で
+        // 同一 tx 内でも ws より先に put される。
+        if (needSettingsSave) settingsRecords.push({ userId: uid, settings: us });
+
         // 病棟をそのユーザーへ (空 ws はスキップ)
         for (const w of wss) {
           const patients = Array.isArray(w && w.patients) ? w.patients : [];
@@ -784,11 +816,28 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
             settings: us,
             sections: [SECTION.META, SECTION.PATIENTS],
           });
-          await storage.createWorkspaceRecord(String((w && w.label) || ''), bundle, uid);
-          createdWs++;
+          workspaceRecords.push(
+            storage.buildWorkspaceRecord(String((w && w.label) || ''), bundle, uid),
+          );
         }
       }
-      return { users: createdUsers, workspaces: createdWs };
+
+      // 書くものが無ければストレージに触らず終了。
+      if (!registryDirty && !settingsRecords.length && !workspaceRecords.length) {
+        return { users: 0, workspaces: 0 };
+      }
+
+      // ── 書込フェーズ: 全体成功 or 全体失敗 ──
+      // fail-closed: IDB 不可 (no-op 保存) も「保存できていない事実」として失敗扱い。
+      if (!(await storage.isStorageAvailable())) {
+        throw new Error('importDeviceArchive: storage unavailable (IDB not usable)');
+      }
+      await storage.writeImportBatch({
+        usersRecord: registryDirty ? registry : undefined,
+        settingsRecords,
+        workspaceRecords,
+      });
+      return { users: createdUsers, workspaces: workspaceRecords.length };
     },
 
     // ============================

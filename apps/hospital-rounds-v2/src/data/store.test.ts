@@ -3,9 +3,17 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
+import { STORE_BUNDLES } from './constants';
 import { projectBundle, SECTION, getSection } from './bundle';
 import { createHrStorage, type HrStorage } from './storage';
-import { createHrStore, isArchive, isDeviceArchive, type HrStore } from './store';
+import {
+  createHrStore,
+  isArchive,
+  isDeviceArchive,
+  type Archive,
+  type DeviceArchive,
+  type HrStore,
+} from './store';
 import { defaultSettings, normalizePatientArray } from '../domain/normalize';
 import type { Patient } from '../domain/types';
 
@@ -302,6 +310,73 @@ describe('アーカイブ入出力', () => {
     const res2 = await store.importDeviceArchive(device);
     expect(res2.users).toBe(0);
     expect(res2.workspaces).toBe(1);
+  });
+});
+
+describe('アーカイブ取込の原子性 (Codex 監査 M3: 部分適用を残さない)', () => {
+  // n 回目以降の put を同期 throw させる (writeImportBatch の単一 tx 内で発火 →
+  // runWrite が明示 abort → 発行済みの put も含めて全 rollback)。
+  function injectPutFailureAt(n: number): void {
+    const realPut = IDBObjectStore.prototype.put;
+    let calls = 0;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      calls += 1;
+      if (calls >= n) throw new Error('injected put failure');
+      return realPut.apply(this, args);
+    });
+  }
+
+  async function allRecordIds(): Promise<string[]> {
+    return (await storage.db.getAll<{ id: string }>(STORE_BUNDLES)).map((r) => r.id).sort();
+  }
+
+  it('importArchive: 途中 put 失敗で settings 不変 + bundles に何も増えない (全 rollback)', async () => {
+    await store.initStore();
+    store.getAppState().patients[0]!.name = '患者A';
+    store.getSettings().tags = ['元のタグ'];
+    await store.persistActiveOrThrow();
+    // export は live settings の参照を返すため、archive は deep copy してから書き換える
+    const archive = JSON.parse(JSON.stringify(await store.exportArchive())) as Archive;
+    archive.settings.tags = ['取込タグ'];
+    archive.workspaces.push(JSON.parse(JSON.stringify(archive.workspaces[0])) as Archive['workspaces'][number]);
+
+    const idsBefore = await allRecordIds();
+    // batch 内の put 順: 1=settings, 2=ws1 (発行済み), 3=ws2 で throw
+    injectPutFailureAt(3);
+    await expect(store.importArchive(archive, { includeSettings: true })).rejects.toThrow(
+      'injected put failure',
+    );
+    vi.restoreAllMocks();
+
+    // in-memory settings 不変 (失敗時は live state も変更しない)
+    expect(store.getSettings().tags).toEqual(['元のタグ']);
+    // 保存済み settings 不変 (settings put は発行済みでも rollback されている)
+    expect(((await storage.loadGlobalSettings()) as { tags: string[] }).tags).toEqual(['元のタグ']);
+    // bundles ストアにレコードが 1 つも増えていない
+    expect(await allRecordIds()).toEqual(idsBefore);
+  });
+
+  it('importDeviceArchive: 途中 put 失敗で users 登録簿・settings・ws すべて不変', async () => {
+    await store.initStore();
+    store.getAppState().patients[0]!.name = '太郎';
+    await store.persistActiveOrThrow();
+    const device = JSON.parse(JSON.stringify(await store.exportDeviceArchive())) as DeviceArchive;
+    device.users[0]!.name = '別端末の医師'; // 新規ユーザー作成経路に乗せる
+
+    const usersBefore = await storage.loadUsers();
+    const idsBefore = await allRecordIds();
+    // batch 内の put 順: 1=__users__, 2=settings (発行済み), 3=ws で throw
+    injectPutFailureAt(3);
+    await expect(store.importDeviceArchive(device)).rejects.toThrow('injected put failure');
+    vi.restoreAllMocks();
+
+    // 「user は作られたが ws ゼロ」の中間状態を残さない: 登録簿も settings も ws も不変
+    expect(await storage.loadUsers()).toEqual(usersBefore);
+    expect((await storage.loadUsers()).some((u) => u.name === '別端末の医師')).toBe(false);
+    expect(await allRecordIds()).toEqual(idsBefore);
   });
 });
 

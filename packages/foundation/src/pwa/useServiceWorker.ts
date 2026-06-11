@@ -2,23 +2,14 @@
 import { useEffect } from 'react';
 import { getEnv } from './env';
 
-function isLocalhost(hostname: string): boolean {
-  return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '[::1]' ||
-    hostname.endsWith('.localhost')
-  );
-}
-
-// 本番判定: data-env='prod'、または https かつ非 localhost。判定不能は登録しない側に倒す。
-function isProdContext(): boolean {
-  if (getEnv() === 'prod') return true;
-  return location.protocol === 'https:' && !isLocalhost(location.hostname);
-}
-
 /**
  * 凍結 SW ポリシー (仕様§10) の登録専用フック。本番のみ register し、dev/test では no-op。
+ *
+ * 登録条件は getEnv() === 'prod' のみ。head の env 判定スクリプトが data-env を設定する前提。
+ * 未設定は env.ts が 'test' に倒す = 登録しない側 (凍結 SW が test origin に残ると
+ * 更新手段がないため、誤登録の影響が通常 PWA より重い)。
+ * https fallback は廃止: data-env='test' の .pages.dev でも SW が登録されてしまい、
+ * docs/deployment.md の「prod のみ登録」と矛盾するため (Codex 監査 M2)。
  *
  * ledger 現行 (simple-ledger-src/src/pwa/useServiceWorker.ts) と異なり、
  * update() / skipWaiting / 「更新あり」リロード促しは実装しない:
@@ -28,7 +19,7 @@ function isProdContext(): boolean {
 export function useServiceWorker(swUrl: string = './sw.js'): void {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
-    if (!isProdContext()) return;
+    if (getEnv() !== 'prod') return;
     // 登録失敗は握る: SW はオフライン強化の付加機能で、本体動作の前提にしない。
     navigator.serviceWorker.register(swUrl).catch(() => undefined);
   }, [swUrl]);

@@ -3,14 +3,19 @@
  *
  * 使い方 (アプリ側の置換手順):
  *   1. このファイルを各アプリの public/sw.js へコピーする
- *   2. __CACHE_NAME__ をキャッシュ名文字列に置換する (例: hospital-rounds-v2-v1。
- *      キャッシュを捨てたい時に末尾の版数を上げる)
- *   3. __PRECACHE_PATHS__ を SW スコープ相対パスの JSON 配列に置換する
+ *   2. __CACHE_PREFIX__ をアプリ固有の prefix 文字列に置換する
+ *      (例: hospital-rounds-v2-。世代を上げても変わらない不変部分)
+ *   3. __CACHE_NAME__ をキャッシュ名文字列に置換する (例: hospital-rounds-v2-v1。
+ *      形式: PREFIX + 世代番号。キャッシュを捨てたい時に末尾の版数を上げる)
+ *   4. __PRECACHE_PATHS__ を SW スコープ相対パスの JSON 配列に置換する
  *      (例: ["./icons/icon-192.png"]。追加 precache が無ければ [])
  *   置換以外の編集はしない (下の不変性ブロック参照)。
  */
 /* global self, caches, URL, fetch */
 
+// CacheStorage は origin 単位。同一 origin に他アプリ/旧版が同居しても消さない(仕様§7)。
+// 削除するのは自アプリ prefix の旧世代のみ。
+const CACHE_PREFIX = '__CACHE_PREFIX__';
 const CACHE = '__CACHE_NAME__';
 
 // eslint-disable-next-line no-undef -- コピー時に JSON 配列へ置換されるプレースホルダ
@@ -53,10 +58,16 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   // 旧キャッシュ名の掃除のみ (凍結ポリシー下で新 SW が発火するのは新規インストール時だけ)。
+  // CacheStorage は origin 単位。同一 origin に他アプリ/旧版が同居しても消さない(仕様§7)。
+  // 削除するのは自アプリ prefix の旧世代のみ。
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE).map((k) => caches.delete(k)),
+        ),
+      ),
   );
 });
 

@@ -1,10 +1,14 @@
 /*
  * 移植元: packages/foundation/src/pwa/sw.template.js (凍結更新ポリシーをセマンティクス完全維持で複製)
  *
+ * キャッシュ prefix: hospital-rounds-v2- (世代を上げても変わらない不変部分)
  * キャッシュ名: hospital-rounds-v2-v1 (src/data/constants.ts の CACHE_NAME と一致。
  * v1 の cache 名 (hospital-rounds-*) とは衝突させない — 識別子の v1/v2 分離・仕様§7)
  */
 
+// CacheStorage は origin 単位。同一 origin に他アプリ/旧版が同居しても消さない(仕様§7)。
+// 削除するのは自アプリ prefix の旧世代のみ。
+const CACHE_PREFIX = 'hospital-rounds-v2-';
 const CACHE = 'hospital-rounds-v2-v1';
 
 const PRECACHE_PATHS = ['./icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
@@ -46,10 +50,16 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   // 旧キャッシュ名の掃除のみ (凍結ポリシー下で新 SW が発火するのは新規インストール時だけ)。
+  // CacheStorage は origin 単位。同一 origin に他アプリ/旧版が同居しても消さない(仕様§7)。
+  // 削除するのは自アプリ prefix の旧世代のみ。
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE).map((k) => caches.delete(k)),
+        ),
+      ),
   );
 });
 

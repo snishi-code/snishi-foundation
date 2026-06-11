@@ -72,6 +72,8 @@ no-exfil-guard の dist スキャン([EXT-2])は sendBeacon/WebSocket/EventSourc
 | `9decaab` | 2026-06-11 19:08 | foundation: 全12モジュール実装 |
 | `cfddbb6` | 2026-06-11 19:41 | apps: 両アプリのドメイン/データ/QR 層を移植 |
 | `b3587ca` | 2026-06-11 20:28 | apps UI: ledger-v2 全画面移植 + HR-v2 UI コア(React 化) |
+| `42f755e` | 2026-06-11 | HR-v2 完成(settings/pickers/QR ST・FMT・FS/ライフサイクル/PWA)+ docs 一式 |
+| `b02900f` | 2026-06-11 | 検証§19 完了: e2e 22件 + REPORT 最終化 |
 
 ### テスト数(2026-06-11 最終検証・実測)
 
@@ -84,6 +86,8 @@ no-exfil-guard の dist スキャン([EXT-2])は sendBeacon/WebSocket/EventSourc
 | `hospital-rounds-v2`(e2e, chromium) | 3 spec | 12 | all pass |
 | `simple-ledger-v2`(e2e, chromium) | 3 spec | 10 | all pass |
 | **e2e 合計** | **6 spec** | **22** | **all pass** |
+
+(外部監査対応後の最終値は unit **639** / e2e **26**。下記「外部監査(Codex)対応」参照)
 
 ### §19 検証スイート実行結果(2026-06-11)
 
@@ -217,6 +221,24 @@ npm run test:e2e -w apps/hospital-rounds-v2   # 12 tests
 - **マルチページ QR の実カメラ読取**: ページ分割・組み立て・ページ表記は unit + e2e で検証済みだが、実カメラでの連続読取(照明・ピント条件)は実機がなく未確認。
 - **本番 origin での hostname 判定**: `data-env` 判定は本番 origin 未確定のため実 URL では未検証(localhost が 'test' に倒れることは e2e で間接確認)。
 - **SL-v2 の revision インクリメント運用**: `meta.revision` の +1 タイミングの仕様化は未了(`docs/questions.md` Q9、データ設計の未決事項)。
+
+---
+
+## 外部監査(Codex)対応(2026-06-11)
+
+Codex による独立監査(検証コマンドの再現を含む)を受領。Findings 5 件への対応:
+
+| # | 指摘 | 判定 | 対応 |
+|---|---|---|---|
+| M1 | SW activate が同一 origin の**他アプリ/旧版の cache まで削除**(v1 逐語移植が原因)。仕様§6/§7 と矛盾 | **修正** | `sw.template.js` + 両 `public/sw.js` の削除条件を `startsWith(CACHE_PREFIX) && k !== CACHE` に変更(未知 cache は残す)。静的回帰テスト + e2e「外部 cache を seed → activate 後も生存」を両アプリに追加 |
+| M2 | `data-env='test'`(.pages.dev 等)でも https なら SW が登録され、deployment.md と矛盾 | **修正** | `useServiceWorker` の https fallback を撤去し `getEnv() === 'prod'` のみで登録(env.ts の「未設定→test に倒す」fail-safe を活かす)。unit 3 件 + e2e「test 判定では registration が存在しない」を追加 |
+| M3 | HR のアーカイブ取込が部分適用を残し得る(settings 先行保存 → ws 逐次作成。v1 と同一挙動の忠実移植) | **修正(原子化)** | 全レコード(settings / `__users__` 登録簿 / ws)を事前構築し、bundles ストアへの**単一 `runWrite` トランザクション**で一括書込に変更。全体成功 or 全体失敗(中間状態ゼロ)。settings 先行のドメイン順序(formatValues 参照先確定)は同一 tx 内の書込順として維持。put 失敗注入テストで「何も書かれない」ことを実証(`importArchive` / `importDeviceArchive` 両方) |
+| M4 | SL の振替 UI が domain の許す負債振替(資金⇄負債)を選べない | **不採用(仕様どおり)** | v2 の `entryModes.ts` は v1 現行 dev と完全同形。「振替の負債導線削除・ローンは支出側へ集約」は 2026-06-09 のタスクで本人が選択し **Codex 監査を経て dev へマージ済みの確定 UX**(返済は CF 予定→実績化が正規導線)。仕様§16「現行の思想を参照」「UI は専門語を内部に保ちつつ表示はわかりやすく」に合致しており、v2 で UI を広げることは v1 からの無断仕様変更になるため変更しない |
+| L1 | `docs/supply-chain-security.md` の jsqr ライセンス表記が MIT(実体は Apache-2.0) | **修正** | Apache-2.0 に訂正(REPORT・package 実体と一致) |
+
+対応後の再検証(全 pass): typecheck / lint / **unit 639**(foundation 189 / HR-v2 136 / SL-v2 314)/ build / no-exfil / **e2e 26**(HR 14 / SL 12)。
+
+不変条件 A〜H への影響: C(v1/v2 分離)と E(SW 凍結)の Partial 要因は M1/M2 修正で解消。D(fail-closed)の Partial 要因は M3 原子化で解消。
 
 ---
 

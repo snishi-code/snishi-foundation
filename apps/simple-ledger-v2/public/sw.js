@@ -1,9 +1,16 @@
 /*
  * 移植元: packages/foundation/src/pwa/sw.template.js (凍結更新ポリシーをセマンティクス完全維持で移植)
  *
+ * キャッシュ prefix: simple-ledger-v2- (CACHE_NAME_PREFIX と一致。src/data/constants.ts)
  * キャッシュ名: simple-ledger-v2-1 (CACHE_NAME_PREFIX + '1')
  * CACHE_NAME_PREFIX = 'simple-ledger-v2-' (src/data/constants.ts)
+ * ※ sw.js は単体配信ファイルなので import はしない。CACHE_PREFIX の値は constants.ts の
+ *    CACHE_NAME_PREFIX と一致させること。
  */
+// CacheStorage は origin 単位。同一 origin に他アプリ/旧版が同居しても消さない(仕様§7)。
+// 削除するのは自アプリ prefix の旧世代のみ。
+// CACHE_PREFIX は src/data/constants.ts の CACHE_NAME_PREFIX と値を合わせている。
+const CACHE_PREFIX = 'simple-ledger-v2-';
 const CACHE = 'simple-ledger-v2-1';
 
 const PRECACHE_PATHS = [];
@@ -45,10 +52,16 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   // 旧キャッシュ名の掃除のみ (凍結ポリシー下で新 SW が発火するのは新規インストール時だけ)。
+  // CacheStorage は origin 単位。同一 origin に他アプリ/旧版が同居しても消さない(仕様§7)。
+  // 削除するのは自アプリ prefix の旧世代のみ。
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE).map((k) => caches.delete(k)),
+        ),
+      ),
   );
 });
 

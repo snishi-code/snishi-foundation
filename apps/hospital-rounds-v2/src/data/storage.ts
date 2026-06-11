@@ -68,6 +68,29 @@ export interface WorkspaceListingAll extends WorkspaceListing {
   userId: string;
 }
 
+/** buildWorkspaceRecord が組み立てる病棟レコード (bundles ストアの 1 レコード分)。 */
+export interface HrWorkspaceRecord {
+  id: string;
+  userId: string;
+  label: string;
+  title: string;
+  updatedAt: number;
+  bundle: Bundle;
+}
+
+/**
+ * writeImportBatch の入力。アーカイブ取込が書く全レコードを事前構築して渡す
+ * (Codex 監査 M3: 取込に部分適用を残さない = 全体成功 or 全体失敗)。
+ */
+export interface HrImportBatch {
+  /** `__users__` 登録簿の置換 (省略時は触らない)。 */
+  usersRecord?: User[];
+  /** ユーザー別設定の置換 (`__settings__::<userId>` へ put)。 */
+  settingsRecords?: Array<{ userId: string; settings: unknown }>;
+  /** buildWorkspaceRecord で事前構築した病棟レコード群。 */
+  workspaceRecords: HrWorkspaceRecord[];
+}
+
 export interface HrStorageOptions {
   /** "default" ワークスペースの表示名 (UI 層が i18n 文字列を注入してよい)。既定 "メイン" */
   defaultWorkspaceLabel?: string;
@@ -111,6 +134,14 @@ export interface HrStorage {
   deleteBundle(id: string): Promise<void>;
   newWorkspaceId(): string;
   createWorkspaceRecord(label: string, bundle: Bundle, userIdOverride?: string): Promise<string>;
+  /** 病棟レコードの純構築 (ID 採番 + 組み立てのみ。書込はしない)。writeImportBatch 用 */
+  buildWorkspaceRecord(label: string, bundle: Bundle, userIdOverride?: string): HrWorkspaceRecord;
+  /**
+   * アーカイブ取込用の原子バッチ書込 (Codex 監査 M3)。全レコードを bundles ストアへ
+   * 単一トランザクションで put し、1 件でも失敗すれば全 rollback で throw する
+   * (= 書込系統の fail-closed に揃える。部分適用を残さない)。
+   */
+  writeImportBatch(batch: HrImportBatch): Promise<void>;
 
   // ── ユーザー登録簿 (__users__) ──
   loadUsers(): Promise<User[]>;
@@ -216,6 +247,25 @@ export function createHrStorage(opts: HrStorageOptions = {}): HrStorage {
     const ts = now().toString(36);
     const rand = Math.random().toString(36).slice(2, 8);
     return `usr_${ts}_${rand}`;
+  }
+
+  // 病棟レコードの純構築 (ID 採番 + 組み立てのみ。書込はしない)。
+  // createWorkspaceRecord と writeImportBatch (アーカイブ取込の原子バッチ) が共用する。
+  // 採番・label/title/userId の決め方は旧 createWorkspaceRecord (saveBundle 新規経路) と同一。
+  function buildWorkspaceRecord(
+    label: string,
+    bundle: Bundle,
+    userIdOverride?: string,
+  ): HrWorkspaceRecord {
+    const meta = (bundle?.sections?.['meta'] ?? null) as { title?: unknown } | null;
+    return {
+      id: newWorkspaceId(),
+      userId: userIdOverride || getCurrentUserId(),
+      label: String(label || ''),
+      title: typeof meta?.title === 'string' ? meta.title : '',
+      updatedAt: now(),
+      bundle,
+    };
   }
 
   const api: HrStorage = {
@@ -375,9 +425,36 @@ export function createHrStorage(opts: HrStorageOptions = {}): HrStorage {
 
     // 新規ワークスペースを作成して IDB に保存。switch はしない (caller の責務)。
     async createWorkspaceRecord(label, bundle, userIdOverride) {
-      const id = newWorkspaceId();
-      await api.saveBundle(bundle, id, String(label || ''), userIdOverride);
-      return id;
+      const rec = buildWorkspaceRecord(label, bundle, userIdOverride);
+      // 失敗は throw (fail-closed)。
+      await putRecord(rec);
+      return rec.id;
+    },
+
+    buildWorkspaceRecord,
+
+    // アーカイブ取込の原子バッチ書込 (Codex 監査 M3)。
+    // 仕様§8「import は fail-closed」: 部分適用 (settings だけ置換済み・一部 ws だけ
+    // 作成済み) を残さないため、取込が書く全レコードを単一 readwrite トランザクションで
+    // put する。途中失敗は runWrite が明示 abort (非同期のリクエスト失敗もトランザクション
+    // abort) → 全 rollback して throw。settings を ws より先に書く順序 (formatValues の
+    // 参照先確定という v1 来のドメイン順序) は同一 tx 内の書き込み順として維持する。
+    async writeImportBatch(batch) {
+      const ts = now();
+      await db.runWrite([STORE_BUNDLES], (tx) => {
+        const store = tx.objectStore(STORE_BUNDLES);
+        if (batch.usersRecord) {
+          store.put({ id: USERS_ID, users: batch.usersRecord, updatedAt: ts } satisfies StoredRecord);
+        }
+        for (const s of batch.settingsRecords ?? []) {
+          store.put({
+            id: settingsIdFor(s.userId),
+            settings: s.settings,
+            updatedAt: ts,
+          } satisfies StoredRecord);
+        }
+        for (const w of batch.workspaceRecords) store.put(w);
+      });
     },
 
     // ── ユーザー登録簿 ──
