@@ -32,6 +32,10 @@ import { ensureRoomOrder, formatPatientLabel, isPatientTransferred, statusClass,
 import { QrCard } from './QrCard';
 import { StatusPicker } from './StatusPicker';
 import { MovePatientDialog } from './MovePatientDialog';
+import { PatientEditPopup } from './PatientEditPopup';
+import { TagFilterPicker } from './TagPicker';
+import { patientMatchesSharedFilter } from './tags';
+import { isPatientDeleted, isTrashActive } from './patientLifecycle';
 import { OverlayBinding } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -62,6 +66,11 @@ export function HomeView({
   const [statusPickerNo, setStatusPickerNo] = useState<number | null>(null);
   const [moveIndex, setMoveIndex] = useState<number | null>(null);
   const [pendingImport, setPendingImport] = useState<{ decoded: DecodedPatientList; close: () => void } | null>(null);
+  // 患者追加直後に開く編集ポップアップの対象 (部屋番号入力でソートされても取り違えない
+  // よう index でなく pid で捕捉する — v1 add-patient.js の patient取り違え防止)
+  const [addPid, setAddPid] = useState<string | null>(null);
+
+  const trash = isTrashActive(store);
 
   const flow = useQrFlow<DecodedPatientList>({
     kind: 'HM',
@@ -191,6 +200,7 @@ export function HomeView({
           {t('home.start.btn')}
         </Button>
         <span className="muted countChip">{t('home.countChip', { n: greens, total: appState.patients.length })}</span>
+        <TagFilterPicker store={store} onChange={() => runtime.bump()} />
         <span className="viewToolbarSpacer" />
         <IconButton
           label={t('home.qr.show')}
@@ -214,8 +224,13 @@ export function HomeView({
 
       {flow.isActive ? <QrCard flow={flow} kindLabel={t('qr.kind.home')} onClose={flow.close} /> : null}
 
+      {trash ? <div className="banner trashBanner">{t('trash.banner')}</div> : null}
+
       <div className="grid" data-ui={UI.home.grid}>
         {appState.patients.map((p, idx) => {
+          // Trash では削除患者だけを出す (空スロットの inflate 分は隠す)
+          if (trash && !isPatientDeleted(p)) return null;
+          if (!patientMatchesSharedFilter(p)) return null;
           const no = idx + 1;
           const label = formatPatientLabel(p, String(no));
           const cls = statusClass(p.status);
@@ -254,6 +269,29 @@ export function HomeView({
             </div>
           );
         })}
+        {trash && !appState.patients.some(isPatientDeleted) ? (
+          <p className="muted trashEmpty">{t('trash.empty')}</p>
+        ) : null}
+        {!trash ? (
+          <button
+            type="button"
+            className="addPatientBtn"
+            title={t('patient.add.title')}
+            aria-label={t('patient.add.aria')}
+            data-ui={UI.home.addPatient}
+            onClick={() => {
+              // 末尾に空患者を追加 → 保存予約 → すぐ患者編集を開く (pid で捕捉)
+              const p = makeDefaultPatient();
+              store.getAppState().patients.push(p);
+              store.scheduleSave();
+              setAddPid(p.pid);
+              runtime.bump();
+            }}
+          >
+            <Icon name="add" size={20} />
+            <span className="addPatientBtnLabel">{t('patient.add')}</span>
+          </button>
+        ) : null}
       </div>
 
       {clearConfirm ? (
@@ -282,6 +320,15 @@ export function HomeView({
       {moveIndex != null ? (
         <MovePatientDialog patientIndex={moveIndex} runtime={runtime} onClose={() => setMoveIndex(null)} />
       ) : null}
+
+      {addPid != null
+        ? (() => {
+            // 部屋番号入力で並びが変わるため、描画ごとに pid → 現 index を解決する
+            const no = appState.patients.findIndex((p) => p.pid === addPid) + 1;
+            if (no <= 0) return null;
+            return <PatientEditPopup patientNo={no} runtime={runtime} onClose={() => setAddPid(null)} />;
+          })()
+        : null}
 
       {pendingImport ? (
         <OverlayBinding onClose={() => setPendingImport(null)} />

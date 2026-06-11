@@ -22,6 +22,7 @@ import { EVENT } from './data/eventlog';
 import { REASON, countActivePatients } from './data/snapshots';
 import { createAppRuntime, useRevision, type AppRuntime } from './ui/appRuntime';
 import { OverlayBinding, closeTopOverlay, exitTopEditing, isEditingActive } from './ui/registries';
+import { purgeExpiredPatientLifecycleRecords } from './ui/patientLifecycle';
 import { HomeView } from './ui/HomeView';
 import { DetailView } from './ui/DetailView';
 import { MemoSharedView } from './ui/MemoSharedView';
@@ -66,6 +67,11 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
       store.requestStoragePersistence();
       void runtime.eventlog.init();
       runtime.eventlog.log(EVENT.APP_OPEN);
+      // 患者ライフサイクルの30日自動 purge (Trash / (移) stub の PII を無期限に残さない)。
+      // best-effort: 失敗しても起動は止めない (次回起動で再試行)。
+      void purgeExpiredPatientLifecycleRecords(store).then((res) => {
+        if (alive && res.activeChanged) runtime.bump();
+      });
     });
 
     const onBeforeUnload = () => {
@@ -220,7 +226,12 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
       <main className="app-main">
         {view === 'home' ? <HomeView runtime={runtime} onOpenPatient={openPatient} /> : null}
         {view === 'detail' ? (
-          <DetailView runtime={runtime} selectedNo={selectedNo} onSelectNo={setSelectedNo} />
+          <DetailView
+            runtime={runtime}
+            selectedNo={selectedNo}
+            onSelectNo={setSelectedNo}
+            onNavigateHome={() => goto('home')}
+          />
         ) : null}
         {view === 'memo' ? <MemoSharedView kind="memo" runtime={runtime} onOpenPatient={openPatient} /> : null}
         {view === 'shared' ? <MemoSharedView kind="shared" runtime={runtime} onOpenPatient={openPatient} /> : null}

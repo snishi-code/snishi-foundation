@@ -668,3 +668,492 @@
   max-height: 40vh;
   overflow: auto;
 }
+
+/* ============================
+ * settings / pickers / tags / lifecycle (後続実装分)
+ * ============================ */
+
+/* --- タグ選択 / フィルタ --- */
+.tagSelection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.tagChip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 6px 12px;
+  font-size: 13px;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.tagChip.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.tagChipMark {
+  margin-right: 4px;
+}
+
+.tagAddBtn {
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.tagAddInput {
+  max-width: 140px;
+  min-height: 32px;
+}
+
+.tagFilterBtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.tagFilterBtn.active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tagFilterCount {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tagFilterSheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 260px;
+  padding: var(--space-2);
+}
+
+.tagFilterModeRow {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.tagFilterModeBtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tagFilterModeBtn.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+/* --- ピッカー (ユーザー / 病棟) --- */
+.pickerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+.pickerRow.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.pickerRowMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 8px 6px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.pickerRowMain:disabled {
+  cursor: default;
+}
+
+.pickerRowLabel {
+  font-weight: 600;
+}
+
+.pickerRowMeta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pickerRenameInput,
+.pickerAddInput {
+  flex: 1;
+  min-height: 44px;
+}
+
+.pickerAddBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* --- 設定画面 --- */
+.settingsSection {
+  margin-bottom: var(--space-3);
+}
+
+.settingsHint {
+  font-size: 12px;
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.settingsRowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.settingsListEmpty {
+  font-size: 13px;
+  padding: var(--space-1) 0;
+}
+
+.clearTargets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.clearTargetBtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.clearTargetBtn.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  font-weight: 600;
+}
+
+.tagSettingList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.tagSettingChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 2px 6px 2px 10px;
+}
+
+.tagSettingChipLabel {
+  border: 0;
+  background: none;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.tagSettingDel {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+}
+
+.tagSettingInput {
+  max-width: 140px;
+  min-height: 32px;
+}
+
+.settingsFormatPanel {
+  margin-bottom: var(--space-2);
+}
+
+.settingsFormatPanelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.settingsFormatPanelName {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.formatListRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.formatListRow.activeRow {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.formatListName {
+  flex: 1;
+  font-size: 14px;
+}
+
+.restoreMeta {
+  display: block;
+  font-size: 11px;
+}
+
+.formatListActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.formatGroupDefaultBadge {
+  font-size: 11px;
+}
+
+/* --- フォーマット編集モーダル --- */
+.formatEditOptionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.formatEditJoiner {
+  max-width: 120px;
+}
+
+.formatEditTitleToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.formatEditItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.formatEditItemRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.formatEditItemMove {
+  display: inline-flex;
+}
+
+.formatEditItemMove .iconBtn {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.iconRotateUp {
+  transform: rotate(-90deg);
+}
+
+.iconRotateDown {
+  transform: rotate(90deg);
+}
+
+.formatEditItemLabel {
+  flex: 1;
+  min-width: 60px;
+}
+
+.formatEditItemKind {
+  max-width: 76px;
+}
+
+.formatEditItemAux {
+  display: inline-flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.formatEditItemUnit {
+  max-width: 80px;
+}
+
+.formatEditItemFracMode {
+  max-width: 76px;
+}
+
+.formatEditItemNormal {
+  flex: 1;
+  min-width: 60px;
+}
+
+/* --- セット編集モーダル --- */
+.formatGroupDefaultToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin: var(--space-2) 0;
+  flex-wrap: wrap;
+}
+
+.formatGroupDefaultHint {
+  font-size: 11px;
+}
+
+.formatGroupEditSection {
+  margin-bottom: var(--space-2);
+}
+
+.formatGroupEditOpt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 4px 0;
+}
+
+.formatGroupEditOptMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.formatGroupModeSeg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.formatGroupModeBtn {
+  border: 0;
+  background: var(--surface);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.formatGroupModeBtn.active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* --- QR セキュリティ --- */
+.qrSecurityGrid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 4px 12px;
+  align-items: center;
+}
+
+.qrSecurityHead {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.qrSecurityKind {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.qrSecurityCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  min-height: 32px;
+}
+
+/* --- 患者ライフサイクル / Trash --- */
+.lifecycleBtnRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lifecycleNote {
+  font-size: 12px;
+}
+
+.trashBanner {
+  margin: var(--space-2) 0;
+}
+
+.trashEmpty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-3);
+}
+
+/* --- 患者追加ボタン (ホーム末尾) --- */
+.addPatientBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-height: 56px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.addPatientBtnLabel {
+  font-size: 13px;
+}

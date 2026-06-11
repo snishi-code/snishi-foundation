@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { useToast } from '@snishi/foundation/ui/toast';
 import type { AppRuntime } from './appRuntime';
 import { listOtherWorkspaces, movePatients, moveToNewWorkspace } from './movePatient';
+import { isTrashWorkspaceId } from './patientLifecycle';
 import type { WorkspaceListing } from '../data/storage';
 import { formatPatientLabel, isPatientTransferred } from './patientDisplay';
 import { t } from '../i18n/strings';
@@ -45,7 +46,8 @@ export function MovePatientDialog({
     let alive = true;
     void listOtherWorkspaces(store).then(
       (ws) => {
-        if (alive) setList(ws);
+        // Trash (削除済み病棟) は転棟先候補にしない (退避は削除 API のみが行う)
+        if (alive) setList(ws.filter((r) => !isTrashWorkspaceId(r.id)));
       },
       () => {
         if (alive) setList([]);

@@ -30,7 +30,7 @@ import { PanelCard, type InlineSession, type PanelCardCallbacks } from './PanelC
 import { FormatSheet } from './FormatSheet';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
-import { MovePatientDialog } from './MovePatientDialog';
+import { PatientLifecyclePanel } from './PatientLifecyclePanel';
 import { applyFormatTags, formatTagsToAdd, writeFormatValue } from './formatLogic';
 import { registerEditingSession } from './registries';
 import { t } from '../i18n/strings';
@@ -48,11 +48,14 @@ export function DetailView({
   runtime,
   selectedNo,
   onSelectNo,
+  onNavigateHome,
 }: {
   runtime: AppRuntime;
   /** 1-based 患者番号 */
   selectedNo: number;
   onSelectNo: (no: number) => void;
+  /** 削除/復元の成功後にホームへ戻す (v1 afterLifecycleDone) */
+  onNavigateHome?: () => void;
 }) {
   const toast = useToast();
   useRevision(runtime);
@@ -64,7 +67,6 @@ export function DetailView({
   const [sheetFormat, setSheetFormat] = useState<Format | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
-  const [moveOpen, setMoveOpen] = useState(false);
 
   // inline 編集セッション (v1 _inlineEdit)。実体は ref (1 文字ごとに再描画しない)。
   // 描画用ミラー inline は state (開始/終了時のみ setState)。同一オブジェクト参照。
@@ -318,12 +320,14 @@ export function DetailView({
         <PanelCard key={panel} panel={panel} patient={patient} settings={settings} inline={inlineForRender} cb={cb} />
       ))}
 
-      <div className="lifecycleActions">
-        <div className="section-label">{t('patient.lifecycle.actions.title')}</div>
-        <button type="button" className="btn" data-ui={UI.patient.move} onClick={() => setMoveOpen(true)}>
-          {t('patient.move')}
-        </button>
-      </div>
+      <PatientLifecyclePanel
+        runtime={runtime}
+        patient={patient}
+        patientIndex={selectedNo - 1}
+        onDone={() => {
+          if (onNavigateHome) onNavigateHome();
+        }}
+      />
 
       {sheetFormat ? (
         <FormatSheet
@@ -335,7 +339,6 @@ export function DetailView({
       ) : null}
       {qrOpen ? <DetailQrDialog patient={patient} settings={settings} onClose={() => setQrOpen(false)} /> : null}
       {metaOpen ? <PatientEditPopup patientNo={selectedNo} runtime={runtime} onClose={() => setMetaOpen(false)} /> : null}
-      {moveOpen ? <MovePatientDialog patientIndex={selectedNo - 1} runtime={runtime} onClose={() => setMoveOpen(false)} /> : null}
     </section>
   );
 }

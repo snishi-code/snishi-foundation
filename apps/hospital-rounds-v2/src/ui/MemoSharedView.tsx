@@ -22,12 +22,64 @@ import { composeExpandedForPanel } from '../domain/payload';
 import { EVENT } from '../data/eventlog';
 import { encodePatientList, decodePatientList, type DecodedPatientList } from '../qr/patientList';
 import { APP_KEY_BYTES } from '../qr/appKey';
+import { Popup } from '@snishi/foundation/ui/Popup';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, sanitizeRoomInput, statusClass, STATUS_MARK } from './patientDisplay';
 import { QrCard } from './QrCard';
-import { OverlayBinding, useRegisterEditing } from './registries';
+import { TagFilterPicker, TagSelection } from './TagPicker';
+import { patientMatchesSharedFilter } from './tags';
+import { OverlayBinding, useRegisterEditing, useRegisterOverlay } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
+import type { HrStore } from '../data/store';
+
+/** 編集モード行のタグピッカー (v1 makePatientTagPicker)。pid で患者を捕捉する。 */
+function RowTagPicker({ store, pid, onChanged }: { store: HrStore; pid: string; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <IconButton label={t('patientSheet.tags')} onClick={() => setOpen(true)}>
+        <Icon name="tag" size={16} />
+      </IconButton>
+      {open ? <RowTagSheet store={store} pid={pid} onChanged={onChanged} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+function RowTagSheet({
+  store,
+  pid,
+  onChanged,
+  onClose,
+}: {
+  store: HrStore;
+  pid: string;
+  onChanged: () => void;
+  onClose: () => void;
+}) {
+  useRegisterOverlay(onClose);
+  const live = store.getAppState().patients.find((x) => x.pid === pid);
+  if (!live) return null;
+  return (
+    <Popup ariaLabel={t('tag.sheet.title')} onClose={onClose}>
+      <div className="tagFilterSheet">
+        <TagSelection
+          store={store}
+          selected={Array.isArray(live.tags) ? live.tags : []}
+          onChange={(next) => {
+            // 患者は pid で handler 内に引き直す (並び替えで別患者へ書かない / 描画値を直接触らない)
+            const target = store.getAppState().patients.find((x) => x.pid === pid);
+            if (!target) return;
+            target.tags = next;
+            target.updatedAt = Date.now();
+            store.scheduleSave();
+            onChanged();
+          }}
+        />
+      </div>
+    </Popup>
+  );
+}
 
 export type MemoSharedKind = 'memo' | 'shared';
 
@@ -139,6 +191,7 @@ export function MemoSharedView({
             {t('recv.open')}
           </Button>
         ) : null}
+        <TagFilterPicker store={store} onChange={() => runtime.bump()} />
         <span className="viewToolbarSpacer" />
         <IconButton
           label={t(conf.qrShowKey)}
@@ -189,6 +242,7 @@ export function MemoSharedView({
 
       <div className="memoList">
         {appState.patients.map((p, idx) => {
+          if (!patientMatchesSharedFilter(p)) return null;
           const no = idx + 1;
           const label = formatPatientLabel(p, String(no));
           const composed = composeExpandedForPanel(conf.panel, p.formatValues, settings);
@@ -236,6 +290,7 @@ export function MemoSharedView({
                       store.scheduleSave();
                     }}
                   />
+                  <RowTagPicker store={store} pid={p.pid} onChanged={() => runtime.bump()} />
                 </div>
               ) : (
                 <button

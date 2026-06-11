@@ -1,13 +1,13 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/patient-sheet.js (簡約版)
 //
-// 患者ヘッダ (詳細) から開く患者情報編集: ステータス / 部屋番号 / 氏名。
+// 患者ヘッダ (詳細) から開く患者情報編集: ステータス / 部屋番号 / 氏名 / タグ。
 // v1 患者シートと同じく「キャンセル/保存ボタンなし・即時反映 (write-through)」。
-// タグ編集はタグピッカー (後続) 実装後にここへ足す。
 
 import { Modal } from '@snishi/foundation/ui/Modal';
 import type { PatientStatus } from '../domain/types';
 import type { AppRuntime } from './appRuntime';
 import { getStatusOptions, sanitizeRoomInput, statusClass } from './patientDisplay';
+import { TagSelection } from './TagPicker';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
 import { useRegisterOverlay } from './registries';
@@ -97,6 +97,14 @@ export function PatientEditPopup({
             const next = (e.target as HTMLInputElement).value;
             commit(() => (p.name = next));
           }}
+        />
+      </div>
+      <div className="field">
+        <span className="field__label">{t('patientSheet.tags')}</span>
+        <TagSelection
+          store={store}
+          selected={Array.isArray(p.tags) ? p.tags : []}
+          onChange={(next) => commit(() => (p.tags = next))}
         />
       </div>
     </Modal>
