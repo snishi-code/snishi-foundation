@@ -1,0 +1,670 @@
+/*
+ * hospital-rounds-v2 アプリ固有スタイル。
+ *
+ * - 土台は foundation tokens.css / foundation.css / components.css (main.tsx で import)。
+ * - --primary を医療カテゴリ色 blue (#2563eb 系) で上書き (規約: 医療=blue)。
+ * - ステータス palette は v1 src/style/base.css の固有値を変数化して移植
+ *   (D/P 型色覚対応: ペール背景 + 濃枠 + 濃文字の 3 層 + 形マーク併用)。
+ * - 色のハードコード禁止: 全て :root の変数経由で参照する。
+ */
+
+:root {
+  /* ── 医療カテゴリ色 (apex shared.css の --blue 系と同値) ── */
+  --primary: #2563eb; /* blue-600 */
+  --primary-fill: #2563eb;
+  --primary-fill-strong: #1d4ed8; /* blue-700 */
+  --primary-strong: #1d4ed8;
+  --primary-light: #eff6ff; /* blue-50 */
+  --primary-border: #bfdbfe; /* blue-200 */
+  --focus: #2563eb;
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.35);
+
+  /* ── ステータス palette (v1 base.css :root の固有値) ── */
+  --status-none-bg: #ffffff;
+  --status-none-bd: #e5e7eb;
+  --status-yellow-bg: #fef3c7;
+  --status-yellow-bd: #d97706;
+  --status-yellow-fg: #92400e;
+  --status-green-bg: #dcfce7;
+  --status-green-bd: #16a34a;
+  --status-green-fg: #166534;
+  --status-gray-bg: #9ca3af;
+  --status-gray-bd: #374151;
+  --status-gray-fg: #111827;
+  --status-blue-bg: #bfdbfe;
+  --status-blue-bd: #2563eb;
+  --status-blue-fg: #1e3a8a;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.dangerText {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.iconFlipX {
+  transform: scaleX(-1);
+}
+
+.appBoot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── ヘッダー中央 (ユーザー / 病棟) ── */
+.headerTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  justify-content: center;
+}
+
+.headerTitleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  min-height: var(--tap);
+  padding: 0 var(--space-1);
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerTitleSep {
+  color: var(--muted);
+}
+
+/* ── view 共通ツールバー ── */
+.viewToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.viewToolbarSpacer {
+  flex: 1 1 auto;
+}
+
+.countChip {
+  font-size: 13px;
+}
+
+/* ── ホーム: 患者グリッド (v1 views.css の .grid / .patientBtn) ──
+   スマホは 1 列固定 (1 人ずつ大きく確実に押せる)。広い幅でだけ 2 列。 */
+.grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  margin-top: var(--space-3);
+}
+
+@media (min-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.patientCard {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.patientBtn {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 64px;
+  border-radius: var(--radius);
+  border: 1px solid var(--status-none-bd);
+  background: var(--status-none-bg);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text);
+  touch-action: pan-y;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: center;
+  padding: var(--space-2) var(--space-3);
+}
+
+.patientBtn:active {
+  transform: translateY(1px);
+}
+
+/* ステータス色 (ペール背景 + 濃枠 + 濃文字。色だけに依存せず形マーク併用) */
+.status-yellow {
+  background: var(--status-yellow-bg);
+  border-color: var(--status-yellow-bd);
+  color: var(--status-yellow-fg);
+}
+
+.status-green {
+  background: var(--status-green-bg);
+  border-color: var(--status-green-bd);
+  color: var(--status-green-fg);
+}
+
+.status-gray {
+  background: var(--status-gray-bg);
+  border-color: var(--status-gray-bd);
+  color: var(--status-gray-fg);
+}
+
+.status-blue {
+  background: var(--status-blue-bg);
+  border-color: var(--status-blue-bd);
+  color: var(--status-blue-fg);
+}
+
+.patientBtnMark {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.patientCardStatus {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border-radius: var(--radius);
+  border: 1px solid var(--status-none-bd);
+  background: var(--status-none-bg);
+  font-size: 16px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.patientCardMoveSpacer {
+  width: var(--tap);
+  flex: 0 0 auto;
+}
+
+/* ── ステータスピッカー ── */
+.statusPickerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 220px;
+}
+
+.statusPickerInline {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.statusOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--status-none-bd);
+  background: var(--status-none-bg);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 700;
+}
+
+.statusOption.selected {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.statusOptionMark {
+  width: 1.2em;
+  text-align: center;
+}
+
+/* ── 詳細: 患者メタ / ツールバー ── */
+.detailToolbar {
+  align-items: center;
+}
+
+.detailMetaBtn {
+  min-height: var(--tap);
+  font-size: 15px;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+
+.detailMetaBtn .patientBtnMark {
+  position: static;
+  font-size: 12px;
+}
+
+.detailMetaLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailMetaTags {
+  display: inline-flex;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.detailMetaTagChip {
+  font-size: 11px;
+}
+
+.detailMetaEditIcon {
+  margin-left: auto;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.detailTransferredBanner {
+  margin-bottom: var(--space-3);
+}
+
+/* ── 詳細: パネルカード (v1 formats.css の縮約移植) ── */
+.panelCard {
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+}
+
+.panelCardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.panelLabel {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.formatStrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.formatStripBtn {
+  border: 1px solid var(--primary-border);
+  background: var(--primary-light);
+  color: var(--primary-strong);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.formatExpanded {
+  border-top: 1px solid var(--border);
+  padding: var(--space-2) 0;
+}
+
+.formatExpanded:first-child {
+  border-top: none;
+}
+
+.formatExpandedName {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+/* カード本文 grid: [ラベル] [正常] [値]。カード単位で列構成を決めて縦を揃える */
+.formatCardBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 2px;
+}
+
+.formatCardBody.hasNormal {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.formatCardBody.hasLabel {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.formatCardBody.hasLabel.hasNormal {
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+}
+
+.formatCardItem {
+  display: contents;
+}
+
+.formatCardItemLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 8px 8px 8px 0;
+  white-space: nowrap;
+}
+
+.formatNormalBtn {
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 800;
+  align-self: center;
+}
+
+.formatNormalBtn.on {
+  color: var(--success);
+  border-color: var(--success-border);
+  background: var(--success-light);
+}
+
+.formatNormalBtn:disabled {
+  opacity: 0.4;
+}
+
+.formatCardNormalSpacer {
+  min-width: 38px;
+}
+
+/* 値セル: 大きいタップ領域。空欄は破線プレースホルダ (文言は出さない) */
+.formatCardValue {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  text-align: left;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.formatCardValue.empty {
+  border-color: var(--border);
+}
+
+.formatCardValue:hover {
+  background: var(--primary-light);
+}
+
+/* inline 編集セル */
+.formatCardEditCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 4px 0;
+}
+
+.formatCardEditCellRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: 4px 0;
+}
+
+.formatCardEditCellRow .formatCardEditText {
+  flex: 1 1 auto;
+  min-height: 38px;
+}
+
+.formatCardEditValueRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.formatCardEditInput {
+  min-height: 38px;
+}
+
+/* ── フォーマット入力シート (大入力面) ── */
+.formatInputBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.formatInputRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.formatInputLabel {
+  flex: 0 0 5.5em;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  padding-top: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.formatInputLabelEmpty {
+  flex-basis: 0;
+}
+
+.formatInputValue {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.formatInputUnit {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+  padding-top: 10px;
+}
+
+.formatInputMemo {
+  flex: 1 1 30%;
+  min-width: 0;
+  min-height: 38px;
+}
+
+.formatInputFracGroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.formatInputFracSlash {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.formatInputText {
+  min-height: 38px;
+}
+
+/* ── 患者管理 (転棟) ── */
+.lifecycleActions {
+  margin: var(--space-4) 0;
+}
+
+.moveNewWsRow {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+/* ── メモ / 共有一覧 (v1 memo-shared.css の縮約移植) ── */
+.memoList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.memoRow {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.memoNoBtn {
+  position: relative;
+  align-self: flex-start;
+  min-height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--status-none-bd);
+  background: var(--status-none-bg);
+  font-weight: 800;
+  font-size: 14px;
+  padding: 4px 12px 4px 24px;
+}
+
+.memoNoBtn .patientBtnMark {
+  top: 50%;
+  transform: translateY(-50%);
+  left: 6px;
+}
+
+.memoRowEdit {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.roomInput {
+  flex: 0 0 6em;
+}
+
+.memoNameInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.memoRowBody {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.memoRowBody:hover {
+  background: var(--primary-light);
+}
+
+.memoRowBody.empty {
+  color: var(--muted);
+}
+
+/* ── 受信ボックス ── */
+.recvCard {
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.recvHint {
+  font-size: 12px;
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.recvArea {
+  width: 100%;
+}
+
+.recvActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+/* ── QR カード ── */
+.qrWrap {
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.qrCardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.qrCardHeadSpacer {
+  flex: 1 1 auto;
+}
+
+.qrPageMeta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.qrCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: var(--space-2) auto;
+  /* QR は白背景必須 (描画側でも白で塗る) */
+  background: #ffffff;
+}
+
+.qrTextRecv {
+  margin-top: var(--space-2);
+}
+
+.qrTextRecvArea {
+  width: 100%;
+}
+
+.qrTextRecvActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-1);
+}
+
+.qrRecvStatus {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.qrScanVideo {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+}
+
+.qrPreviewDetails {
+  margin-top: var(--space-2);
+}
+
+.qrTextPreview {
+  word-break: break-all;
+  white-space: pre-wrap;
+  font-size: 12px;
+  max-height: 40vh;
+  overflow: auto;
+}

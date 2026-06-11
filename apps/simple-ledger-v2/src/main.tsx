@@ -1,10 +1,30 @@
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { FOUNDATION_VERSION } from '@snishi/foundation';
+import { App } from './App';
+import { ToastProvider } from '@snishi/foundation/ui/toast';
+import { LedgerProvider } from './state/store';
+import { useServiceWorker } from '@snishi/foundation/pwa/useServiceWorker';
+import '@snishi/foundation/ui/tokens.css';
+import '@snishi/foundation/ui/foundation.css';
+import '@snishi/foundation/ui/components.css';
+import './ui/app-theme.css';
+import './ui/app.css';
 
-function App() {
-  return <main>simple-ledger-v2 scaffold (foundation {FOUNDATION_VERSION})</main>;
+function PwaRegistrar() {
+  useServiceWorker('./sw.js');
+  return null;
 }
 
-const el = document.getElementById('root');
-if (!el) throw new Error('#root not found');
-createRoot(el).render(<App />);
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('#root not found');
+
+createRoot(rootEl).render(
+  <StrictMode>
+    <ToastProvider>
+      <LedgerProvider>
+        <PwaRegistrar />
+        <App />
+      </LedgerProvider>
+    </ToastProvider>
+  </StrictMode>,
+);
