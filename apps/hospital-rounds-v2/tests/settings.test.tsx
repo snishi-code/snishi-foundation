@@ -31,7 +31,7 @@ describe('設定: フォーマット CRUD', () => {
     const addButtons = screen.getAllByRole('button', { name: 'フォーマット追加' });
     await user.click(addButtons[0] as HTMLElement);
 
-    const dialog = await screen.findByText('プロブレムリスト 欄のフォーマット 新規作成');
+    const dialog = await screen.findByText('プロブレムリスト のフォーマット 新規作成');
     expect(dialog).toBeInTheDocument();
     await user.type(screen.getByLabelText('名前'), 'テスト書式');
     await user.click(screen.getByRole('button', { name: '＋ 項目追加' }));

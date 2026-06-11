@@ -22,12 +22,12 @@ export const UI = {
   },
   patient: {
     card: 'patient.card',
-    status: 'patient.status',
     statusOption: 'patient.status.option',
     move: 'patient.move',
     editPopup: 'patient.edit.popup',
     name: 'patient.edit.name',
     room: 'patient.edit.room',
+    formatSet: 'patient.edit.formatSet',
   },
   detail: {
     prev: 'detail.prev',
@@ -113,8 +113,6 @@ export const UI = {
     qrReceiveDialog: 'settings.qr.receiveDialog',
     qrReceiveArea: 'settings.qr.receiveArea',
     qrReceiveRead: 'settings.qr.receiveRead',
-    qrEncryption: 'settings.qr.encryption',
-    qrRedistribution: 'settings.qr.redistribution',
     ioImport: 'settings.io.import',
     ioExport: 'settings.io.export',
     ioDeviceImport: 'settings.io.deviceImport',

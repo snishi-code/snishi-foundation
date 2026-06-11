@@ -57,8 +57,11 @@ export function QrShareDialog({
   }, []);
 
   return (
-    <Modal title={title} onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
-      {flow.isActive ? <QrCard flow={flow} kindLabel={kindLabel} receivable={false} onClose={onClose} /> : null}
+    // 可視タイトルは出さない (QR を見れば分かる)。aria 上の名前は sr-only title で維持。
+    <Modal title={title} titleVariant="sr-only" onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
+      {flow.isActive ? (
+        <QrCard flow={flow} kindLabel={kindLabel} receivable={false} showClose={false} onClose={onClose} />
+      ) : null}
     </Modal>
   );
 }

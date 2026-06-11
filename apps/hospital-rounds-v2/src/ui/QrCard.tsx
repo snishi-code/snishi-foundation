@@ -61,7 +61,7 @@ function ScanDialog({
   }, []);
 
   return (
-    <Modal title={t('qr.scan.head')} onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
+    <Modal title={t('qr.scan.head')} titleVariant="sr-only" onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
       <p className="muted">{t('qr.scan.hint.stream')}</p>
       {/* カメラ映像 (外部送信なし: getUserMedia はローカル処理のみ) */}
       <video ref={videoRef} className="qrScanVideo" playsInline muted />
@@ -77,6 +77,8 @@ export interface QrCardProps {
   kindLabel: string;
   /** カメラ/テキスト受信の入口を出すか (HM/MM/SH は true) */
   receivable?: boolean;
+  /** カード内に閉じる × を出すか。Modal 内 (フロート × がある) では false にする */
+  showClose?: boolean;
   onClose: () => void;
 }
 
@@ -85,7 +87,7 @@ export interface QrCardProps {
  * 受信 (receivePage) の例外 = 復号/パース失敗は fail-closed (適用前に中断) として
  * toast で可視化する。consumed=false の入力はテキスト欄を消さない (v1 準拠)。
  */
-export function QrCard({ flow, kindLabel, receivable = true, onClose }: QrCardProps) {
+export function QrCard({ flow, kindLabel, receivable = true, showClose = true, onClose }: QrCardProps) {
   const toast = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawError, setDrawError] = useState('');
@@ -167,9 +169,11 @@ export function QrCard({ flow, kindLabel, receivable = true, onClose }: QrCardPr
             <Icon name="scan" size={18} />
           </IconButton>
         ) : null}
-        <IconButton label={t('common.close')} onClick={onClose}>
-          <Icon name="close" size={18} />
-        </IconButton>
+        {showClose ? (
+          <IconButton label={t('common.close')} onClick={onClose}>
+            <Icon name="close" size={18} />
+          </IconButton>
+        ) : null}
       </div>
       <canvas ref={canvasRef} className="qrCanvas" data-ui={UI.qr.canvas} />
       {drawError ? <p className="dangerText">{drawError}</p> : null}

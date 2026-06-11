@@ -67,6 +67,7 @@ export function DetailQrDialog({
   return (
     <Modal
       title={t('detail.qr.dialogAria')}
+      titleVariant="sr-only"
       onClose={onClose}
       variant="dialog"
       dataUi={UI.detail.qrDialog}

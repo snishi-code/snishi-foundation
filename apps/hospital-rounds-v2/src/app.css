@@ -34,10 +34,63 @@
   --status-blue-bg: #bfdbfe;
   --status-blue-bd: #2563eb;
   --status-blue-fg: #1e3a8a;
+
+  /* ── ステータス swatch (濃色の単色ボックス。v1 tags.js STATUS_TAG_DEFS の固有値) ──
+     患者シートのステータス選択・設定のクリア対象スウォッチで使う。
+     ペール 3 層 (--status-*-bg/bd/fg) はカード用、こちらは「選ぶボタン」用。 */
+  --swatch-none-bg: #ffffff;
+  --swatch-none-bd: #9ca3af;
+  --swatch-none-fg: #111827;
+  --swatch-yellow-bg: #f59e0b;
+  --swatch-yellow-bd: #b45309;
+  --swatch-green-bg: #14b8a6;
+  --swatch-green-bd: #0f766e;
+  --swatch-gray-bg: #6b7280;
+  --swatch-gray-bd: #6b7280;
+  --swatch-blue-bg: #2563eb;
+  --swatch-blue-bd: #1e3a8a;
+  --swatch-on: #ffffff;
+
+  /* クリア対象 (selected = 「診察開始で消える」印。v1 の danger 系) */
+  --clear-selected-bd: #b91c1c;
+  --clear-selected-bg: #fef2f2;
 }
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── ポップアップ共通 (v1 popups.css 寄せ。このアプリ内のみのオーバーライド) ──
+   可視タイトルを出さないポップアップ (titleVariant="sr-only") はヘッダーバーを
+   出さず、× を右上にフロートさせる (v1 .popupCloseX)。タイトルが見えるモーダル
+   (判断が要るダイアログ・フォーマット入力) は foundation 既定のヘッダーのまま。 */
+dialog.sheet .sheet__header:has(.sr-only) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  border-bottom: none;
+  background: transparent;
+  padding: var(--space-1);
+  z-index: 2;
+}
+
+/* フロート × との重なりを避ける右余白 */
+.patientSheetStatusField .patientSheetFieldLabel,
+dialog.sheet .sheet__body .qrCardHead {
+  padding-right: 44px;
+}
+
+/* 電子カルテ転記用 QR は広めに (v1 .detailQrMenu: min(94vw, 520px)) */
+dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
+  max-width: min(94vw, 520px);
+}
+
+/* ボタンの存在感 (v1 は font-weight 800・大きめ)。foundation 既定 (14px/600) を
+   このアプリだけ底上げする。 */
+.btn {
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .dangerText {
@@ -96,10 +149,6 @@
   flex: 1 1 auto;
 }
 
-.countChip {
-  font-size: 13px;
-}
-
 /* ── ホーム: 患者グリッド (v1 views.css の .grid / .patientBtn) ──
    スマホは 1 列固定 (1 人ずつ大きく確実に押せる)。広い幅でだけ 2 列。 */
 .grid {
@@ -115,24 +164,18 @@
   }
 }
 
-.patientCard {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-}
-
 .patientBtn {
   position: relative;
   flex: 1 1 auto;
-  min-height: 64px;
-  border-radius: var(--radius);
+  min-height: 76px;
+  border-radius: 14px;
   border: 1px solid var(--status-none-bd);
   background: var(--status-none-bg);
   box-shadow: var(--shadow);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 800;
   color: var(--text);
   touch-action: pan-y;
@@ -174,60 +217,138 @@
 .patientBtnMark {
   position: absolute;
   top: 4px;
-  left: 8px;
-  font-size: 12px;
+  left: 7px;
+  font-size: 13px;
+  font-weight: 900;
   line-height: 1;
 }
 
-.patientCardStatus {
-  min-width: var(--tap);
-  min-height: var(--tap);
-  border-radius: var(--radius);
-  border: 1px solid var(--status-none-bd);
-  background: var(--status-none-bg);
-  font-size: 16px;
-  font-weight: 800;
-  flex: 0 0 auto;
-}
-
-.patientCardMoveSpacer {
-  width: var(--tap);
-  flex: 0 0 auto;
-}
-
-/* ── ステータスピッカー ── */
+/* ── ステータス選択 (患者シート内。色＋形マークの大きいボックスを横一列。
+      色名テキストは出さない — 色盲/老眼は色 + 形 + 大きさで識別。v1 statusPickerBox) ── */
 .statusPickerList {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 220px;
-}
-
-.statusPickerInline {
   flex-direction: row;
+  align-items: stretch;
   flex-wrap: wrap;
-}
-
-.statusOption {
-  display: flex;
-  align-items: center;
   gap: var(--space-2);
-  min-height: var(--tap);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--status-none-bd);
-  background: var(--status-none-bg);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) 0;
+}
+
+.statusPickerBox {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
   font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.statusOption.selected {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
+.statusPickerBox.status-none {
+  background: var(--swatch-none-bg);
+  border: 2px solid var(--swatch-none-bd);
+  color: var(--swatch-none-fg);
 }
 
-.statusOptionMark {
-  width: 1.2em;
-  text-align: center;
+.statusPickerBox.status-yellow {
+  background: var(--swatch-yellow-bg);
+  border: 2px solid var(--swatch-yellow-bd);
+  color: var(--swatch-on);
+}
+
+.statusPickerBox.status-green {
+  background: var(--swatch-green-bg);
+  border: 2px solid var(--swatch-green-bd);
+  color: var(--swatch-on);
+}
+
+.statusPickerBox.status-gray {
+  background: var(--swatch-gray-bg);
+  border: 2px solid var(--swatch-gray-bd);
+  color: var(--swatch-on);
+}
+
+.statusPickerBox.status-blue {
+  background: var(--swatch-blue-bg);
+  border: 2px solid var(--swatch-blue-bd);
+  color: var(--swatch-on);
+}
+
+.statusPickerBox.selected {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ── 患者シート (PatientEditPopup。v1 popups.css の patientMetaMenu 系) ── */
+.patientSheetInfoRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+.patientSheetInfoCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.patientSheetRoomCell {
+  flex: 0 0 96px;
+}
+
+.patientSheetNameCell {
+  flex: 1 1 160px;
+}
+
+.patientSheetInfoLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.patientSheetField {
+  margin: var(--space-3) 0;
+}
+
+.patientSheetFieldLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.patientSheetTagsField {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.patientSheetSetBtn {
+  width: 100%;
+}
+
+/* 最上部のステータス (患者ボタンタップ直後の最頻操作 = 指の移動距離を最小に)。
+   下に部屋番号/氏名が続くので区切り線で受ける。 */
+.patientSheetStatusField {
+  margin-top: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.patientSheetStatusField .patientSheetFieldLabel {
+  margin-bottom: var(--space-2);
+}
+
+.formatGroupPickerRow.selected {
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
 }
 
 /* ── 詳細: 患者メタ / ツールバー ── */
@@ -625,9 +746,10 @@
   display: block;
   width: 100%;
   height: auto;
-  margin: var(--space-2) auto;
-  /* QR は白背景必須 (描画側でも白で塗る) */
+  margin: var(--space-3) auto;
+  /* QR は白背景必須 (描画側でも白で塗る)。pixelated = モジュールのにじみ防止 (v1) */
   background: #ffffff;
+  image-rendering: pixelated;
 }
 
 .qrTextRecv {
@@ -687,14 +809,17 @@
   background: var(--surface);
   padding: 6px 12px;
   font-size: 13px;
-  min-height: 32px;
+  font-weight: 600;
+  min-height: 34px;
   cursor: pointer;
 }
 
+/* 選択中 = 青系ライト (v1 .tagSelChip.selected)。色だけに依存せず aria-pressed 併用 */
 .tagChip.on {
-  background: var(--primary);
+  background: var(--primary-light);
   border-color: var(--primary);
-  color: var(--on-primary);
+  color: var(--primary);
+  font-weight: 700;
 }
 
 .tagChipMark {
@@ -830,9 +955,17 @@
   gap: var(--space-1);
 }
 
-/* --- 設定画面 --- */
+/* --- 設定画面 (v1 settings.css の密度: カード見出しは濃く・大きく) --- */
 .settingsSection {
   margin-bottom: var(--space-3);
+}
+
+.settingsSection .section-label {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+  color: var(--text);
+  margin: 0 0 var(--space-2);
 }
 
 .settingsHint {
@@ -852,26 +985,88 @@
   padding: var(--space-1) 0;
 }
 
+/* ── クリア対象 (v1 .clearTargetBtn のピルチップ。選択 = 「診察開始で消える」=
+      danger 系の赤 + × マーク。ステータスは色スウォッチ + 形マークで示す) ── */
 .clearTargets {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: 10px 14px;
+  align-items: center;
 }
 
 .clearTargetBtn {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 8px 12px;
-  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.2;
   min-height: 40px;
   cursor: pointer;
 }
 
 .clearTargetBtn.selected {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
-  font-weight: 600;
+  border-color: var(--clear-selected-bd);
+  background: var(--clear-selected-bg);
+  color: var(--clear-selected-bd);
+}
+
+.clearTargetBtn .clearTargetX {
+  display: none;
+  align-items: center;
+}
+
+.clearTargetBtn.selected .clearTargetX {
+  display: inline-flex;
+}
+
+/* ステータスのスウォッチ (18px 角丸正方形 + 形マーク。v1 buildClearTargetLabelContent) */
+.clearTargetSwatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.clearTargetSwatch.status-none {
+  background: var(--swatch-none-bg);
+  border: 1px solid var(--swatch-none-bd);
+  color: var(--swatch-none-fg);
+}
+
+.clearTargetSwatch.status-yellow {
+  background: var(--swatch-yellow-bg);
+  border: 1px solid var(--swatch-yellow-bd);
+  color: var(--swatch-on);
+}
+
+.clearTargetSwatch.status-green {
+  background: var(--swatch-green-bg);
+  border: 1px solid var(--swatch-green-bd);
+  color: var(--swatch-on);
+}
+
+.clearTargetSwatch.status-gray {
+  background: var(--swatch-gray-bg);
+  border: 1px solid var(--swatch-gray-bd);
+  color: var(--swatch-on);
+}
+
+.clearTargetSwatch.status-blue {
+  background: var(--swatch-blue-bg);
+  border: 1px solid var(--swatch-blue-bd);
+  color: var(--swatch-on);
 }
 
 .tagSettingList {
@@ -937,7 +1132,11 @@
   align-items: center;
   gap: var(--space-2);
   border-bottom: 1px solid var(--border);
-  padding: 4px 0;
+  padding: 8px 0;
+}
+
+.formatListRow:last-child {
+  border-bottom: none;
 }
 
 .formatListRow.activeRow {
@@ -946,7 +1145,8 @@
 
 .formatListName {
   flex: 1;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .restoreMeta {
@@ -1091,32 +1291,6 @@
 .formatGroupModeBtn.active {
   background: var(--primary);
   color: var(--on-primary);
-}
-
-/* --- QR セキュリティ --- */
-.qrSecurityGrid {
-  display: grid;
-  grid-template-columns: auto 1fr 1fr;
-  gap: 4px 12px;
-  align-items: center;
-}
-
-.qrSecurityHead {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.qrSecurityKind {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.qrSecurityCell {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  min-height: 32px;
 }
 
 /* --- 患者ライフサイクル / Trash --- */

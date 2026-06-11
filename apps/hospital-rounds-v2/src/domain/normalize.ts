@@ -18,7 +18,6 @@ import {
   DEFAULT_APP_TITLE,
   FORMAT_ITEM_KINDS,
   FORMAT_PANELS,
-  QR_KINDS,
   STATUS,
   clone,
   type AppState,
@@ -340,19 +339,12 @@ export function normalizeSettings(raw: unknown): Settings {
     // 再構築 (= 必ず 1 つ存在の不変条件)。
     out.formatGroups = makeDefaultFormatGroups(out.formats);
   }
-  // QR セキュリティ: known kind だけ拾い、未指定はデフォルト維持
-  if (isRecord(raw.qrEncryption)) {
-    for (const k of QR_KINDS) {
-      const v = raw.qrEncryption[k];
-      if (typeof v === 'boolean') out.qrEncryption[k] = v;
-    }
-  }
-  if (isRecord(raw.qrRedistribution)) {
-    for (const k of QR_KINDS) {
-      const v = raw.qrRedistribution[k];
-      if (v === 'restricted' || v === 'free') out.qrRedistribution[k] = v;
-    }
-  }
+  // QR セキュリティ: v1 authority (qr-protocol.js) と同じくコード内固定で常時動作させる。
+  // ユーザー設定 UI には露出しない (v1 v7.1+ と同方針)。保存データに旧 UI 由来の値が
+  // 残っていても、ここで常にデフォルト (全 kind 暗号化 ON / HM・MM のみ再配布制限) に
+  // 正規化する。患者画面の電子カルテ転記用 QR はこのマトリクス外 (常に平文)。
+  out.qrEncryption = clone(DEFAULT_QR_ENCRYPTION) as Settings['qrEncryption'];
+  out.qrRedistribution = clone(DEFAULT_QR_REDISTRIBUTION) as Settings['qrRedistribution'];
   // 各パネルに既定フォーマットカードを常設する補完 (formats + formatGroups が確定した後に実行)。
   backfillPanelDefaults(out);
   // 修正1: 各グループが「含むパネル」で展開フォーマットを最低 1 つ持つよう補修する。

@@ -84,7 +84,7 @@ function ScanDialog({
     return () => session.stop();
   }, []);
   return (
-    <Modal title={t('qr.scan.head')} onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
+    <Modal title={t('qr.scan.head')} titleVariant="sr-only" onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
       <p className="muted">{t('qr.scan.hint.stream')}</p>
       {/* カメラ映像 (外部送信なし: getUserMedia はローカル処理のみ) */}
       <video ref={videoRef} className="qrScanVideo" playsInline muted />
@@ -206,6 +206,7 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
   return (
     <Modal
       title={t('qrReceive.title')}
+      titleVariant="sr-only"
       onClose={onClose}
       variant="dialog"
       dataUi={UI.settings.qrReceiveDialog}

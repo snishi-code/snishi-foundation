@@ -156,6 +156,7 @@ export function WsPicker({ runtime, onClose }: { runtime: AppRuntime; onClose: (
   return (
     <Modal
       title={t('wsPicker.title')}
+      titleVariant="sr-only"
       onClose={onClose}
       variant="dialog"
       dataUi={UI.picker.wsDialog}

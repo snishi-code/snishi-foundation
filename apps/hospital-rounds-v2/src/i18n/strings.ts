@@ -43,7 +43,6 @@ export const STRINGS_JA = {
   'home.start.confirm':
     '新しい診察を開始します。前回の記録をクリアしてよろしいですか？\n（クリアする項目は設定画面で選べます）',
   'home.qr.show': 'ホームQR表示',
-  'home.countChip': '緑: {n} / {total}',
   'home.empty': '患者がいません',
 
   // ステータス
@@ -53,7 +52,6 @@ export const STRINGS_JA = {
   'tagStatus.green': '緑',
   'tagStatus.gray': '灰',
   'tagStatus.blue': '青',
-  'patient.status.aria': '{label} のステータスを変更',
 
   // 患者ヘッダ / 編集
   'patientSheet.title': '患者',
@@ -61,6 +59,9 @@ export const STRINGS_JA = {
   'patientSheet.status': 'ステータス',
   'patientSheet.room': '部屋番号',
   'patientSheet.name': '氏名',
+  'patientSheet.formatSet': 'フォーマットセット',
+  'patientSheet.formatSet.change': 'フォーマットセットを変更',
+  'formatGroup.option.none.label': '(セットなし)',
   'detail.nav.prev': '前の患者',
   'detail.nav.next': '次の患者',
 
@@ -94,7 +95,7 @@ export const STRINGS_JA = {
   'format.sheet.patientChanged': '患者が変わったため保存しませんでした',
   'format.normal.tooltip.has': '正常文 を入力: {value}',
   'format.normal.tooltip.empty': '正常文が設定されていません',
-  'format.normal.tooltip.clear': '正常文を解除（空欄に戻す）',
+  'format.normal.tooltip.clear': '正常文を解除（未入力に戻す）',
   'format.normal.tooltip.edit': '入力済み（タップで編集）',
   'format.placeholder.memo': '備考',
   'format.launcher.aria': 'フォーマットを選ぶ',
@@ -113,7 +114,7 @@ export const STRINGS_JA = {
   // 受信ボックス
   'recv.label': '受信ボックス',
   'recv.hint':
-    '他の端末から受け取った内容がここに表示されます。必要な部分を患者の欄にコピーしてください。この内容は保存され、「消去する」を押すまで残ります。',
+    '他の端末から受け取った内容がここに表示されます。必要な部分を患者の記録にコピーしてください。この内容は保存され、「消去する」を押すまで残ります。',
   'recv.open': '受信ボックスを開く',
   'recv.clear': '消去する',
   'recv.clear.confirm': '受信ボックスの内容を消去しますか？元に戻せません。',
@@ -191,7 +192,6 @@ export const STRINGS_JA = {
   'tag.filter.mode.or': 'OR（いずれか満たす）',
   'tag.filter.clear.label': 'タグ選択をクリア',
   'tag.filter.clear.aria': '選択をすべて解除',
-  'tag.reset.confirm': 'タグ一覧を初期状態に戻します。よろしいですか？',
   'settings.title.tags': 'タグ',
   'settings.tag.placeholder': 'タグ名',
   'settings.tag.name.duplicate': '同じ名前のタグが既にあります',
@@ -203,7 +203,7 @@ export const STRINGS_JA = {
   // 設定: クリア対象
   'clear.section.title': '診察開始でクリアする項目',
   'clear.section.hint':
-    'ホームの「診察開始」を押すと、ここで選んだ項目が消えます。患者ごとの記録を残したい欄は外してください。',
+    'ホームの「診察開始」を押すと、ここで選んだ項目が消えます。患者ごとの記録を残したい項目は外してください。',
   'settings.clear.statusYellow': 'ステータス：黄（保留）',
   'settings.clear.statusGreen': 'ステータス：緑（済）',
   'settings.clear.statusGray': 'ステータス：灰（完了）',
@@ -213,9 +213,9 @@ export const STRINGS_JA = {
   'format.title': 'フォーマット',
   'format.new': '新規フォーマット',
   'format.new.aria': '新規フォーマット',
-  'format.editTitle.new': '{panel} 欄のフォーマット 新規作成',
-  'format.editTitle.edit': '{panel} 欄のフォーマット 編集',
-  'format.panelSection': '{panel} 欄',
+  'format.editTitle.new': '{panel} のフォーマット 新規作成',
+  'format.editTitle.edit': '{panel} のフォーマット 編集',
+  'format.panelSection': '{panel}',
   'format.field.name': '名前',
   'format.field.tags': '付与タグ',
   'format.field.joiner': '区切り',
@@ -265,7 +265,7 @@ export const STRINGS_JA = {
     'デフォルトセットは削除できません。先に別のセットをデフォルトにしてください。',
   'formatGroup.defaultBadge': 'デフォルト',
   'formatGroup.mode.expand': '展開',
-  'formatGroup.mode.expand.title': '本文上に入力欄を常時展開する',
+  'formatGroup.mode.expand.title': '本文上に入力カードを常時展開する',
   'formatGroup.mode.quick': 'クイック',
   'formatGroup.mode.quick.title': 'ヘッダーにチップで出す。タップで入力モーダル',
   'formatGroup.edit.isDefault': 'このセットをデフォルトにする',
@@ -298,7 +298,7 @@ export const STRINGS_JA = {
   'qrSettings.imported.alert': '設定を取り込みました。',
   'qrFormat.import.confirm': 'フォーマット「{name}」を追加します。{summary}\nよろしいですか？',
   'qrFormat.imported.alert': 'フォーマット「{name}」を追加しました',
-  'qrFormat.summary.panel': '{panel} 欄',
+  'qrFormat.summary.panel': '{panel}',
   'qrFormat.summary.items': '{n} 項目',
   'qrFormat.summary.tags': 'タグ {n} 個',
   'qrFormat.summary.droppedTags': '未登録タグ {n} 個は無視',
@@ -316,15 +316,6 @@ export const STRINGS_JA = {
   'qr.recv.save.failed':
     '保存に失敗したため取り込みを中断しました。空き容量を確認してもう一度お試しください。',
 
-  // 設定: QR セキュリティ (v1 では UI 非公開だった項目を v2 で expose)
-  'settings.qrSecurity.section': 'QR セキュリティ',
-  'settings.qrSecurity.hint':
-    'QR の暗号化と、他端末から受信したデータの再配布制限を QR の種類ごとに設定します。',
-  'settings.qrSecurity.encryption': '暗号化',
-  'settings.qrSecurity.redistribution': '再配布制限',
-  'settings.qrSecurity.redistribution.restricted': '制限',
-  'settings.qrSecurity.redistribution.free': '自由',
-
   // 設定: データの保存と復元 (アーカイブ / 端末まるごと / ログ)
   'settings.title.workspaces': '病棟管理',
   'settings.io.section': 'データの保存と復元',
@@ -334,7 +325,7 @@ export const STRINGS_JA = {
   'io.json.export.label': 'JSON 書き出し',
   'settings.device.section': '端末まるごと',
   'settings.device.hint':
-    '全ユーザーをまとめてバックアップ/復元します。研究用の端末交換・移行向け。通常の JSON 取込/書出（病棟欄）は現在のユーザー分のみです。',
+    '全ユーザーをまとめてバックアップ/復元します。研究用の端末交換・移行向け。通常の JSON 取込/書出（病棟）は現在のユーザー分のみです。',
   'io.device.import.label': '端末まるごと取込',
   'io.device.export.label': '端末まるごと書出',
   'export.saved': 'JSON を保存しました',

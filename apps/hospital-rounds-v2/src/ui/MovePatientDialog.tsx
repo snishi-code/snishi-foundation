@@ -90,7 +90,14 @@ export function MovePatientDialog({
 
   if (patient && isPatientTransferred(patient)) {
     return (
-      <Modal title={t('move.title')} onClose={onClose} variant="dialog" dataUi={UI.move.dialog} closeLabel={t('common.close')}>
+      <Modal
+        title={t('move.title')}
+        titleVariant="sr-only"
+        onClose={onClose}
+        variant="dialog"
+        dataUi={UI.move.dialog}
+        closeLabel={t('common.close')}
+      >
         <p>{t('move.already.transferred', { dest: patient.transferredTo || '?' })}</p>
       </Modal>
     );
@@ -98,7 +105,14 @@ export function MovePatientDialog({
 
   return (
     <>
-      <Modal title={t('move.title')} onClose={onClose} variant="dialog" dataUi={UI.move.dialog} closeLabel={t('common.close')}>
+      <Modal
+        title={t('move.title')}
+        titleVariant="sr-only"
+        onClose={onClose}
+        variant="dialog"
+        dataUi={UI.move.dialog}
+        closeLabel={t('common.close')}
+      >
         <p className="muted">{t('move.hint')}</p>
         <div className="menu-list">
           {list === null ? null : list.length === 0 ? <p className="muted">{t('move.list.empty')}</p> : null}

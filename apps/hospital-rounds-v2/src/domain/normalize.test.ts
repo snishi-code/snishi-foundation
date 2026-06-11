@@ -137,15 +137,19 @@ describe('normalizeSettings', () => {
     ).toBe(true);
   });
 
-  it('qrEncryption / qrRedistribution: known kind だけ拾い、未知値はデフォルト維持', () => {
+  it('qrEncryption / qrRedistribution: 保存値に関わらずコード内固定値へ正規化する (v1 authority)', () => {
+    // 旧 UI 由来の値が保存に残っていても、常にデフォルト (全 kind 暗号化 ON /
+    // HM・MM のみ再配布制限) で動作する。ユーザー設定としては露出しない。
     const s = normalizeSettings({
       qrEncryption: { HM: false, XX: true, ST: 'yes' },
-      qrRedistribution: { HM: 'free', SH: 'invalid' },
+      qrRedistribution: { HM: 'free', SH: 'restricted' },
     });
-    expect(s.qrEncryption.HM).toBe(false);
-    expect(s.qrEncryption.ST).toBe(true); // 型不一致 → 既定
-    expect(s.qrRedistribution.HM).toBe('free');
-    expect(s.qrRedistribution.SH).toBe('free'); // 不正値 → 既定
+    expect(s.qrEncryption.HM).toBe(true);
+    expect(s.qrEncryption.ST).toBe(true);
+    expect(s.qrRedistribution.HM).toBe('restricted');
+    expect(s.qrRedistribution.MM).toBe('restricted');
+    expect(s.qrRedistribution.SH).toBe('free');
+    expect(s.qrRedistribution.ST).toBe('free');
   });
 });
 

@@ -143,6 +143,7 @@ export function UserPicker({ runtime, onClose }: { runtime: AppRuntime; onClose:
   return (
     <Modal
       title={t('header.user.tooltip')}
+      titleVariant="sr-only"
       onClose={onClose}
       variant="dialog"
       dataUi={UI.picker.userDialog}

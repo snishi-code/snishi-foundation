@@ -18,9 +18,8 @@ import {
   clone,
   DEFAULT_PATIENT_COUNT,
   type AppState,
-  type PatientStatus,
 } from '../domain/types';
-import { isPatientEmpty, makeDefaultPatient } from '../domain/normalize';
+import { makeDefaultPatient } from '../domain/normalize';
 import { clearPanelClinicalInput } from '../domain/formatValues';
 import { SECTION, projectBundle } from '../data/bundle';
 import { REASON, countActivePatients } from '../data/snapshots';
@@ -28,10 +27,8 @@ import { EVENT } from '../data/eventlog';
 import { encodePatientList, decodePatientList, type DecodedPatientList } from '../qr/patientList';
 import { APP_KEY_BYTES } from '../qr/appKey';
 import { useRevision, type AppRuntime } from './appRuntime';
-import { ensureRoomOrder, formatPatientLabel, isPatientTransferred, statusClass, STATUS_MARK } from './patientDisplay';
+import { ensureRoomOrder, formatPatientLabel, statusClass, STATUS_MARK } from './patientDisplay';
 import { QrCard } from './QrCard';
-import { StatusPicker } from './StatusPicker';
-import { MovePatientDialog } from './MovePatientDialog';
 import { PatientEditPopup } from './PatientEditPopup';
 import { TagFilterPicker } from './TagPicker';
 import { patientMatchesSharedFilter } from './tags';
@@ -63,8 +60,6 @@ export function HomeView({
   ensureRoomOrder(appState.patients);
 
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [statusPickerNo, setStatusPickerNo] = useState<number | null>(null);
-  const [moveIndex, setMoveIndex] = useState<number | null>(null);
   const [pendingImport, setPendingImport] = useState<{ decoded: DecodedPatientList; close: () => void } | null>(null);
   // 患者追加直後に開く編集ポップアップの対象 (部屋番号入力でソートされても取り違えない
   // よう index でなく pid で捕捉する — v1 add-patient.js の patient取り違え防止)
@@ -183,23 +178,12 @@ export function HomeView({
     runtime.bump();
   }
 
-  function setStatus(no: number, status: PatientStatus): void {
-    const p = store.getAppState().patients[no - 1];
-    if (!p) return;
-    p.status = status;
-    store.markUpdated(no); // notify → 再描画
-    store.scheduleSave();
-  }
-
-  const greens = appState.patients.filter((p) => p.status === STATUS.GREEN).length;
-
   return (
     <section aria-label={t('header.home')}>
       <div className="viewToolbar">
         <Button onClick={() => setClearConfirm(true)} title={t('home.start.tooltip')} dataUi={UI.home.start}>
           {t('home.start.btn')}
         </Button>
-        <span className="muted countChip">{t('home.countChip', { n: greens, total: appState.patients.length })}</span>
         <TagFilterPicker store={store} onChange={() => runtime.bump()} />
         <span className="viewToolbarSpacer" />
         <IconButton
@@ -235,38 +219,21 @@ export function HomeView({
           const label = formatPatientLabel(p, String(no));
           const cls = statusClass(p.status);
           return (
-            <div key={p.pid} className="patientCard">
-              <button
-                type="button"
-                className={`patientBtn ${cls}`}
-                aria-label={label}
-                data-ui={UI.patient.card}
-                onClick={() => onOpenPatient(no)}
-              >
-                {p.status && p.status !== STATUS.NONE ? (
-                  <span className="patientBtnMark" aria-hidden="true">
-                    {STATUS_MARK[p.status]}
-                  </span>
-                ) : null}
-                {label}
-              </button>
-              <button
-                type="button"
-                className={`patientCardStatus ${cls}`}
-                aria-label={t('patient.status.aria', { label })}
-                data-ui={UI.patient.status}
-                onClick={() => setStatusPickerNo(no)}
-              >
-                <span aria-hidden="true">{STATUS_MARK[p.status] || STATUS_MARK.none}</span>
-              </button>
-              {!isPatientEmpty(p) && !isPatientTransferred(p) ? (
-                <IconButton label={t('patient.move')} dataUi={UI.patient.move} onClick={() => setMoveIndex(idx)}>
-                  <Icon name="transfer" size={16} />
-                </IconButton>
-              ) : (
-                <span className="patientCardMoveSpacer" aria-hidden="true" />
-              )}
-            </div>
+            <button
+              key={p.pid}
+              type="button"
+              className={`patientBtn ${cls}`}
+              aria-label={label}
+              data-ui={UI.patient.card}
+              onClick={() => onOpenPatient(no)}
+            >
+              {p.status && p.status !== STATUS.NONE ? (
+                <span className="patientBtnMark" aria-hidden="true">
+                  {STATUS_MARK[p.status]}
+                </span>
+              ) : null}
+              {label}
+            </button>
           );
         })}
         {trash && !appState.patients.some(isPatientDeleted) ? (
@@ -307,18 +274,6 @@ export function HomeView({
           onCancel={() => setClearConfirm(false)}
           onConfirm={() => void runClear()}
         />
-      ) : null}
-
-      {statusPickerNo != null ? (
-        <StatusPicker
-          current={appState.patients[statusPickerNo - 1]?.status ?? STATUS.NONE}
-          onPick={(status) => setStatus(statusPickerNo, status)}
-          onClose={() => setStatusPickerNo(null)}
-        />
-      ) : null}
-
-      {moveIndex != null ? (
-        <MovePatientDialog patientIndex={moveIndex} runtime={runtime} onClose={() => setMoveIndex(null)} />
       ) : null}
 
       {addPid != null

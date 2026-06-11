@@ -2,13 +2,16 @@
 //          + features/import-export.js (JSON/端末まるごと/ログ入出力)
 //          + features/qr-settings.js (ST 送信カード) + qr-receive.js (統一受信入口)
 //
-// 設定画面の構成 (v1 と同じ並び):
-//   クリア対象 / タグ管理 / フォーマット CRUD (パネル別) / セット CRUD /
-//   QR (ST 送信カード + QR から追加 + QR セキュリティ) / データの保存と復元
-//   (JSON・端末まるごと・研究ログ) / 巻き戻し (スナップショット) / ユーザー管理 /
-//   操作ガイド (準備中プレースホルダ)
+// 設定画面の構成 (v1 settings-view.js と同じ並び):
+//   QR (ST 送信カード + QR から追加) / フォーマット CRUD (パネル別カード) / セット CRUD /
+//   クリア対象 / タグ管理 / ユーザー管理 / 病棟 (JSON 取込・書出) / 巻き戻し /
+//   研究ログ / 端末まるごと / 操作ガイド (準備中プレースホルダ)
+//
+// QR セキュリティ (暗号化 / 再配布制限) は v1 v7.1+ と同じくユーザー UI に出さない。
+// 設定モデルは normalizeSettings がコード内固定値へ正規化して常時動作する。
 
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@snishi/foundation/ui/Button';
 import { IconButton } from '@snishi/foundation/ui/IconButton';
 import { Icon } from '@snishi/foundation/ui/Icon';
@@ -18,13 +21,11 @@ import { useQrFlow } from '@snishi/foundation/qr/useQrFlow';
 import type { RestorePoint } from '@snishi/foundation/snapshot/snapshots';
 import {
   FORMAT_PANELS,
-  QR_KINDS,
-  clone,
-  DEFAULT_TAGS,
+  STATUS,
   type Format,
   type FormatGroup,
   type FormatPanel,
-  type QrKind,
+  type PatientStatus,
 } from '../../domain/types';
 import { normalizePatientArray } from '../../domain/normalize';
 import { formatRemovalBreaksAnyGroupExpand } from '../../domain/formatValues';
@@ -34,6 +35,7 @@ import { isArchive, isDeviceArchive } from '../../data/store';
 import { REASON, countActivePatients } from '../../data/snapshots';
 import { EVENT } from '../../data/eventlog';
 import { useRevision, type AppRuntime } from '../appRuntime';
+import { statusClass, STATUS_MARK } from '../patientDisplay';
 import { QrCard } from '../QrCard';
 import { AddTagWidget } from '../TagPicker';
 import { deleteTagAt, renameTagAt } from '../tags';
@@ -85,11 +87,35 @@ function envPrefix(): string {
 
 const CLEAR_KEY_ORDER = [...FORMAT_PANELS, 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue'] as const;
 
+const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.freeze({
+  statusYellow: STATUS.YELLOW,
+  statusGreen: STATUS.GREEN,
+  statusGray: STATUS.GRAY,
+  statusBlue: STATUS.BLUE,
+});
+
 function clearItemTitle(key: string): string {
-  if (key === 'statusYellow' || key === 'statusGreen' || key === 'statusGray' || key === 'statusBlue') {
+  if (key in CLEAR_STATUS_BY_KEY) {
     return t(`settings.clear.${key}` as StringKey);
   }
   return t(`panel.${key}` as StringKey);
+}
+
+/** チップの中身 (v1 buildClearTargetLabelContent):
+ *  problem/shared = アイコン、S/O/A/P = 短いテキスト、ステータス = 色スウォッチ + 形マーク。
+ *  文言は aria-label / title で読める (色だけに依存しない)。 */
+function ClearTargetLabel({ key_ }: { key_: string }) {
+  const status = CLEAR_STATUS_BY_KEY[key_];
+  if (status) {
+    return (
+      <span className={`clearTargetSwatch ${statusClass(status)}`} aria-hidden="true">
+        {STATUS_MARK[status]}
+      </span>
+    );
+  }
+  if (key_ === 'problem') return <Icon name="memo" size={16} />;
+  if (key_ === 'shared') return <Icon name="share" size={16} />;
+  return <span>{t(`panel.${key_}` as StringKey)}</span>;
 }
 
 function ClearTargetsSection({ runtime }: { runtime: AppRuntime }) {
@@ -108,6 +134,8 @@ function ClearTargetsSection({ runtime }: { runtime: AppRuntime }) {
               type="button"
               className={`clearTargetBtn${on ? ' selected' : ''}`}
               aria-pressed={on}
+              aria-label={clearItemTitle(key)}
+              title={clearItemTitle(key)}
               data-ui={UI.settings.clearTarget}
               onClick={() => {
                 // 描画値は直接触らず handler 内で live settings を引き直す
@@ -117,7 +145,10 @@ function ClearTargetsSection({ runtime }: { runtime: AppRuntime }) {
                 runtime.bump();
               }}
             >
-              {clearItemTitle(key)}
+              <ClearTargetLabel key_={key} />
+              <span className="clearTargetX" aria-hidden="true">
+                <Icon name="close" size={12} />
+              </span>
             </button>
           );
         })}
@@ -127,7 +158,7 @@ function ClearTargetsSection({ runtime }: { runtime: AppRuntime }) {
 }
 
 // ============================
-// タグ管理 (追加 / 改名 / 削除 / 初期化)
+// タグ管理 (追加 / 改名 / 削除。初期化ボタンは置かない — v1 同様)
 // ============================
 
 function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
@@ -137,7 +168,6 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
   const [renamingIdx, setRenamingIdx] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
-  const [resetConfirm, setResetConfirm] = useState(false);
 
   const tags = Array.isArray(settings.tags) ? settings.tags : [];
 
@@ -209,9 +239,6 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
         ))}
         <AddTagWidget store={store} onAdded={() => runtime.bump()} />
       </div>
-      <div className="settingsRowActions">
-        <Button onClick={() => setResetConfirm(true)}>{t('common.reset')}</Button>
-      </div>
 
       {deleteIdx != null ? <OverlayBinding onClose={() => setDeleteIdx(null)} /> : null}
       {deleteIdx != null ? (
@@ -230,29 +257,12 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
           }}
         />
       ) : null}
-
-      {resetConfirm ? <OverlayBinding onClose={() => setResetConfirm(false)} /> : null}
-      {resetConfirm ? (
-        <ConfirmDialog
-          title={t('settings.title.tags')}
-          body={t('tag.reset.confirm')}
-          confirmLabel={t('common.save')}
-          cancelLabel={t('common.cancel')}
-          onCancel={() => setResetConfirm(false)}
-          onConfirm={() => {
-            setResetConfirm(false);
-            store.getSettings().tags = clone(DEFAULT_TAGS);
-            void store.saveSettings();
-            runtime.bump();
-          }}
-        />
-      ) : null}
     </div>
   );
 }
 
 // ============================
-// フォーマット CRUD (パネル別一覧)
+// フォーマット CRUD (v1 と同じくパネルごとに 1 カード)
 // ============================
 
 function FormatsSection({ runtime }: { runtime: AppRuntime }) {
@@ -264,16 +274,13 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
   const all = Array.isArray(settings.formats) ? settings.formats : [];
 
   return (
-    <div className="card card--pad settingsSection">
-      <div className="section-label">{t('format.title')}</div>
+    <>
       {FORMAT_PANELS.map((panel) => {
         const list = all.filter((f) => f.panel === panel);
         return (
-          <div key={panel} className="settingsFormatPanel" data-ui={UI.settings.formatList}>
+          <div key={panel} className="card card--pad settingsSection settingsFormatPanel" data-ui={UI.settings.formatList}>
             <div className="settingsFormatPanelHead">
-              <span className="settingsFormatPanelName">
-                {t('format.panelSection', { panel: t(`panel.${panel}`) })}
-              </span>
+              <span className="section-label">{t('format.panelSection', { panel: t(`panel.${panel}`) })}</span>
               <IconButton
                 label={t('settings.addFormat.aria')}
                 dataUi={UI.settings.formatAdd}
@@ -345,7 +352,7 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -423,7 +430,8 @@ function GroupsSection({ runtime }: { runtime: AppRuntime }) {
 }
 
 // ============================
-// QR (ST 送信カード + 統一受信 + セキュリティ設定)
+// QR (ST 送信カード + 統一受信)。暗号化・再配布制限の設定 UI は出さない
+// (v1 v7.1+ 同方針。コード内固定 = normalizeSettings が担保)。
 // ============================
 
 function QrSection({ runtime }: { runtime: AppRuntime }) {
@@ -480,65 +488,19 @@ function QrSection({ runtime }: { runtime: AppRuntime }) {
         <QrCard flow={flow} kindLabel={t('qr.kind.settings')} receivable={false} onClose={flow.close} />
       ) : null}
 
-      <div className="section-label">{t('settings.qrSecurity.section')}</div>
-      <p className="muted settingsHint">{t('settings.qrSecurity.hint')}</p>
-      <div className="qrSecurityGrid">
-        <span className="qrSecurityHead" aria-hidden="true" />
-        <span className="qrSecurityHead">{t('settings.qrSecurity.encryption')}</span>
-        <span className="qrSecurityHead">{t('settings.qrSecurity.redistribution')}</span>
-        {QR_KINDS.map((kind: QrKind) => (
-          <QrSecurityRowFragment key={kind} kind={kind} runtime={runtime} />
-        ))}
-      </div>
-
       {receiveOpen ? <QrReceiveDialog runtime={runtime} onClose={() => setReceiveOpen(false)} /> : null}
     </div>
   );
 }
 
-function QrSecurityRowFragment({ kind, runtime }: { kind: QrKind; runtime: AppRuntime }) {
-  const { store } = runtime;
-  const settings = store.getSettings();
-  const enc = !!settings.qrEncryption?.[kind];
-  const redis = settings.qrRedistribution?.[kind] === 'restricted';
-  return (
-    <>
-      <span className="qrSecurityKind mono">{kind}</span>
-      <label className="qrSecurityCell">
-        <input
-          type="checkbox"
-          checked={enc}
-          data-ui={UI.settings.qrEncryption}
-          onChange={(e) => {
-            store.getSettings().qrEncryption[kind] = e.target.checked;
-            void store.saveSettings();
-            runtime.bump();
-          }}
-        />
-        {t('settings.qrSecurity.encryption')}
-      </label>
-      <label className="qrSecurityCell">
-        <input
-          type="checkbox"
-          checked={redis}
-          data-ui={UI.settings.qrRedistribution}
-          onChange={(e) => {
-            store.getSettings().qrRedistribution[kind] = e.target.checked ? 'restricted' : 'free';
-            void store.saveSettings();
-            runtime.bump();
-          }}
-        />
-        {t('settings.qrSecurity.redistribution.restricted')}
-      </label>
-    </>
-  );
-}
-
 // ============================
-// データの保存と復元 (JSON / 端末まるごと / 研究ログ)
+// データの保存と復元 (JSON / 研究ログ / 端末まるごと)
+// v1 の並び (病棟 → 巻き戻し → 研究ログ → 端末まるごと) を保つため、JSON カードの
+// 直後に挿し込む節 (= 巻き戻し) を between で受ける。取込ルーティング (archive/device
+// 自動判別) と確認ダイアログは 1 箇所に集約したままにする。
 // ============================
 
-function DataSection({ runtime }: { runtime: AppRuntime }) {
+function DataSection({ runtime, between }: { runtime: AppRuntime; between?: ReactNode }) {
   const toast = useToast();
   const { store } = runtime;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -632,38 +594,46 @@ function DataSection({ runtime }: { runtime: AppRuntime }) {
   }
 
   return (
-    <div className="card card--pad settingsSection">
-      <div className="section-label">{t('settings.io.section')}</div>
-      <p className="muted settingsHint">{t('settings.workspace.hint')}</p>
-      <div className="settingsRowActions">
-        <Button dataUi={UI.settings.ioImport} onClick={() => fileRef.current?.click()}>
-          {t('io.json.import.label')}
-        </Button>
-        <Button dataUi={UI.settings.ioExport} onClick={() => void exportArchive()}>
-          {t('io.json.export.label')}
-        </Button>
+    <>
+      <div className="card card--pad settingsSection">
+        <div className="section-label">{t('settings.io.section')}</div>
+        <p className="muted settingsHint">{t('settings.workspace.hint')}</p>
+        <div className="settingsRowActions">
+          <Button dataUi={UI.settings.ioImport} onClick={() => fileRef.current?.click()}>
+            {t('io.json.import.label')}
+          </Button>
+          <Button dataUi={UI.settings.ioExport} onClick={() => void exportArchive()}>
+            {t('io.json.export.label')}
+          </Button>
+        </div>
       </div>
 
-      <div className="section-label">{t('settings.device.section')}</div>
-      <p className="muted settingsHint">{t('settings.device.hint')}</p>
-      <div className="settingsRowActions">
-        <Button dataUi={UI.settings.ioDeviceImport} onClick={() => fileRef.current?.click()}>
-          {t('io.device.import.label')}
-        </Button>
-        <Button dataUi={UI.settings.ioDeviceExport} onClick={() => void exportDevice()}>
-          {t('io.device.export.label')}
-        </Button>
+      {between}
+
+      <div className="card card--pad settingsSection">
+        <div className="section-label">{t('settings.log.section')}</div>
+        <p className="muted settingsHint">{t('settings.log.hint')}</p>
+        <div className="settingsRowActions">
+          <Button dataUi={UI.settings.logExport} onClick={() => void exportLog()}>
+            {t('io.log.export.label')}
+          </Button>
+          <Button dataUi={UI.settings.logClear} onClick={() => setLogClearConfirm(true)}>
+            {t('io.log.clear.label')}
+          </Button>
+        </div>
       </div>
 
-      <div className="section-label">{t('settings.log.section')}</div>
-      <p className="muted settingsHint">{t('settings.log.hint')}</p>
-      <div className="settingsRowActions">
-        <Button dataUi={UI.settings.logExport} onClick={() => void exportLog()}>
-          {t('io.log.export.label')}
-        </Button>
-        <Button dataUi={UI.settings.logClear} onClick={() => setLogClearConfirm(true)}>
-          {t('io.log.clear.label')}
-        </Button>
+      <div className="card card--pad settingsSection">
+        <div className="section-label">{t('settings.device.section')}</div>
+        <p className="muted settingsHint">{t('settings.device.hint')}</p>
+        <div className="settingsRowActions">
+          <Button dataUi={UI.settings.ioDeviceImport} onClick={() => fileRef.current?.click()}>
+            {t('io.device.import.label')}
+          </Button>
+          <Button dataUi={UI.settings.ioDeviceExport} onClick={() => void exportDevice()}>
+            {t('io.device.export.label')}
+          </Button>
+        </div>
       </div>
 
       <input
@@ -716,7 +686,7 @@ function DataSection({ runtime }: { runtime: AppRuntime }) {
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -992,17 +962,18 @@ function UserSection({ runtime }: { runtime: AppRuntime }) {
 
 export function SettingsView({ runtime }: { runtime: AppRuntime }) {
   useRevision(runtime);
+  // 並びは v1 settings-view.js 準拠: QR → フォーマット (パネル別) → セット → クリア対象 →
+  // タグ → ユーザー → 病棟 (JSON) → 巻き戻し → 研究ログ → 端末まるごと → 操作ガイド。
+  // 画面タイトルの見出しは出さない (v1 同様、内容を見れば分かる)。
   return (
     <section aria-label={t('header.settings')} data-ui={UI.settings.view}>
-      <h2 className="screen-title">{t('header.settings')}</h2>
-      <ClearTargetsSection runtime={runtime} />
-      <TagManagerSection runtime={runtime} />
+      <QrSection runtime={runtime} />
       <FormatsSection runtime={runtime} />
       <GroupsSection runtime={runtime} />
-      <QrSection runtime={runtime} />
-      <DataSection runtime={runtime} />
-      <RestoreSection runtime={runtime} />
+      <ClearTargetsSection runtime={runtime} />
+      <TagManagerSection runtime={runtime} />
       <UserSection runtime={runtime} />
+      <DataSection runtime={runtime} between={<RestoreSection runtime={runtime} />} />
       <div className="card card--pad settingsSection">
         <div className="section-label">{t('settings.guide.section')}</div>
         {/* v1 の操作ガイド (docs-bundle) は配信前に人間判断 → 移植保留 */}
