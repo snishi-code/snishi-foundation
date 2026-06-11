@@ -166,7 +166,8 @@ npm run lint
 ## Not Verified(このチェックリストで検証できない項目)
 
 - 実機(iOS Safari / Android Chrome)でのカメラスキャン動作
-- CompressionStream の動作確認(実機ブラウザ)
-- PWA インストール後の凍結 SW 動作確認(実機)
-- E2E テスト(Playwright — 現時点で未実施)
-- 視覚確認(HR-v2 の操作 UI、レイアウト崩れ)
+- CompressionStream の動作確認(実機ブラウザ。chromium e2e の SW/QR 経路では動作確認済み)
+- PWA インストール後の凍結 SW 動作確認(実機。chromium e2e で SW 登録・非 claim・オフライン起動は確認済み)
+- マルチページ QR の実カメラ読取(e2e はページ表記・組み立てロジックまで)
+
+なお Playwright E2E(chromium)と 3 サイズ(390/820/1280)の visual check は `apps/*/e2e/` で実施済み(`npm run test:e2e -w apps/hospital-rounds-v2` / `-w apps/simple-ledger-v2`)。

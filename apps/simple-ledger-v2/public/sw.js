@@ -4,8 +4,6 @@
  * キャッシュ名: simple-ledger-v2-1 (CACHE_NAME_PREFIX + '1')
  * CACHE_NAME_PREFIX = 'simple-ledger-v2-' (src/data/constants.ts)
  */
-/* global self, caches, URL, fetch */
-
 const CACHE = 'simple-ledger-v2-1';
 
 const PRECACHE_PATHS = [];

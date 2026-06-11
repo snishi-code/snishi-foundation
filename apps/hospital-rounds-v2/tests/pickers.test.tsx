@@ -67,7 +67,9 @@ describe('ユーザーピッカー', () => {
       expect(runtime.store.storage.getCurrentUserId()).not.toBe(before);
     });
     expect(runtime.store.getCurrentUserName()).toBe('田中');
-    // ヘッダーのユーザー名ボタンに反映される
-    expect(await screen.findByRole('button', { name: 'ユーザーを切替' })).toHaveTextContent('田中');
+    // ヘッダーのユーザー名ボタンに反映される (再描画は revision bump 経由の async — waitFor で待つ)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'ユーザーを切替' })).toHaveTextContent('田中');
+    });
   });
 });

@@ -51,6 +51,20 @@ document.documentElement.dataset.env = isTest ? 'test' : 'prod';
 
 ---
 
+## PWA リソースの整備状況(2026-06-11 検証時点)
+
+両アプリとも PWA リソースは作成済みで、追加作業なしで配備できる:
+
+| リソース | hospital-rounds-v2 | simple-ledger-v2 |
+|---|---|---|
+| `public/manifest.json` | あり(name/start_url/scope/display/icons) | あり |
+| `public/icons/` | icon-192 / icon-512 / apple-touch-icon | icon-192 / icon-512 / icon.svg |
+| `public/sw.js`(凍結 SW) | あり | あり |
+
+installability(manifest 内容・192/512 アイコン・standalone)は Playwright e2e(`apps/*/e2e/pwa.spec.ts`)で検証済み。ただしアイコン画像は v1 とバイト同一のため、視覚差別化は未解決(`docs/questions.md` Q4)。
+
+---
+
 ## v1 併存確認チェック(同一 origin に v1 を残す場合)
 
 v2 を v1 と同一 origin に配備する場合、以下を確認する。

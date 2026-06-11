@@ -4,7 +4,6 @@
  * キャッシュ名: hospital-rounds-v2-v1 (src/data/constants.ts の CACHE_NAME と一致。
  * v1 の cache 名 (hospital-rounds-*) とは衝突させない — 識別子の v1/v2 分離・仕様§7)
  */
-/* global self, caches, URL, fetch */
 
 const CACHE = 'hospital-rounds-v2-v1';
 

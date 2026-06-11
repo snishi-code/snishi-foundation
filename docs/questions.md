@@ -32,7 +32,7 @@
 
 ### Q4. アイコンの v2 視覚差別化
 
-- **内容**: HR-v2 はアイコンリソースを持たず、SL-v2 のアイコンは v1 と視覚的に同一の可能性がある。同一端末に v1 と v2 を両方インストールした場合に見分けがつかない。
+- **内容**: 両アプリとも manifest / icons(192・512、HR-v2 は apple-touch-icon も)は作成済みで installability 要件は満たす(e2e で検証済み)。ただし icon ファイルは v1 と**バイト同一**(md5 照合: HR-v2 icon-192 = v1 `hospital-rounds/public/icons/icon-192.png`、SL-v2 icon-192 = v1 `simple-ledger-src` の icon-192)。同一端末に v1 と v2 を両方インストールした場合に見分けがつかない。
 - **担当**: 人間判断(デザイン)
 - **カテゴリ**: §18 — UX
 
@@ -53,7 +53,7 @@
 
 ### Q7. E2E テストの拡充
 
-- **内容**: Playwright は devDependency に含まれているが、E2E テストは未作成。実機でのスキャン・PWA インストール確認は手動のみ。
+- **内容**: Playwright e2e は整備済み(chromium・両アプリ計 22 テスト: コアフロー / dirty guard / import 拒否 / 凍結 SW・オフライン / 3 サイズ visual check)。残課題は WebKit/Firefox プロジェクトの追加と、実機でのカメラスキャン・PWA インストール確認(これらは手動のみ)。
 - **カテゴリ**: §18 — テスト
 
 ### Q8. Navigation API への移行

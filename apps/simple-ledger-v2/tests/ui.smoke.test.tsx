@@ -4,7 +4,7 @@
  * クラッシュせずにレンダリングされること、主要な data-ui 属性が存在することを確認する。
  */
 import { describe, it, expect, afterEach, beforeAll } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import { Dashboard } from '../src/ui/screens/Dashboard';
 import { Journal } from '../src/ui/screens/Journal';
 import { Settings } from '../src/ui/screens/Settings';
