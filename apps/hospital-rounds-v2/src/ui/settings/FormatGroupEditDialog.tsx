@@ -1,10 +1,10 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/format-groups.js の
 //          設定画面グループ CRUD UI 部 (openEditModal / renderFormatsCheckList / saveEdit)
 //
-// セット (formatGroup) 編集: name / isDefault / パネル別フォーマットチェックリスト
-// (含める + 展開/クイック 2 択)。v1 の draft 直接 mutate でなく useState の immutable 更新。
+// セット (formatGroup) 編集: パネル別フォーマットチェックリスト (含める + 展開/クイック 2 択)。
+// v1 の draft 直接 mutate でなく useState の immutable 更新。
+// 複数セット運用 UI は撤去済み。常にデフォルトセット 1 つを編集する。
 // 不変条件:
-//   - isDefault はちょうど 1 つ (保存時に他を解除 / 0 件なら先頭昇格)
 //   - 含むパネルごとに展開フォーマット最低 1 つ (isLastExpandInPanel でブロック +
 //     保存時 repairGroupExpandInvariant で防御的補修)
 
@@ -13,7 +13,6 @@ import { Modal } from '@snishi/foundation/ui/Modal';
 import { Button } from '@snishi/foundation/ui/Button';
 import { useToast } from '@snishi/foundation/ui/toast';
 import { FORMAT_PANELS, type FormatGroup, type FormatPanel } from '../../domain/types';
-import { newGroupId } from '../../domain/normalize';
 import { isLastExpandInPanel, repairGroupExpandInvariant } from '../../domain/formatValues';
 import type { AppRuntime } from '../appRuntime';
 import { useRegisterOverlay } from '../registries';
@@ -27,35 +26,23 @@ export function FormatGroupEditDialog({
   onClose,
 }: {
   runtime: AppRuntime;
-  /** null = 新規作成 */
-  group: FormatGroup | null;
+  /** デフォルトグループ (必須) */
+  group: FormatGroup;
   onSaved?: (saved: FormatGroup) => void;
   onClose: () => void;
 }) {
   useRegisterOverlay(onClose);
   const toast = useToast();
   const { store } = runtime;
-  const isNew = !group;
 
-  const [target, setTarget] = useState<FormatGroup>(() =>
-    group
-      ? {
-          id: group.id,
-          name: String(group.name || ''),
-          isDefault: !!group.isDefault,
-          formatIds: Array.isArray(group.formatIds) ? group.formatIds.slice() : [],
-          defaultFormatIds: Array.isArray(group.defaultFormatIds) ? group.defaultFormatIds.slice() : [],
-          expandFormatIds: Array.isArray(group.expandFormatIds) ? group.expandFormatIds.slice() : [],
-        }
-      : {
-          id: newGroupId(),
-          name: '',
-          isDefault: false,
-          formatIds: [],
-          defaultFormatIds: [],
-          expandFormatIds: [],
-        },
-  );
+  const [target, setTarget] = useState<FormatGroup>(() => ({
+    id: group.id,
+    name: group.name,
+    isDefault: !!group.isDefault,
+    formatIds: Array.isArray(group.formatIds) ? group.formatIds.slice() : [],
+    defaultFormatIds: Array.isArray(group.defaultFormatIds) ? group.defaultFormatIds.slice() : [],
+    expandFormatIds: Array.isArray(group.expandFormatIds) ? group.expandFormatIds.slice() : [],
+  }));
   const allFormats = store.getSettings().formats || [];
 
   function toggleInclude(formatId: string, panel: FormatPanel, next: boolean): void {
@@ -99,42 +86,23 @@ export function FormatGroupEditDialog({
 
   function save(): void {
     const settings = store.getSettings();
-    const name = target.name.trim();
-    if (!name) {
-      toast.show(t('formatGroup.name.required'), 'error');
-      return;
-    }
     const all = Array.isArray(settings.formatGroups) ? settings.formatGroups : [];
-    if (all.some((g) => g.id !== target.id && g.name === name)) {
-      toast.show(t('formatGroup.name.duplicate'), 'error');
-      return;
-    }
 
     // 確定オブジェクト: 部分集合へ正規化 + 不変条件の防御的補修
+    // 名前・isDefault は変更しない (対象は常にデフォルトグループ)
     const final: FormatGroup = {
       ...target,
-      name,
+      name: group.name,
+      isDefault: group.isDefault,
       defaultFormatIds: (target.defaultFormatIds || []).filter((id) => target.formatIds.includes(id)),
       expandFormatIds: (target.expandFormatIds || []).filter((id) => target.formatIds.includes(id)),
     };
     repairGroupExpandInvariant(final, settings.formats);
 
-    if (isNew) {
-      if (!Array.isArray(settings.formatGroups)) settings.formatGroups = [];
-      settings.formatGroups.push(final);
-    } else {
-      const idx = all.findIndex((g) => g.id === final.id);
-      if (idx >= 0) settings.formatGroups[idx] = final;
-      else settings.formatGroups.push(final);
-    }
-    // 「ちょうど 1 つ default」を担保: final が default なら他を全て解除。
-    // 解除操作で default が 0 件になった場合は先頭を昇格。
-    if (final.isDefault) {
-      for (const g of settings.formatGroups) if (g.id !== final.id) g.isDefault = false;
-    } else if (!settings.formatGroups.some((g) => g.isDefault) && settings.formatGroups.length) {
-      const first = settings.formatGroups[0];
-      if (first) first.isDefault = true;
-    }
+    const idx = all.findIndex((g) => g.id === final.id);
+    if (idx >= 0) settings.formatGroups[idx] = final;
+    else settings.formatGroups.push(final);
+
     void store.saveSettings();
     runtime.bump();
     if (onSaved) onSaved(final);
@@ -143,7 +111,7 @@ export function FormatGroupEditDialog({
 
   return (
     <Modal
-      title={t(isNew ? 'formatGroup.edit.title.new' : 'formatGroup.edit.title.edit')}
+      title={t('formatGroup.edit.title.edit')}
       onClose={onClose}
       variant="dialog"
       dataUi={UI.settings.groupEditDialog}
@@ -159,41 +127,6 @@ export function FormatGroupEditDialog({
         </>
       }
     >
-      <div className="field">
-        <label className="field__label" htmlFor="hrGroupEditName">
-          {t('common.name')}
-        </label>
-        <input
-          id="hrGroupEditName"
-          className="input"
-          type="text"
-          autoComplete="off"
-          placeholder={t('formatGroup.edit.namePlaceholder')}
-          value={target.name}
-          data-ui={UI.settings.groupEditName}
-          onChange={(e) => {
-            const name = e.target.value;
-            setTarget((prev) => ({ ...prev, name }));
-          }}
-        />
-      </div>
-
-      <label className="formatGroupDefaultToggle">
-        <input
-          type="checkbox"
-          checked={target.isDefault}
-          // 現在のデフォルトは直接「外す」ことはできない (別グループを default に
-          // すると自動的に外れる)。誤って唯一の default を消さないよう disabled。
-          disabled={!isNew && !!group?.isDefault}
-          onChange={(e) => {
-            const isDefault = e.target.checked;
-            setTarget((prev) => ({ ...prev, isDefault }));
-          }}
-        />
-        {t('formatGroup.edit.isDefault')}
-        <span className="muted formatGroupDefaultHint">{t('formatGroup.edit.isDefault.hint')}</span>
-      </label>
-
       <div className="field">
         <span className="field__label">{t('formatGroup.edit.formatsLabel')}</span>
         {allFormats.length === 0 ? <p className="muted">{t('formatGroup.edit.noFormats')}</p> : null}

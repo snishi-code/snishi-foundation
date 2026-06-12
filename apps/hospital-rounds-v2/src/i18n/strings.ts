@@ -58,9 +58,6 @@ export const STRINGS_JA = {
   'patientSheet.status': 'ステータス',
   'patientSheet.room': '部屋番号',
   'patientSheet.name': '氏名',
-  'patientSheet.formatSet': 'フォーマットセット',
-  'patientSheet.formatSet.change': 'フォーマットセットを変更',
-  'formatGroup.option.none.label': '(セットなし)',
   'detail.nav.prev': '前の患者',
   'detail.nav.next': '次の患者',
   'detail.edit.bottomAria': '患者情報を編集',
@@ -229,25 +226,13 @@ export const STRINGS_JA = {
   'settings.addFormat.title': 'フォーマット追加',
   'settings.addFormat.aria': 'フォーマット追加',
 
-  // 設定: フォーマットセット CRUD
-  'formatGroup.section.title': 'セット',
-  'formatGroup.add': 'セット追加',
-  'formatGroup.empty': '未登録。右上の + から追加してください。',
-  'formatGroup.delete.confirm': 'セット「{name}」を削除します。よろしいですか？',
-  'formatGroup.delete.defaultBlocked':
-    'デフォルトセットは削除できません。先に別のセットをデフォルトにしてください。',
-  'formatGroup.defaultBadge': 'デフォルト',
+  // 設定: カード表示の構成編集 (デフォルトグループのみ。複数セット運用 UI は撤去済み)
+  'formatGroup.section.title': 'カード表示',
   'formatGroup.mode.expand': '展開',
   'formatGroup.mode.expand.title': '本文上に入力カードを常時展開する',
   'formatGroup.mode.quick': 'クイック',
   'formatGroup.mode.quick.title': 'ヘッダーにチップで出す。タップで入力モーダル',
-  'formatGroup.edit.isDefault': 'このセットをデフォルトにする',
-  'formatGroup.edit.isDefault.hint': 'デフォルトは患者でセット未選択のときに使われます。',
-  'formatGroup.name.required': 'セット名を入力してください。',
-  'formatGroup.name.duplicate': '既に同名のセットがあります。別の名前にしてください。',
-  'formatGroup.edit.title.new': 'セット 新規作成',
-  'formatGroup.edit.title.edit': 'セット 編集',
-  'formatGroup.edit.namePlaceholder': '例: 発熱対応',
+  'formatGroup.edit.title.edit': 'カード表示の編集',
   'formatGroup.edit.formatsLabel': '含めるフォーマット',
   'formatGroup.edit.noFormats': 'まずフォーマットを 1 つ以上登録してください。',
   'formatGroup.expand.lastBlocked':

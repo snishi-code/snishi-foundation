@@ -23,7 +23,6 @@ import {
   FORMAT_PANELS,
   STATUS,
   type Format,
-  type FormatGroup,
   type FormatPanel,
   type Patient,
   type PatientStatus,
@@ -32,6 +31,7 @@ import { SECTION, getSection } from '../../data/bundle';
 import { normalizePatientArray } from '../../domain/normalize';
 import { formatRemovalBreaksAnyGroupExpand } from '../../domain/formatValues';
 import { encodeSettingsPayload } from '../../qr/settingsQr';
+import { getDefaultFormatGroup } from '../../domain/payload';
 import { APP_KEY_BYTES } from '../../qr/appKey';
 import { isArchive, isDeviceArchive } from '../../data/store';
 import { REASON, countActivePatients } from '../../data/snapshots';
@@ -368,73 +368,31 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
 }
 
 // ============================
-// セット (フォーマットグループ) CRUD
+// カード表示の構成編集 (デフォルトグループのみ。複数セット運用 UI は撤去済み)
 // ============================
 
 function GroupsSection({ runtime }: { runtime: AppRuntime }) {
   const { store } = runtime;
-  const settings = store.getSettings();
-  const [editor, setEditor] = useState<{ group: FormatGroup | null } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<FormatGroup | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
 
-  const groups = Array.isArray(settings.formatGroups) ? settings.formatGroups : [];
+  const defaultGroup = getDefaultFormatGroup(store.getSettings());
 
   return (
     <div className="card card--pad settingsSection" data-ui={UI.settings.groupList}>
       <div className="settingsFormatPanelHead">
         <span className="section-label">{t('formatGroup.section.title')}</span>
-        <IconButton label={t('formatGroup.add')} dataUi={UI.settings.groupAdd} onClick={() => setEditor({ group: null })}>
-          <Icon name="add" size={16} />
+        <IconButton
+          label={t('common.edit')}
+          dataUi={UI.settings.groupEdit}
+          onClick={() => setEditorOpen(true)}
+          disabled={!defaultGroup}
+        >
+          <Icon name="edit" size={16} />
         </IconButton>
       </div>
-      {groups.length === 0 ? <p className="muted settingsListEmpty">{t('formatGroup.empty')}</p> : null}
-      {groups.map((g) => (
-        <div key={g.id} className="formatListRow" data-ui={UI.settings.groupRow}>
-          <span className="formatListName">{g.name}</span>
-          {g.isDefault ? <span className="tag tag--primary formatGroupDefaultBadge">{t('formatGroup.defaultBadge')}</span> : null}
-          <span className="formatListActions">
-            <IconButton label={t('common.edit')} dataUi={UI.settings.groupEdit} onClick={() => setEditor({ group: g })}>
-              <Icon name="edit" size={14} />
-            </IconButton>
-            <IconButton
-              label={g.isDefault ? t('formatGroup.delete.defaultBlocked') : t('common.delete')}
-              disabled={g.isDefault}
-              dataUi={UI.settings.groupDelete}
-              onClick={() => setDeleteTarget(g)}
-            >
-              <Icon name="delete" size={14} />
-            </IconButton>
-          </span>
-        </div>
-      ))}
 
-      {editor ? <FormatGroupEditDialog runtime={runtime} group={editor.group} onClose={() => setEditor(null)} /> : null}
-
-      {deleteTarget ? <OverlayBinding onClose={() => setDeleteTarget(null)} /> : null}
-      {deleteTarget ? (
-        <ConfirmDialog
-          title={t('common.delete')}
-          body={t('formatGroup.delete.confirm', { name: deleteTarget.name })}
-          confirmLabel={t('common.delete')}
-          cancelLabel={t('common.cancel')}
-          danger
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => {
-            const target = deleteTarget;
-            setDeleteTarget(null);
-            // デフォルトグループは削除不可 (防御的二重判定)
-            if (target.isDefault) return;
-            const live = store.getSettings();
-            live.formatGroups = (live.formatGroups || []).filter((g) => g.id !== target.id);
-            // 各患者の activeFormatGroupId からも掃除 ("" = デフォルトに従う)
-            for (const p of store.getAppState().patients) {
-              if (p.activeFormatGroupId === target.id) p.activeFormatGroupId = '';
-            }
-            void store.saveSettings();
-            store.scheduleSave();
-            runtime.bump();
-          }}
-        />
+      {editorOpen && defaultGroup ? (
+        <FormatGroupEditDialog runtime={runtime} group={defaultGroup} onClose={() => setEditorOpen(false)} />
       ) : null}
     </div>
   );
