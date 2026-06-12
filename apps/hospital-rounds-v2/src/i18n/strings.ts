@@ -86,8 +86,6 @@ export const STRINGS_JA = {
   'format.placeholder.memo': '備考',
   'format.note.title': '備考',
   'format.note.aria': '{label} の備考を編集',
-  'format.launcher.aria': 'フォーマットを選ぶ',
-  'format.launcher.empty': '追加で開けるフォーマットはありません',
 
   // QR 共通
   'qr.prev.tooltip': '前',
@@ -207,29 +205,20 @@ export const STRINGS_JA = {
   'format.name.required': 'フォーマット名を入力してください。',
   'format.name.duplicate': '既に同名のフォーマットがあります。別の名前にしてください。',
   'format.delete.confirm': 'フォーマット「{name}」を削除します。よろしいですか？',
-  'format.delete.soleExpandBlocked':
-    'このフォーマットはどこかのセットで S/O/A/P の最後の入力カードなので削除できません。先に別のフォーマットをそのパネルの入力カードに設定してください。',
   'settings.format.list.empty': '未登録。右上の + から追加してください。',
   'settings.addFormat.aria': 'フォーマット追加',
 
-  // 設定: カード表示の構成編集 (デフォルトグループのみ。複数セット運用 UI は撤去済み)
-  'formatGroup.section.title': 'カード表示',
-  'formatGroup.mode.expand': '展開',
-  'formatGroup.mode.expand.title': '本文上に入力カードを常時展開する',
-  'formatGroup.mode.quick': 'クイック',
-  'formatGroup.mode.quick.title': 'ヘッダーにチップで出す。タップで入力モーダル',
-  'formatGroup.edit.title.edit': 'カード表示の編集',
-  'formatGroup.edit.formatsLabel': '含めるフォーマット',
-  'formatGroup.edit.noFormats': 'まずフォーマットを 1 つ以上登録してください。',
-  'formatGroup.expand.lastBlocked':
-    '{panel} の最後の入力カードなので、セットから外せません。先に別のフォーマットを {panel} の入力カードに設定してください。',
+  // 設定: フォーマット表示方式 (expand / quick)
+  'format.display.expand': '展開',
+  'format.display.expand.title': '本文上に入力カードを常時展開する',
+  'format.display.quick': 'クイック',
+  'format.display.quick.title': 'ヘッダーにチップで出す。タップで入力モーダル',
 
   // QR (ST)
   'qr.kind.settings': '設定QR',
   'settings.qr.show': '設定QR表示',
   'qrSettings.summary.tags': 'タグ {n} 件',
   'qrSettings.summary.formats': 'フォーマット {n} 件',
-  'qrSettings.summary.sets': 'セット {n} 件',
   'qrSettings.summary.clearTargets': 'クリア対象',
   'qrSettings.import.confirm':
     '現在の設定 {summary} を上書きします。\n端末固有設定 (deviceId 等) は維持されます。よろしいですか？',

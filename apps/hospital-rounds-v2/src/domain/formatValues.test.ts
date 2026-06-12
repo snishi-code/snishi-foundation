@@ -1,8 +1,6 @@
-// 移植元 v1 test/check.mjs の format-values helpers / text provenance /
-// expand invariant セクション相当 (代表ケース)。
+// 移植元 v1 test/check.mjs の format-values helpers / text provenance セクション相当 (代表ケース)。
 
 import { describe, expect, it } from 'vitest';
-import type { Format, FormatGroup } from './types';
 import {
   collectFormatItemIndicesWithData,
   commitDraftTextEntry,
@@ -12,15 +10,10 @@ import {
   remapEffectOnData,
   remapFormatValuesSlot,
   remapPatientsFormatValues,
-  isLastExpandInPanel,
-  formatRemovalBreaksAnyGroupExpand,
   mergeTagsAdd,
   mergeTagsRemove,
-  missingExpandPanelsForGroup,
   normalizeTextEntry,
   readNumericEntry,
-  repairGroupExpandInvariant,
-  validateGroupHasExpandedFormatForEveryPanel,
 } from './formatValues';
 import { makeDefaultPatient } from './normalize';
 
@@ -138,45 +131,3 @@ describe('項目の並び替え/削除に伴う保存値の同時変換 (remap)'
   });
 });
 
-describe('expand invariant (修正1)', () => {
-  const formats: Format[] = [
-    { id: 'fS', name: 'S1', panel: 'S', joiner: ', ', labelSep: '：', titleWrap: '', tags: [], items: [] },
-    { id: 'fO1', name: 'O1', panel: 'O', joiner: ', ', labelSep: ' ', titleWrap: '', tags: [], items: [] },
-    { id: 'fO2', name: 'O2', panel: 'O', joiner: ', ', labelSep: ' ', titleWrap: '', tags: [], items: [] },
-  ];
-  const g = (over: Partial<FormatGroup>): FormatGroup => ({
-    id: 'g1',
-    name: 'G',
-    isDefault: false,
-    formatIds: [],
-    defaultFormatIds: [],
-    expandFormatIds: [],
-    ...over,
-  });
-
-  it('含むパネルに expand が無いと欠落検出 / 含まないパネルは対象外', () => {
-    const grp = g({ formatIds: ['fS', 'fO1'], expandFormatIds: ['fS'] });
-    expect(missingExpandPanelsForGroup(grp, formats)).toEqual(['O']);
-    expect(validateGroupHasExpandedFormatForEveryPanel(grp, formats)).toBe(false);
-    const onlyO = g({ formatIds: ['fO1'], expandFormatIds: ['fO1'] });
-    expect(missingExpandPanelsForGroup(onlyO, formats)).toEqual([]); // S は含まないので対象外
-  });
-
-  it('repairGroupExpandInvariant: 欠けたパネルの先頭フォーマットを expand に昇格 (冪等)', () => {
-    const grp = g({ formatIds: ['fS', 'fO2', 'fO1'], expandFormatIds: ['fS'] });
-    repairGroupExpandInvariant(grp, formats);
-    // O パネル所属の formatIds 先頭 = fO2 が昇格
-    expect(grp.expandFormatIds).toEqual(['fS', 'fO2']);
-    const before = grp.expandFormatIds.slice();
-    repairGroupExpandInvariant(grp, formats); // 冪等
-    expect(grp.expandFormatIds).toEqual(before);
-  });
-
-  it('isLastExpandInPanel / formatRemovalBreaksAnyGroupExpand', () => {
-    const grp = g({ formatIds: ['fO1', 'fO2'], expandFormatIds: ['fO1'] });
-    expect(isLastExpandInPanel(grp, formats, 'fO1', 'O')).toBe(true);
-    expect(isLastExpandInPanel(grp, formats, 'fO2', 'O')).toBe(false);
-    expect(formatRemovalBreaksAnyGroupExpand('fO1', formats, [grp])).toBe(true);
-    expect(formatRemovalBreaksAnyGroupExpand('fO2', formats, [grp])).toBe(false);
-  });
-});

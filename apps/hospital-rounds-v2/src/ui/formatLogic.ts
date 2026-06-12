@@ -7,7 +7,6 @@
 import {
   DEFAULT_ITEM_KIND,
   type Format,
-  type FormatGroup,
   type FormatItem,
   type FormatPanel,
   type Patient,
@@ -20,63 +19,24 @@ import {
   readNumericEntry,
   readTextValue,
 } from '../domain/formatValues';
-import { formatsForPanel, getDefaultFormatGroup, resolveActiveGroup } from '../domain/payload';
+import { formatsForPanel } from '../domain/payload';
 import type { HrStore } from '../data/store';
 
-export { formatsForPanel, resolveActiveGroup };
+export { formatsForPanel };
 
-/** 実効グループの「展開(A)」フォーマット (panel フィルタ済、expandFormatIds 順)。 */
-export function expandedFormatsForPanel(
-  panel: FormatPanel,
-  group: FormatGroup | null,
-  settings: Settings,
-): Format[] {
-  if (!group) return [];
-  const byId = new Map(formatsForPanel(panel, settings).map((f) => [f.id, f]));
-  const out: Format[] = [];
-  for (const fid of group.expandFormatIds || []) {
-    const f = byId.get(fid);
-    if (f) out.push(f);
-  }
-  return out;
+/** display==='expand' のフォーマット (panel フィルタ済)。 */
+export function expandedFormatsForPanel(panel: FormatPanel, settings: Settings): Format[] {
+  return formatsForPanel(panel, settings).filter((f) => f.display === 'expand');
 }
 
-/** 展開フォーマットが無いパネルはデフォルトグループへフォールバック (ワンタップ保証)。 */
-export function effectiveExpandedFormatsForPanel(
-  panel: FormatPanel,
-  group: FormatGroup | null,
-  settings: Settings,
-): Format[] {
-  let out = expandedFormatsForPanel(panel, group, settings);
-  if (!out.length) {
-    const def = getDefaultFormatGroup(settings);
-    if (def && (!group || def.id !== group.id)) out = expandedFormatsForPanel(panel, def, settings);
-  }
-  return out;
-}
-
-/** 実効グループの「クイックアクセス(B)」= グループ内かつ展開でない (チップ表示)。 */
-export function quickAccessFormatsForPanel(
-  panel: FormatPanel,
-  group: FormatGroup | null,
-  settings: Settings,
-): Format[] {
-  if (!group) return [];
-  const expand = new Set(group.expandFormatIds || []);
-  const byId = new Map(formatsForPanel(panel, settings).map((f) => [f.id, f]));
-  const out: Format[] = [];
-  for (const fid of group.formatIds || []) {
-    if (expand.has(fid)) continue;
-    const f = byId.get(fid);
-    if (f) out.push(f);
-  }
-  return out;
+/** display==='quick' のフォーマット (panel フィルタ済)。 */
+export function quickAccessFormatsForPanel(panel: FormatPanel, settings: Settings): Format[] {
+  return formatsForPanel(panel, settings).filter((f) => f.display === 'quick');
 }
 
 /**
- * 患者画面にカードとして並ぶフォーマット: 常時出す展開カード + 値が入っている非展開
- * フォーマット (クイック/ランチャー入力で「展開」されたもの)。☰ ランチャーの除外判定と
- * 同じ集合を参照する単一ソース。
+ * 患者画面にカードとして並ぶフォーマット: 常時出す展開カード + 値が入っている quick
+ * フォーマット (チップ入力で「展開」されたもの)。
  */
 export function shownCardFormatsForPanel(
   panel: FormatPanel,
@@ -85,8 +45,7 @@ export function shownCardFormatsForPanel(
 ): Format[] {
   if (!patient) return [];
   const fv = patient.formatValues && typeof patient.formatValues === 'object' ? patient.formatValues : {};
-  const group = resolveActiveGroup(patient, settings);
-  const expand = effectiveExpandedFormatsForPanel(panel, group, settings);
+  const expand = expandedFormatsForPanel(panel, settings);
   const shown = new Set(expand.map((f) => f.id));
   const extras = formatsForPanel(panel, settings).filter(
     (f) => !shown.has(f.id) && composeFormatFromValues(f, fv[f.id] || {}).hasValue,

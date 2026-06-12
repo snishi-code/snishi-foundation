@@ -10,6 +10,9 @@ import APP_DEFAULTS_RAW from './defaults.json';
 // enum 定数 (wire の index 表の元になるため、並びの変更 = QR WIRE_V bump)
 // ============================
 
+/** フォーマット表示方式: expand = 患者画面にカード常設 / quick = チップからシート入力。 */
+export type FormatDisplay = 'expand' | 'quick';
+
 export const STATUS = Object.freeze({
   NONE: 'none',
   YELLOW: 'yellow',
@@ -67,23 +70,14 @@ export interface DefaultFormatSeed {
   labelSep?: string;
   titleWrap?: string;
   tags?: string[];
+  display?: string;
   /** 同名同パネルが無ければ既存設定にも常に補填する seed (O 欄のシンプル所見など) */
   _backfillAlways?: boolean;
   items: DefaultFormatItemSeed[];
 }
 
-export interface DefaultFormatGroupSeed {
-  name: string;
-  isDefault?: boolean;
-  /** DEFAULT_FORMATS への index 参照 (ID は実行時生成のため index で束ねる) */
-  formatIndexes?: number[];
-  defaultFormatIndexes?: number[];
-  expandFormatIndexes?: number[];
-}
-
 interface AppDefaults {
   formats: DefaultFormatSeed[];
-  formatGroups: DefaultFormatGroupSeed[];
   clearTargets: Record<string, boolean>;
   tags: string[];
   deviceId: string;
@@ -95,7 +89,6 @@ const APP_DEFAULTS = APP_DEFAULTS_RAW as unknown as AppDefaults;
 
 export const DEFAULT_PATIENT_COUNT = APP_DEFAULTS._app.patientCount;
 export const DEFAULT_FORMATS = APP_DEFAULTS.formats;
-export const DEFAULT_FORMAT_GROUPS = APP_DEFAULTS.formatGroups;
 export const DEFAULT_CLEAR_TARGETS = APP_DEFAULTS.clearTargets;
 export const DEFAULT_TAGS = APP_DEFAULTS.tags;
 /** アプリ既定値の生 JSON (デバッグ・テスト用) */
@@ -128,6 +121,8 @@ export interface Format {
   id: string;
   name: string;
   panel: FormatPanel;
+  /** 患者画面での表示方式: expand = カード常設 / quick = チップからシート入力 */
+  display: FormatDisplay;
   /** 項目間の区切り */
   joiner: string;
   /** label と値の区切り */
@@ -137,23 +132,6 @@ export interface Format {
   /** フォーマット入力時に患者へ自動付与するタグ */
   tags: string[];
   items: FormatItem[];
-}
-
-/**
- * フォーマットの「束」(セット)。患者ごとに 1 つ active group を設定すると、各パネルの
- * strip チップがそのグループ所属フォーマットだけに切り替わる。
- * 不変条件: formatGroups が 1 つ以上あるなら「ちょうど 1 つ」が isDefault=true
- * (ensureOneDefaultGroup が担保)。
- */
-export interface FormatGroup {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  formatIds: string[];
-  /** 規定文 (formatIds の部分集合) */
-  defaultFormatIds: string[];
-  /** 展開(A) = 患者画面に常時タップ可能なカードとして出す (formatIds の部分集合) */
-  expandFormatIds: string[];
 }
 
 /**
@@ -179,8 +157,6 @@ export interface Patient {
   deletedAt: number;
   deletedFromWorkspaceId: string;
   deletedFromWorkspaceLabel: string;
-  /** この患者で active なフォーマットグループ ID。"" = デフォルトグループに解決 */
-  activeFormatGroupId: string;
   formatValues: FormatValues;
 }
 
@@ -199,7 +175,6 @@ export interface TagDef {
 export interface Settings {
   v: number;
   formats: Format[];
-  formatGroups: FormatGroup[];
   /** panel キー (S/O/A/P) + statusYellow/Green/Gray/Blue */
   clearTargets: Record<string, boolean>;
   tags: TagDef[];

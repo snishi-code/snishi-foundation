@@ -11,6 +11,7 @@ function fmt(over: Partial<Format>): Format {
     id: 'f_x',
     name: 'X',
     panel: 'O',
+    display: 'expand',
     joiner: ', ',
     labelSep: ' ',
     titleWrap: '',

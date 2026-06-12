@@ -1,10 +1,10 @@
 // 移植元 v1 test/check.mjs の正規化系ケース相当 + 仕様の「不正データ→デフォルト /
 // 未知フィールド温存 roundtrip」検査。
+// Phase P3: formatGroups 全廃。Format.display テストを追加。
 
 import { describe, expect, it } from 'vitest';
 import {
   defaultSettings,
-  ensureOneDefaultGroup,
   isPatientEmpty,
   makeDefaultPatient,
   normalizeFormat,
@@ -15,7 +15,7 @@ import {
 } from './normalize';
 import { migrateLegacyTagList } from './legacyMigrate';
 import { FORMAT_PANELS, STATUS } from './types';
-import type { FormatGroup, TagDef } from './types';
+import type { TagDef } from './types';
 
 describe('defaultSettings (cold boot)', () => {
   it('S/O/A/P 全パネルに既定フォーマットを持つ', () => {
@@ -24,14 +24,16 @@ describe('defaultSettings (cold boot)', () => {
     for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
   });
 
-  it('デフォルトグループがちょうど 1 つ存在し、全 format を展開に持つ', () => {
+  it('全フォーマットが display フィールドを持つ (expand|quick)', () => {
     const s = defaultSettings();
-    const defs = s.formatGroups.filter((g) => g.isDefault);
-    expect(defs).toHaveLength(1);
-    const def = defs[0]!;
-    // defaults.json: 標準グループは全 formats を formatIndexes + expandFormatIndexes に持つ
-    expect(def.formatIds.length).toBeGreaterThan(0);
-    expect(def.expandFormatIds).toEqual(def.formatIds);
+    for (const f of s.formats) {
+      expect(['expand', 'quick']).toContain(f.display);
+    }
+  });
+
+  it('formatGroups フィールドは存在しない (P3: FormatGroup 全廃)', () => {
+    const s = defaultSettings();
+    expect('formatGroups' in s).toBe(false);
   });
 
   it('qrEncryption / qrRedistribution は Settings に含まれない (QR_ENCRYPT 固定定数に移行)', () => {
@@ -46,7 +48,10 @@ describe('normalizeSettings', () => {
     for (const raw of [null, undefined, 42, 'x', []]) {
       const s = normalizeSettings(raw);
       expect(s.formats.length).toBeGreaterThan(0);
-      expect(s.formatGroups.filter((g) => g.isDefault)).toHaveLength(1);
+      // 全フォーマットが display を持つ
+      for (const f of s.formats) {
+        expect(['expand', 'quick']).toContain(f.display);
+      }
     }
   });
 
@@ -86,6 +91,7 @@ describe('normalizeSettings', () => {
           labelSep: '：',
           titleWrap: '',
           tags: [],
+          display: 'expand',
           items: [{ label: '', kind: 'text', normal: 'x' }],
         },
       ],
@@ -97,7 +103,7 @@ describe('normalizeSettings', () => {
     for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
   });
 
-  it('formatGroups: malformed を除外し「ちょうど 1 つ default」を担保。df/xf は部分集合に正規化', () => {
+  it('formatGroups を持つ旧データを読んでも settings に formatGroups は残らない', () => {
     const s = normalizeSettings({
       formats: [
         {
@@ -108,24 +114,35 @@ describe('normalizeSettings', () => {
         },
       ],
       formatGroups: [
-        { id: 'g1', name: 'G1', isDefault: false, formatIds: ['f1'], defaultFormatIds: ['f1', 'zz'], expandFormatIds: ['zz'] },
-        { id: 'g2', name: 'G2', isDefault: false, formatIds: [], defaultFormatIds: [], expandFormatIds: [] },
-        { notAnId: true },
+        { id: 'g1', name: 'G1', isDefault: false, formatIds: ['f1'], defaultFormatIds: ['f1'], expandFormatIds: ['f1'] },
       ],
     });
-    expect(s.formatGroups.map((g) => g.id)).toEqual(['g1', 'g2']);
-    expect(s.formatGroups.filter((g) => g.isDefault)).toHaveLength(1);
-    expect(s.formatGroups[0]?.isDefault).toBe(true); // 先頭昇格
-    const g1 = s.formatGroups[0]!;
-    expect(g1.defaultFormatIds).toEqual(['f1']); // 'zz' は formatIds 非所属で除外
-    // backfill が欠けたパネルの既定フォーマットをデフォルトグループ (g1) に補填し、
-    // 修正1 が「含む全パネルに expand あり」を担保する (f1 = S パネルも expand に昇格)
-    expect(g1.expandFormatIds).toContain('f1');
-    const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
-    expect(
-      g1.expandFormatIds.every((id) => g1.formatIds.includes(id)),
-    ).toBe(true);
+    expect('formatGroups' in s).toBe(false);
+    // formats は存在する
+    expect(s.formats.length).toBeGreaterThan(0);
+  });
+
+  it('旧 formatGroups から display が移行導出される', () => {
+    const s = normalizeSettings({
+      formats: [
+        { id: 'f1', name: 'S1', panel: 'S', joiner: ', ', items: [{ label: '', kind: 'text', normal: '' }] },
+        { id: 'f2', name: 'O1', panel: 'O', joiner: ', ', items: [{ label: '', kind: 'text', normal: '' }] },
+      ],
+      formatGroups: [
+        {
+          id: 'g1',
+          name: '標準',
+          isDefault: true,
+          formatIds: ['f1', 'f2'],
+          defaultFormatIds: [],
+          expandFormatIds: ['f1'], // f1=expand、f2=quick
+        },
+      ],
+    });
+    const f1 = s.formats.find((f) => f.id === 'f1');
+    const f2 = s.formats.find((f) => f.id === 'f2');
+    expect(f1?.display).toBe('expand');
+    expect(f2?.display).toBe('quick');
   });
 
   it('qrEncryption / qrRedistribution: 旧データに残っていても破棄される (QR_ENCRYPT 固定定数に移行)', () => {
@@ -169,7 +186,7 @@ describe('normalizeFormatItem', () => {
 
 describe('normalizeFormat', () => {
   it('name 必須・panel 不正は O・labelSep は items から推定', () => {
-    expect(normalizeFormat({ name: '' })).toBeNull();
+    expect(normalizeFormat({ name: '' }, null)).toBeNull();
     const f = normalizeFormat({
       name: 'X',
       panel: 'ZZZ',
@@ -177,30 +194,29 @@ describe('normalizeFormat', () => {
         { label: 'a', kind: 'text', normal: '' },
         { label: 'b', kind: 'text', normal: '' },
       ],
-    });
+    }, null);
     expect(f?.panel).toBe('O');
     expect(f?.labelSep).toBe('：'); // 全 text → "："
-    const f2 = normalizeFormat({ name: 'Y', items: [{ label: 'n', kind: 'number' }] });
+    const f2 = normalizeFormat({ name: 'Y', items: [{ label: 'n', kind: 'number' }] }, null);
     expect(f2?.labelSep).toBe(' ');
   });
-});
 
-describe('ensureOneDefaultGroup', () => {
-  const g = (id: string, isDefault: boolean): FormatGroup => ({
-    id,
-    name: id,
-    isDefault,
-    formatIds: [],
-    defaultFormatIds: [],
-    expandFormatIds: [],
+  it('display: expand/quick を解決し、未指定はデフォルト expand', () => {
+    const expand = normalizeFormat({ name: 'X', panel: 'S', display: 'expand', items: [] }, null);
+    expect(expand?.display).toBe('expand');
+    const quick = normalizeFormat({ name: 'X', panel: 'S', display: 'quick', items: [] }, null);
+    expect(quick?.display).toBe('quick');
+    const dflt = normalizeFormat({ name: 'X', panel: 'S', items: [] }, null);
+    expect(dflt?.display).toBe('expand'); // 未指定 → 既定 expand
   });
 
-  it('複数 default → 最初の 1 つだけ残す / 0 個 → 先頭昇格 / 空配列はそのまま', () => {
-    const multi = ensureOneDefaultGroup([g('a', true), g('b', true)]);
-    expect(multi.map((x) => x.isDefault)).toEqual([true, false]);
-    const none = ensureOneDefaultGroup([g('a', false), g('b', false)]);
-    expect(none.map((x) => x.isDefault)).toEqual([true, false]);
-    expect(ensureOneDefaultGroup([])).toEqual([]);
+  it('displayMap が渡された場合は map の値を使う (raw.display 優先)', () => {
+    const map = new Map([['fid1', 'quick' as const]]);
+    const fromMap = normalizeFormat({ id: 'fid1', name: 'X', panel: 'S', items: [] }, map);
+    expect(fromMap?.display).toBe('quick'); // map から
+    // raw.display が明示されていれば map より優先
+    const overridden = normalizeFormat({ id: 'fid1', name: 'X', panel: 'S', display: 'expand', items: [] }, map);
+    expect(overridden?.display).toBe('expand'); // raw.display 優先
   });
 });
 

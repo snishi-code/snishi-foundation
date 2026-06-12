@@ -1251,10 +1251,6 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   gap: var(--space-1);
 }
 
-.formatGroupDefaultBadge {
-  font-size: 11px;
-}
-
 /* --- フォーマット編集モーダル --- */
 .formatEditOptionRow {
   display: flex;
@@ -1331,47 +1327,15 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   min-width: 60px;
 }
 
-/* --- セット編集モーダル --- */
-.formatGroupDefaultToggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  margin: var(--space-2) 0;
-  flex-wrap: wrap;
-}
-
-.formatGroupDefaultHint {
-  font-size: 11px;
-}
-
-.formatGroupEditSection {
-  margin-bottom: var(--space-2);
-}
-
-.formatGroupEditOpt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 4px 0;
-}
-
-.formatGroupEditOptMain {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.formatGroupModeSeg {
+/* --- フォーマット行の表示方式トグル (設定画面) --- */
+.formatDisplaySeg {
   display: inline-flex;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
-.formatGroupModeBtn {
+.formatDisplayBtn {
   border: 0;
   background: var(--surface);
   padding: 6px 10px;
@@ -1379,9 +1343,14 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   cursor: pointer;
 }
 
-.formatGroupModeBtn.active {
+.formatDisplayBtn.active {
   background: var(--primary);
   color: var(--on-primary);
+}
+
+/* panelCardBody が空 (expand フォーマットなし) の時は余白を詰める */
+.panelCardBody:empty {
+  display: none;
 }
 
 /* --- 患者ライフサイクル / Trash --- */

@@ -103,6 +103,7 @@ export function FormatEditDialog({
           id: newFormatId(),
           name: '',
           panel,
+          display: 'quick' as const, // 新規は既定でクイック (設定一覧の行トグルで変更)
           joiner: '\n',
           labelSep: DEFAULT_LABEL_SEP_OTHER,
           titleWrap: '', // 新規は既定でタイトル OFF

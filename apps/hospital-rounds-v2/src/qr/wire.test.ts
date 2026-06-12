@@ -4,15 +4,13 @@
 // このアプリの新旧バージョン間でのみ互換を保証する。
 
 import { describe, expect, it } from 'vitest';
-import type { Format, FormatGroup, Patient, Settings, TagDef } from '../domain/types';
+import type { Format, Patient, Settings, TagDef } from '../domain/types';
 import { defaultSettings, makeDefaultPatient } from '../domain/normalize';
 import {
   KIND_BY_INDEX,
   PANEL_BY_INDEX,
   WIRE_V,
   formatFromWire,
-  formatGroupFromWire,
-  formatGroupToWire,
   formatToWire,
   patientFromWire,
   patientToWire,
@@ -34,6 +32,7 @@ const fmtVitals: Format = {
   id: 'fmt_a',
   name: 'バイタル',
   panel: 'O',
+  display: 'expand',
   joiner: ', ',
   labelSep: ' ',
   titleWrap: '（）',
@@ -49,6 +48,7 @@ const fmtFindings: Format = {
   id: 'fmt_b',
   name: '身体所見',
   panel: 'O',
+  display: 'quick',
   joiner: '\n',
   labelSep: '：',
   titleWrap: '',
@@ -57,15 +57,6 @@ const fmtFindings: Format = {
     { label: 'General', kind: 'text', normal: '良好' },
     { label: '', kind: 'text', normal: '特になし' },
   ],
-};
-
-const group: FormatGroup = {
-  id: 'grp_x',
-  name: '標準',
-  isDefault: true,
-  formatIds: ['fmt_a', 'fmt_b', 'fmt_missing'],
-  defaultFormatIds: ['fmt_b'],
-  expandFormatIds: ['fmt_a'],
 };
 
 function makePatient(over: Partial<Patient>): Patient {
@@ -92,6 +83,7 @@ const EXPECTED_FORMAT_DICT = {
     { l: 'SpO2', k: 1, u: '%' },
   ],
 };
+// display=expand なので q は省略
 
 const EXPECTED_FORMAT_NODICT = {
   n: 'バイタル',
@@ -109,6 +101,7 @@ const EXPECTED_FORMAT_NODICT = {
 const EXPECTED_FORMAT_TEXT = {
   n: '身体所見',
   p: 1,
+  q: 1,
   j: '\n',
   ls: '：',
   i: [
@@ -116,8 +109,7 @@ const EXPECTED_FORMAT_TEXT = {
     { l: '', k: 0, nm: '特になし' },
   ],
 };
-
-const EXPECTED_GROUP = { n: '標準', d: 1, fi: [1, 2], df: [2], xf: [1] };
+// display=quick なので q:1 が付く
 
 const EXPECTED_PATIENT = {
   r: '203',
@@ -131,11 +123,11 @@ const EXPECTED_WIRE_FORMATS = [
   EXPECTED_FORMAT_TEXT,
 ];
 
+// ST v7 最終形: formats(q付き) + tags + clearTargets (fg なし)
 const EXPECTED_ST = {
   v: 7,
   td: tagDict,
   f: EXPECTED_WIRE_FORMATS,
-  fg: [EXPECTED_GROUP],
   ct: {
     S: true,
     O: true,
@@ -164,11 +156,11 @@ describe('wire enum tables / WIRE_V (v2 自己一致)', () => {
 });
 
 // ============================
-// formatToWire / formatGroupToWire / patientToWire (v1 実出力との一致)
+// formatToWire / patientToWire (v1 実出力との一致)
 // ============================
 
-describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
-  it('formatToWire (tag dict あり): 既知タグは 1-based index、未知タグは除外', () => {
+describe('format/patient wire 歩哨 (v1 実出力 fixture)', () => {
+  it('formatToWire (tag dict あり, expand): q なし・既知タグは 1-based index', () => {
     expect(formatToWire(fmtVitals, tagDict)).toEqual(EXPECTED_FORMAT_DICT);
   });
 
@@ -176,13 +168,8 @@ describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
     expect(formatToWire(fmtVitals, null)).toEqual(EXPECTED_FORMAT_NODICT);
   });
 
-  it('formatToWire: default joiner ", " は省略 / 非 default joiner は j に載る', () => {
+  it('formatToWire (quick): q:1 が付く / default joiner ", " は省略', () => {
     expect(formatToWire(fmtFindings, tagDict)).toEqual(EXPECTED_FORMAT_TEXT);
-  });
-
-  it('formatGroupToWire: f 配列への 1-based index 参照。解決できない ID は除外', () => {
-    const idToIndex = (id: string) => ({ fmt_a: 1, fmt_b: 2 })[id as 'fmt_a'];
-    expect(formatGroupToWire(group, idToIndex)).toEqual(EXPECTED_GROUP);
   });
 
   it('patientToWire: 既知タグのみ 1-based index、content は trim して c に載る', () => {
@@ -199,6 +186,7 @@ describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
     const back = formatFromWire(formatToWire(fmtVitals, tagDict), tagDict);
     expect(back.name).toBe('バイタル');
     expect(back.panel).toBe('O');
+    expect(back.display).toBe('expand'); // q 省略 → expand
     expect(back.joiner).toBe(', ');
     expect(back.labelSep).toBe(' ');
     expect(back.titleWrap).toBe('（）');
@@ -211,16 +199,18 @@ describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
     );
   });
 
-  it('formatGroupFromWire round-trip: index → 新 ID 解決、範囲外 index は除外', () => {
-    const formats = [{ id: 'new_1' }, { id: 'new_2' }, { id: 'new_3' }];
-    const g = formatGroupFromWire({ n: '標準', d: 1, fi: [1, 3, 9], df: [3], xf: [1] }, formats);
-    expect(g).toEqual({
-      name: '標準',
-      isDefault: true,
-      formatIds: ['new_1', 'new_3'],
-      defaultFormatIds: ['new_3'],
-      expandFormatIds: ['new_1'],
-    });
+  it('q:1 round-trip: display=quick は q:1 でエンコードされ、decode で quick に復元', () => {
+    const wire = formatToWire(fmtFindings, tagDict);
+    expect(wire.q).toBe(1);
+    const back = formatFromWire(wire, tagDict);
+    expect(back.display).toBe('quick');
+  });
+
+  it('q 省略 round-trip: display=expand は q を持たず、decode で expand に復元', () => {
+    const wire = formatToWire(fmtVitals, tagDict);
+    expect(wire.q).toBeUndefined();
+    const back = formatFromWire(wire, tagDict);
+    expect(back.display).toBe('expand');
   });
 
   it('patientFromWire: 数値は dict から、文字列はそのまま (互換受信)', () => {
@@ -277,20 +267,21 @@ describe('encodePatientList / decodePatientList (HM v4)', () => {
 // ============================
 
 describe('settingsQr (ST v7)', () => {
-  it('encodeSettingsPayload は v2 期待値と一致する (clearOnStart=false のタグは tc 省略)', () => {
+  it('encodeSettingsPayload は v2 期待値と一致する (fg なし・q フラグ付き)', () => {
     const settings = settingsWith({
       tags: tagDefsFrom(tagDict),
       formats: [fmtVitals, fmtFindings],
-      formatGroups: [group],
     });
-    expect(JSON.parse(encodeSettingsPayload(settings))).toEqual(EXPECTED_ST);
+    const parsed = JSON.parse(encodeSettingsPayload(settings));
+    expect(parsed).toEqual(EXPECTED_ST);
+    // fg が含まれないことを確認 (ST v7 最終形)
+    expect(parsed.fg).toBeUndefined();
   });
 
-  it('decode round-trip: formats 新 ID 採番 + groups がその ID を参照', () => {
+  it('decode round-trip: formats 新 ID 採番 + display が復元される', () => {
     const settings = settingsWith({
       tags: tagDefsFrom(tagDict),
       formats: [fmtVitals, fmtFindings],
-      formatGroups: [group],
     });
     const out = decodeSettingsPayload(encodeSettingsPayload(settings));
     expect(out.tags).toEqual(tagDefsFrom(tagDict));
@@ -298,12 +289,11 @@ describe('settingsQr (ST v7)', () => {
     expect(out.formats?.[0]?.name).toBe('バイタル');
     expect(out.formats?.[0]?.id).toMatch(/^fmt_/);
     expect(out.formats?.[0]?.id).not.toBe('fmt_a'); // 新 ID 採番
-    const ids = (out.formats ?? []).map((f) => f.id);
-    expect(out.formatGroups?.[0]?.formatIds).toEqual(ids);
-    expect(out.formatGroups?.[0]?.defaultFormatIds).toEqual([ids[1]]);
-    expect(out.formatGroups?.[0]?.expandFormatIds).toEqual([ids[0]]);
-    expect(out.formatGroups?.[0]?.isDefault).toBe(true);
+    expect(out.formats?.[0]?.display).toBe('expand');
+    expect(out.formats?.[1]?.display).toBe('quick');
     expect(out.clearTargets).toEqual(EXPECTED_ST.ct);
+    // formatGroups は存在しない
+    expect((out as unknown as Record<string, unknown>).formatGroups).toBeUndefined();
   });
 
   it('tc encode/decode round-trip: clearOnStart=true のタグ索引が tc に載り、decode で復元される', () => {
@@ -312,7 +302,7 @@ describe('settingsQr (ST v7)', () => {
       { name: '外科', clearOnStart: true },
       { name: '要フォロー', clearOnStart: true },
     ];
-    const settings = settingsWith({ tags, formats: [fmtVitals], formatGroups: [] });
+    const settings = settingsWith({ tags, formats: [fmtVitals] });
     const raw = JSON.parse(encodeSettingsPayload(settings)) as Record<string, unknown>;
     // tc: 2-based (外科=2, 要フォロー=3)
     expect(raw.tc).toEqual([2, 3]);
@@ -322,7 +312,7 @@ describe('settingsQr (ST v7)', () => {
   });
 
   it('td は空でも常に載る (タグ消去も伝わる「設定全体」の意味論)', () => {
-    const settings = settingsWith({ tags: [], formats: [fmtVitals], formatGroups: [] });
+    const settings = settingsWith({ tags: [], formats: [fmtVitals] });
     const out = JSON.parse(encodeSettingsPayload(settings));
     expect(out.td).toEqual([]);
     expect(decodeSettingsPayload(JSON.stringify(out)).tags).toEqual([]);
@@ -332,4 +322,3 @@ describe('settingsQr (ST v7)', () => {
     expect(() => decodeSettingsPayload(JSON.stringify({ v: 6, td: [] }))).toThrow(/version/);
   });
 });
-

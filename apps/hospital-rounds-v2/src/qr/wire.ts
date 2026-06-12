@@ -82,7 +82,6 @@ import {
   FORMAT_ITEM_KINDS,
   FORMAT_PANELS,
   type Format,
-  type FormatGroup,
   type FormatItem,
   type FormatPanel,
   type Patient,
@@ -147,19 +146,13 @@ export interface WireItem {
 export interface WireFormat {
   n: string;
   p: number;
+  /** display==='quick' の時のみ出力 (省略=expand。「コード固定値は wire に含めない」原則) */
+  q?: 1;
   j?: string;
   ls?: string;
   tw?: string;
   t?: Array<number | string>;
   i: WireItem[];
-}
-
-export interface WireFormatGroup {
-  n: string;
-  d?: 1;
-  fi?: number[];
-  df?: number[];
-  xf?: number[];
 }
 
 export interface WirePatient {
@@ -222,6 +215,8 @@ export function formatToWire(format: Format | null | undefined, tagDict: readonl
     p: panelToIdx(f.panel),
     i: [],
   };
+  // display==='quick' の時のみ q:1 を出力 (省略=expand。原則 ②)
+  if (f.display === 'quick') o.q = 1;
   // default 値は省略 (原則 ②)
   if (typeof f.joiner === 'string' && f.joiner !== ', ') o.j = f.joiner;
   if (typeof f.labelSep === 'string') {
@@ -249,9 +244,12 @@ export function formatFromWire(
       : items.length && items.every((it) => it.kind === 'text')
         ? DEFAULT_LABEL_SEP_TEXT
         : DEFAULT_LABEL_SEP_OTHER;
+  // q:1 → display:'quick'、省略 → display:'expand' (原則 ②)
+  const display = w.q === 1 ? 'quick' : 'expand';
   return {
     name: String(w.n || ''),
     panel: panelFromIdx(w.p),
+    display,
     joiner: typeof w.j === 'string' ? w.j : ', ',
     labelSep,
     titleWrap: typeof w.tw === 'string' ? w.tw : '',
@@ -278,61 +276,6 @@ function itemFromWire(w: WireItem | null | undefined): FormatItem {
   // fraction の入力方式を復元 (fm=1 → numeric、無し → 安全側 text)。
   if (kind === 'fraction') o.fracMode = w?.fm === 1 ? 'numeric' : 'text';
   return o;
-}
-
-// ============================
-// FormatGroup (セット) ↔ wire (原則 ①: ID 直書きせず f 配列への index 参照)
-//   formatGroupToWire(group, idToIndex):
-//     idToIndex … format ID → 同 payload の f 配列での 1-based index を返す関数。
-//                 解決できない (= payload に含めない format を参照している) ID は除外。
-//   formatGroupFromWire(wire, formatsArr):
-//     formatsArr … この payload で復元済みの formats 配列 (新 ID 採番済み)。
-//                  wire の 1-based index を formatsArr[i-1].id に解決。範囲外は除外。
-// ============================
-
-export function formatGroupToWire(
-  group: Partial<FormatGroup> | null | undefined,
-  idToIndex: (id: string) => number | undefined,
-): WireFormatGroup {
-  const g = group || {};
-  const resolve = (ids: unknown): number[] =>
-    (Array.isArray(ids) ? (ids as string[]) : [])
-      .map((id) => idToIndex(id))
-      .filter((i): i is number => typeof i === 'number' && i >= 1);
-  const o: WireFormatGroup = { n: String(g.name || '') };
-  if (g.isDefault) o.d = 1;
-  const fi = resolve(g.formatIds);
-  if (fi.length) o.fi = fi;
-  const df = resolve(g.defaultFormatIds);
-  if (df.length) o.df = df;
-  const xf = resolve(g.expandFormatIds);
-  if (xf.length) o.xf = xf;
-  return o;
-}
-
-/** 戻り値に id は含めない (受信側で新発番する契約)。 */
-export function formatGroupFromWire(
-  wire: WireFormatGroup | null | undefined,
-  formatsArr: ReadonlyArray<Pick<Format, 'id'>>,
-): Omit<FormatGroup, 'id'> {
-  const w = wire || ({} as Partial<WireFormatGroup>);
-  const arr = Array.isArray(formatsArr) ? formatsArr : [];
-  const resolve = (idxs: unknown): string[] =>
-    (Array.isArray(idxs) ? (idxs as number[]) : [])
-      .map((i) => arr[i - 1]?.id)
-      .filter((id): id is string => !!id);
-  const formatIds = resolve(w.fi);
-  const inFormat = new Set(formatIds);
-  // df/xf は formatIds の部分集合に正規化 (normalizeSettings と同じ不変条件)
-  const defaultFormatIds = resolve(w.df).filter((id) => inFormat.has(id));
-  const expandFormatIds = resolve(w.xf).filter((id) => inFormat.has(id));
-  return {
-    name: String(w.n || ''),
-    isDefault: !!w.d,
-    formatIds,
-    defaultFormatIds,
-    expandFormatIds,
-  };
 }
 
 // ============================

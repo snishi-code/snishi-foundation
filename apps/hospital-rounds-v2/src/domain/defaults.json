@@ -5,6 +5,7 @@
     {
       "name": "自覚症状",
       "panel": "S",
+      "display": "expand",
       "joiner": ", ",
       "labelSep": "：",
       "titleWrap": "",
@@ -16,6 +17,7 @@
     {
       "name": "バイタル",
       "panel": "O",
+      "display": "expand",
       "joiner": ", ",
       "labelSep": " ",
       "titleWrap": "（）",
@@ -31,6 +33,7 @@
     {
       "name": "身体所見",
       "panel": "O",
+      "display": "expand",
       "joiner": "\n",
       "labelSep": "：",
       "titleWrap": "（）",
@@ -47,6 +50,7 @@
     {
       "name": "所見",
       "panel": "O",
+      "display": "expand",
       "joiner": ", ",
       "labelSep": "：",
       "titleWrap": "",
@@ -59,6 +63,7 @@
     {
       "name": "評価",
       "panel": "A",
+      "display": "expand",
       "joiner": ", ",
       "labelSep": "：",
       "titleWrap": "",
@@ -70,6 +75,7 @@
     {
       "name": "方針",
       "panel": "P",
+      "display": "expand",
       "joiner": ", ",
       "labelSep": "：",
       "titleWrap": "",
@@ -77,17 +83,6 @@
       "items": [
         { "label": "", "kind": "text", "normal": "現治療を継続" }
       ]
-    }
-  ],
-
-  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。S/O/A/P の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。",
-  "formatGroups": [
-    {
-      "name": "標準",
-      "isDefault": true,
-      "formatIndexes": [0, 1, 2, 3, 4, 5],
-      "defaultFormatIndexes": [],
-      "expandFormatIndexes": [0, 1, 2, 3, 4, 5]
     }
   ],
 

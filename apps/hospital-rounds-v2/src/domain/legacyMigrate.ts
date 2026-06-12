@@ -1,17 +1,18 @@
 // ============================================================
 // このファイルは旧スキーマからの一回限り移行専用。
 //
-// 背景: settings.tags が string[] から TagDef[] へ変更された際に
+// 背景 1 (Phase P1): settings.tags が string[] から TagDef[] へ変更された際に
 // 既存の保存データ (旧スキーマ) を安全に読み込むため、このファイルに
 // 移行ロジックを隔離した。
 //
-// 削除タイミング: 開発者端末・テスト端末のデータがすべて新スキーマ
-// (TagDef[]) で保存し直された後は、このファイルごと削除し、
-// normalize.ts の tags 正規化を素通し (`out.tags = raw.tags as TagDef[]`
-// のような単純な代入 + validation) に戻すこと。
+// 背景 2 (Phase P3): Format.display (expand|quick) の追加に伴い、旧 formatGroups
+// の expandFormatIds からの一回限りの導出をここで行う。
+//
+// 削除タイミング: 開発者端末・テスト端末のデータがすべて新スキーマで保存し直された後は、
+// このファイルごと削除し、normalize.ts の移行ロジックを素通しに戻すこと。
 // ============================================================
 
-import type { TagDef } from './types';
+import type { FormatDisplay, TagDef } from './types';
 
 /**
  * 旧 string[] 形式または新 TagDef[] 形式の raw tags を TagDef[] に正規化する。
@@ -44,4 +45,62 @@ export function migrateLegacyTagList(raw: unknown): TagDef[] {
     // その他の型 (数値・null 等) は捨てる
   }
   return out;
+}
+
+/**
+ * 旧 formatGroups (expandFormatIds ベース) から各フォーマットの display を導出するマップを返す。
+ *
+ * 検出条件 (旧データ):
+ *   - raw.formatGroups が非空配列
+ *   - かつ raw.formats のうち display フィールドを持たないものがある
+ * どちらかが欠ける場合は null を返す (移行不要)。
+ *
+ * 導出ルール:
+ *   - デフォルトグループ = isDefault===true の先頭。無ければ先頭グループ。
+ *   - 各 formatId について expandFormatIds に含まれる → 'expand'、それ以外 → 'quick'。
+ *   - グループの formatIds に含まれないフォーマット → 'quick' (safe default)。
+ */
+export function deriveLegacyDisplayMap(raw: unknown): Map<string, FormatDisplay> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rec = raw as Record<string, unknown>;
+
+  // 旧データ判定: formatGroups が非空配列
+  const groups = Array.isArray(rec.formatGroups) ? rec.formatGroups : [];
+  if (!groups.length) return null;
+
+  // raw.formats のうち display を持たないものがあるか判定
+  const formats = Array.isArray(rec.formats) ? rec.formats : [];
+  const hasFormatWithoutDisplay = formats.some((f: unknown) => {
+    if (!f || typeof f !== 'object') return false;
+    const fRec = f as Record<string, unknown>;
+    return fRec.display !== 'expand' && fRec.display !== 'quick';
+  });
+  if (!hasFormatWithoutDisplay) return null; // 全フォーマットが display 済み = 移行不要
+
+  // デフォルトグループを選ぶ
+  const validGroups = groups.filter(
+    (g: unknown): g is Record<string, unknown> =>
+      !!g && typeof g === 'object' && !Array.isArray(g),
+  );
+  const defaultGroup =
+    validGroups.find((g) => !!g.isDefault) ?? validGroups[0] ?? null;
+  if (!defaultGroup) return null;
+
+  const expandSet = new Set<string>(
+    Array.isArray(defaultGroup.expandFormatIds)
+      ? (defaultGroup.expandFormatIds as unknown[]).filter(
+          (x): x is string => typeof x === 'string',
+        )
+      : [],
+  );
+
+  const map = new Map<string, FormatDisplay>();
+  for (const f of formats) {
+    if (!f || typeof f !== 'object') continue;
+    const fRec = f as Record<string, unknown>;
+    if (typeof fRec.id !== 'string' || !fRec.id) continue;
+    const display: FormatDisplay = expandSet.has(fRec.id) ? 'expand' : 'quick';
+    map.set(fRec.id, display);
+  }
+  return map;
 }

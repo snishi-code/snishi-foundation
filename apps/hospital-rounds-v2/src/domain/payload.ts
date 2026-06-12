@@ -1,41 +1,15 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/payload.js
 //          + features/formats.js の composeExpandedForPanel / formatsForPanel
-//          + features/format-groups.js の resolveActiveGroup
 //
 // 患者画面 QR (電子カルテ転記用) の出力本文合成。UI 非依存にするため、v1 の live binding
 // (appState/settings) 直読みをやめて patient / settings を引数で受ける純関数に変えた。
 // 合成ロジック自体は v1 と同一。
 
-import type { AppState, Format, FormatGroup, FormatPanel, Patient, Settings } from './types';
+import type { AppState, Format, FormatPanel, Patient, Settings } from './types';
 import { composeFormatFromValues } from './formatValues';
 
 // v1 では payload.js に utf8ByteLength があったが、v2 は foundation qr/protocol の
 // utf8ByteLength を使う (重複定義しない)。
-
-/**
- * 起動時に必ず 1 つ存在するデフォルトグループ (isDefault=true)。万一見つからない
- * (壊れたデータ等) 場合は先頭グループ、無ければ null。
- */
-export function getDefaultFormatGroup(settings: Settings): FormatGroup | null {
-  const groups = Array.isArray(settings.formatGroups) ? settings.formatGroups : [];
-  return groups.find((g) => g.isDefault) || groups[0] || null;
-}
-
-/**
- * 患者に適用される実効グループ: activeFormatGroupId があればそれ、無ければ (= 通常状態)
- * デフォルトグループに解決する。strip / 規定文の両方がこれを使う。
- */
-export function resolveActiveGroup(
-  patient: Patient | null | undefined,
-  settings: Settings,
-): FormatGroup | null {
-  const id = String(patient?.activeFormatGroupId || '');
-  if (id) {
-    const g = (settings.formatGroups || []).find((x) => x.id === id);
-    if (g) return g;
-  }
-  return getDefaultFormatGroup(settings);
-}
 
 export function formatsForPanel(panel: FormatPanel, settings: Settings): Format[] {
   if (!Array.isArray(settings.formats)) return [];

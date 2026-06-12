@@ -2,8 +2,7 @@
 //          (renderFormatStrip / renderExpandedFormats / buildExpandedWidget /
 //           buildCardItemRow / buildInlineEditCell / buildInlineNormalFillBtn)
 //
-// 1 パネル分のカード: ヘッダ (ラベル + クイック chip + ☰ ランチャー) + 展開フォーマット
-// カード群。
+// 1 パネル分のカード: ヘッダ (ラベル + クイック chip) + 展開フォーマットカード群。
 //
 // 入力方式 (2026-06 フィードバック反映):
 //   - number / fraction は **常時表示の入力欄**。行構成は [入力 1fr][単位][備考ボタン]
@@ -16,11 +15,7 @@
 //     の挙動を保つ)。編集中もグリッド列 ([ラベル][正常][値]) を崩さない。
 //   - 正常チェック (✓) は誤タップ対策で長押し発火 (NormalCheckButton, 350ms)。
 
-import { useEffect, useRef, useState } from 'react';
-import { Icon } from '@snishi/foundation/ui/Icon';
-import { IconButton } from '@snishi/foundation/ui/IconButton';
-import { Popup } from '@snishi/foundation/ui/Popup';
-import { focusPopupInput } from '@snishi/foundation/ui/focus';
+import { useRef } from 'react';
 import {
   DEFAULT_ITEM_KIND,
   type Format,
@@ -32,16 +27,15 @@ import {
 import { normalizeTextEntry, readNumericEntry, readTextValue } from '../domain/formatValues';
 import {
   cardItemDisplay,
-  formatsForPanel,
   quickAccessFormatsForPanel,
-  resolveActiveGroup,
   shownCardFormatsForPanel,
 } from './formatLogic';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
-import { useRegisterOverlay } from './registries';
 import { NormalCheckButton } from './NormalCheckButton';
 import { NoteButton } from './NoteButton';
+import { focusPopupInput } from '@snishi/foundation/ui/focus';
+import { useEffect } from 'react';
 
 /** inline 編集セッション (v1 _inlineEdit)。DetailView が ref で保持する。 */
 export interface InlineSession {
@@ -336,71 +330,6 @@ function CardItemRow({
   );
 }
 
-// ── ☰ ランチャー (カードに出ていないフォーマットへの入口) ──
-
-function FormatLauncher({
-  panel,
-  patient,
-  settings,
-  onPick,
-}: {
-  panel: FormatPanel;
-  patient: Patient;
-  settings: Settings;
-  onPick: (format: Format) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const shown = new Set(shownCardFormatsForPanel(panel, patient, settings).map((f) => f.id));
-  const candidates = formatsForPanel(panel, settings).filter((f) => !shown.has(f.id));
-  return (
-    <>
-      <IconButton label={t('format.launcher.aria')} onClick={() => setOpen(true)} dataUi={UI.format.launcher}>
-        <Icon name="menu" size={18} />
-      </IconButton>
-      {open ? (
-        <LauncherPopup
-          candidates={candidates}
-          onPick={(f) => {
-            setOpen(false);
-            onPick(f);
-          }}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function LauncherPopup({
-  candidates,
-  onPick,
-  onClose,
-}: {
-  candidates: Format[];
-  onPick: (f: Format) => void;
-  onClose: () => void;
-}) {
-  useRegisterOverlay(onClose);
-  return (
-    <Popup ariaLabel={t('format.launcher.aria')} onClose={onClose}>
-      <div className="menu-list">
-        {candidates.length === 0 ? <p className="muted">{t('format.launcher.empty')}</p> : null}
-        {candidates.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            className="menu-item"
-            title={t('format.chip.input.title', { name: f.name })}
-            onClick={() => onPick(f)}
-          >
-            {f.name}
-          </button>
-        ))}
-      </div>
-    </Popup>
-  );
-}
-
 // ── パネルカード本体 ──
 
 export function PanelCard({
@@ -416,8 +345,7 @@ export function PanelCard({
   inline: InlineSession | null;
   cb: PanelCardCallbacks;
 }) {
-  const group = resolveActiveGroup(patient, settings);
-  const quick = quickAccessFormatsForPanel(panel, group, settings);
+  const quick = quickAccessFormatsForPanel(panel, settings);
   const cards = shownCardFormatsForPanel(panel, patient, settings);
   const fv = patient.formatValues && typeof patient.formatValues === 'object' ? patient.formatValues : {};
 
@@ -439,7 +367,6 @@ export function PanelCard({
               {f.name}
             </button>
           ))}
-          <FormatLauncher panel={panel} patient={patient} settings={settings} onPick={cb.onOpenSheet} />
         </div>
       </div>
       <div className="panelCardBody">

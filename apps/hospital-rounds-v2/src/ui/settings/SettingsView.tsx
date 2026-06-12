@@ -23,15 +23,14 @@ import {
   FORMAT_PANELS,
   STATUS,
   type Format,
+  type FormatDisplay,
   type FormatPanel,
   type Patient,
   type PatientStatus,
 } from '../../domain/types';
 import { SECTION, getSection } from '../../data/bundle';
 import { normalizePatientArray } from '../../domain/normalize';
-import { formatRemovalBreaksAnyGroupExpand } from '../../domain/formatValues';
 import { encodeSettingsPayload } from '../../qr/settingsQr';
-import { getDefaultFormatGroup } from '../../domain/payload';
 import { APP_KEY_BYTES, QR_ENCRYPT } from '../../qr/appKey';
 import { isArchive, isDeviceArchive } from '../../data/store';
 import { REASON, countActivePatients } from '../../data/snapshots';
@@ -43,7 +42,6 @@ import { AddTagWidget } from '../TagPicker';
 import { deleteTagAt, renameTagAt, setTagClearOnStart } from '../tags';
 import { OverlayBinding } from '../registries';
 import { FormatEditDialog } from './FormatEditDialog';
-import { FormatGroupEditDialog } from './FormatGroupEditDialog';
 import { QrReceiveDialog } from './QrReceiveDialog';
 import { t, type StringKey } from '../../i18n/strings';
 import { UI } from '../../ui-contract';
@@ -290,6 +288,16 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
 
   const all = Array.isArray(settings.formats) ? settings.formats : [];
 
+  function toggleDisplay(f: Format): void {
+    const live = store.getSettings();
+    const idx = live.formats.findIndex((x) => x.id === f.id);
+    if (idx < 0) return;
+    const next: FormatDisplay = live.formats[idx]!.display === 'expand' ? 'quick' : 'expand';
+    live.formats[idx] = { ...live.formats[idx]!, display: next };
+    void store.saveSettings();
+    runtime.bump();
+  }
+
   return (
     <>
       {FORMAT_PANELS.map((panel) => {
@@ -308,14 +316,32 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
             </div>
             {list.length === 0 ? <p className="muted settingsListEmpty">{t('settings.format.list.empty')}</p> : null}
             {list.map((f) => {
-              // このフォーマットが、いずれかのセットのいずれかのパネルで「最後の展開
-              // フォーマット」なら削除不可 (ワンタップ入力カードが欠ける)。
-              const soleExpand =
-                formatRemovalBreaksAnyGroupExpand(f.id, all, settings.formatGroups);
+              const mode = f.display === 'expand' ? 'expand' : 'quick';
               return (
                 <div key={f.id} className="formatListRow" data-ui={UI.settings.formatRow}>
                   <span className="formatListName">{f.name}</span>
                   <span className="formatListActions">
+                    {/* 展開/クイック トグル */}
+                    <span className="formatDisplaySeg">
+                      {(
+                        [
+                          ['expand', t('format.display.expand'), t('format.display.expand.title')],
+                          ['quick', t('format.display.quick'), t('format.display.quick.title')],
+                        ] as const
+                      ).map(([key, label, title]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`formatDisplayBtn${mode === key ? ' active' : ''}`}
+                          title={title}
+                          aria-pressed={mode === key}
+                          data-ui={UI.settings.formatDisplayToggle}
+                          onClick={() => { if (mode !== key) toggleDisplay(f); }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </span>
                     <IconButton
                       label={t('common.edit')}
                       dataUi={UI.settings.formatEdit}
@@ -324,8 +350,7 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
                       <Icon name="edit" size={14} />
                     </IconButton>
                     <IconButton
-                      label={soleExpand ? t('format.delete.soleExpandBlocked') : t('common.delete')}
-                      disabled={soleExpand}
+                      label={t('common.delete')}
                       dataUi={UI.settings.formatDelete}
                       onClick={() => setDeleteTarget(f)}
                     >
@@ -361,10 +386,6 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
             const target = deleteTarget;
             setDeleteTarget(null);
             const live = store.getSettings();
-            // 防御的に再判定 (確認中に状態が変わった場合)。
-            if (formatRemovalBreaksAnyGroupExpand(target.id, live.formats, live.formatGroups)) {
-              return;
-            }
             const idx = live.formats.findIndex((f) => f.id === target.id);
             if (idx >= 0) live.formats.splice(idx, 1);
             void store.saveSettings();
@@ -373,37 +394,6 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
         />
       ) : null}
     </>
-  );
-}
-
-// ============================
-// カード表示の構成編集 (デフォルトグループのみ。複数セット運用 UI は撤去済み)
-// ============================
-
-function GroupsSection({ runtime }: { runtime: AppRuntime }) {
-  const { store } = runtime;
-  const [editorOpen, setEditorOpen] = useState(false);
-
-  const defaultGroup = getDefaultFormatGroup(store.getSettings());
-
-  return (
-    <div className="card card--pad settingsSection" data-ui={UI.settings.groupList}>
-      <div className="settingsFormatPanelHead">
-        <span className="section-label">{t('formatGroup.section.title')}</span>
-        <IconButton
-          label={t('common.edit')}
-          dataUi={UI.settings.groupEdit}
-          onClick={() => setEditorOpen(true)}
-          disabled={!defaultGroup}
-        >
-          <Icon name="edit" size={16} />
-        </IconButton>
-      </div>
-
-      {editorOpen && defaultGroup ? (
-        <FormatGroupEditDialog runtime={runtime} group={defaultGroup} onClose={() => setEditorOpen(false)} />
-      ) : null}
-    </div>
   );
 }
 
@@ -1196,7 +1186,6 @@ export function SettingsView({ runtime }: { runtime: AppRuntime }) {
     <section aria-label={t('header.settings')} data-ui={UI.settings.view}>
       <QrSection runtime={runtime} />
       <FormatsSection runtime={runtime} />
-      <GroupsSection runtime={runtime} />
       <ClearTargetsSection runtime={runtime} />
       <TagManagerSection runtime={runtime} />
       <UserSection runtime={runtime} />
