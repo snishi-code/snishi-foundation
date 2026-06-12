@@ -9,7 +9,8 @@ import { SelectInput, TextInput } from '@snishi/foundation/ui/Field';
 import { Icon } from '@snishi/foundation/ui/Icon';
 import { useLedger } from '../state/store';
 import { accountBalance, filterByDateRange } from '../domain/accounting';
-import { groupedAccounts } from './accountOptions';
+import { ADJUSTABLE_ACCOUNT_ROLES } from '../domain/accountRoles';
+import { groupedAccountsByRole } from './accountOptions';
 import { AccountPicker } from './AccountPicker';
 import { Money } from './money';
 import { todayLocal } from '../util/time';
@@ -174,7 +175,8 @@ export function AdjustmentEditSheet({
 
   const actual = actualText === '' ? null : Number.parseInt(actualText.replace(/[^\d]/g, ''), 10);
   const delta = actual === null ? 0 : actual - expected;
-  const groups = groupedAccounts(accounts, ['asset', 'liability'], accountId);
+  // 補正対象は内部集約口座（取り置き資金・継続コスト台帳）を除いた資産・負債のみ（聖域化）。
+  const groups = groupedAccountsByRole(accounts, [...ADJUSTABLE_ACCOUNT_ROLES], accountId);
 
   async function submit() {
     if (!accountId || actual === null) return;

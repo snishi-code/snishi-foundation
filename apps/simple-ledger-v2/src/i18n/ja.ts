@@ -786,6 +786,8 @@ export const ja = {
   'error.allocation.deferredInvalid': '継続コストの未消化分の科目が不正です。',
   'error.adjust.targetNotFound': '対象科目が見つかりません。',
   'error.adjust.assetLiabilityOnly': '残高補正できるのは資産・負債の科目です。',
+  'error.adjust.internalRole':
+    '取り置き資金・継続コスト台帳は内部の集約口座のため残高補正できません。',
   'error.adjust.notFound': '対象の残高補正が見つかりません。',
   'error.adjust.notAdjustment': 'この仕訳は残高補正ではありません。',
   'error.opening.assetLiabilityOnly': '初期残高を登録できるのは資産・負債の科目です。',

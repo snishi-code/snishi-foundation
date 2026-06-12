@@ -19,6 +19,7 @@ import {
 import {
   DEFERRED_ACCOUNT_NAME,
   isInstrumentParentRole,
+  isInternalRole,
   roleAllowsType,
   type AccountRole,
 } from '../domain/accountRoles';
@@ -762,6 +763,11 @@ function buildAdjustmentForSave(args: {
   if (!target) throw new LedgerError('error.adjust.targetNotFound');
   if (target.type !== 'asset' && target.type !== 'liability') {
     throw new LedgerError('error.adjust.assetLiabilityOnly');
+  }
+  // 内部集約口座（取り置き資金・継続コスト台帳）は補正対象外。直接補正すると目的別残高・
+  // 未消化残高の導出と矛盾するため、保存境界で fail-closed に弾く（UI 候補からも除外している）。
+  if (isInternalRole(target.role)) {
+    throw new LedgerError('error.adjust.internalRole');
   }
 
   const expected = accountBalance(

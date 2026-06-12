@@ -2386,3 +2386,78 @@ describe('ensureInitialized の並行実行', () => {
     expect(ledger.accounts.filter((a) => a.name === '現金')).toHaveLength(1);
   });
 });
+
+/* ── 監査対応: 補正対象の聖域化と import の名前一意性 ── */
+describe('補正対象の聖域化（内部集約口座は補正不可）', () => {
+  async function caught(p: Promise<unknown>): Promise<LedgerError> {
+    try {
+      await p;
+    } catch (e) {
+      return e as LedgerError;
+    }
+    throw new Error('expected rejection');
+  }
+
+  it('取り置き資金の集約口座は補正できない', async () => {
+    await loadLedger();
+    await createReserve({ name: '旅行積立' }); // 集約口座(reserve-ledger)を作る
+    const e = await caught(
+      createAdjustment({
+        kind: 'unknown-balance',
+        accountId: RESERVE_LEDGER_ACCOUNT_ID,
+        date: '2026-06-15',
+        actualBalance: 100,
+      }),
+    );
+    expect(e.code).toBe('error.adjust.internalRole');
+  });
+
+  it('継続コスト台帳の集約口座は補正できない', async () => {
+    const ledger = await loadLedger();
+    const cash = ledger.accounts.find((a) => a.name === '現金')!;
+    const fixed = ledger.accounts.find((a) => a.name === '固定費')!;
+    await createContinuousCost({
+      name: 'サブスクX',
+      kind: 'subscription',
+      amount: 1000,
+      costMonths: 1,
+      repeatEveryMonths: 1,
+      startMonth: '2026-01',
+      expenseAccountId: fixed.id,
+      paymentSourceAccountId: cash.id,
+    });
+    const e = await caught(
+      createAdjustment({
+        kind: 'unknown-balance',
+        accountId: CONTINUOUS_COST_LEDGER_ACCOUNT_ID,
+        date: '2026-06-15',
+        actualBalance: 100,
+      }),
+    );
+    expect(e.code).toBe('error.adjust.internalRole');
+  });
+});
+
+describe('import の勘定科目名一意性（有効な同名重複を拒否）', () => {
+  it('有効な同名科目を含むパッケージは validation-error になる', async () => {
+    await loadLedger();
+    const text = exportToJsonText(await loadLedger());
+    const pkg = JSON.parse(text);
+    // 「現金」を「預金」と同名に書き換える（両方 active）→ 重複として拒否。
+    const cash = pkg.accounts.find((a: { name: string }) => a.name === '現金');
+    cash.name = '預金';
+    const outcome = await importFromJsonText(JSON.stringify(pkg));
+    expect(outcome.kind).toBe('validation-error');
+  });
+
+  it('アーカイブ済みとの同名は import では許容される（解除時に保存境界で弾く）', async () => {
+    await loadLedger();
+    const text = exportToJsonText(await loadLedger());
+    const pkg = JSON.parse(text);
+    const cash = pkg.accounts.find((a: { name: string }) => a.name === '現金');
+    cash.name = '預金';
+    cash.archived = true;
+    const outcome = await importFromJsonText(JSON.stringify(pkg));
+    expect(outcome.kind).toBe('ok');
+  });
+});

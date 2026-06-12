@@ -294,13 +294,22 @@ export const ledgerExportPackageSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, message, path });
 
     // 勘定科目 ID は一意 + type / role マップ。
+    // 有効（非アーカイブ）な内訳名は箱をまたいでも重複不可（通常保存の upsertAccount と同じ
+    // 不変条件。これがないと import / 復元が重複名の抜け道になる）。アーカイブ済みは対象外
+    // （アーカイブ解除時に保存境界の nameConflict で弾かれる）。
     const accountType = new Map<string, string>();
     const accountRole = new Map<string, string>();
+    const activeAccountNames = new Set<string>();
     pkg.accounts.forEach((a, i) => {
       if (accountType.has(a.id))
         issue(`勘定科目 ID が重複しています(${a.id})`, ['accounts', i, 'id']);
       accountType.set(a.id, a.type);
       accountRole.set(a.id, a.role);
+      if (!a.archived) {
+        if (activeAccountNames.has(a.name))
+          issue(`同名の有効な勘定科目が重複しています(${a.name})`, ['accounts', i, 'name']);
+        activeAccountNames.add(a.name);
+      }
       // 集約モデルの不変条件（聖域化）: 内部集約ロールは唯一の集約口座 id のみ許す。
       // これがないと import で目的別の reserve-asset / continuing-cost-asset 科目を再導入できてしまう。
       if (a.role === 'reserve-asset' && a.id !== RESERVE_LEDGER_ACCOUNT_ID)

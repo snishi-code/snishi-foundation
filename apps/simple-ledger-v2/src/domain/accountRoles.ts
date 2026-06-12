@@ -81,6 +81,17 @@ export function isInternalRole(role: AccountRole): boolean {
   return INTERNAL_ACCOUNT_ROLES.includes(role);
 }
 
+/**
+ * 残高補正の対象にできる役割（資産・負債のうち内部集約 role を除く）。
+ * 取り置き資金(reserve-asset)・継続コスト台帳(continuing-cost-asset)は集約口座であり、
+ * 補正で直接動かすと目的別残高・未消化残高の導出と矛盾するため対象外（fail-closed）。
+ * UI の補正対象ピッカーと repository の保存境界の双方がこの正本を使う。
+ */
+export const ADJUSTABLE_ACCOUNT_ROLES: readonly AccountRole[] = ACCOUNT_ROLES.filter(
+  (r) =>
+    (roleAllowsType(r, 'asset') || roleAllowsType(r, 'liability')) && !isInternalRole(r),
+);
+
 /** type に対する既定 role（type 変更時のリセット先・migration の既定）。 */
 export function defaultRoleForType(type: AccountType): AccountRole {
   switch (type) {
