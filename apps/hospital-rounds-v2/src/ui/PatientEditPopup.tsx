@@ -11,7 +11,8 @@
 import { Modal } from '@snishi/foundation/ui/Modal';
 import type { PatientStatus } from '../domain/types';
 import type { AppRuntime } from './appRuntime';
-import { getStatusOptions, sanitizeRoomInput, statusClass } from './patientDisplay';
+import { sanitizeRoomInput } from './patientDisplay';
+import { StatusSwatchRow } from './StatusPicker';
 import { TagSelection } from './TagPicker';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -50,22 +51,11 @@ export function PatientEditPopup({
           aria/title で読める)。最頻操作なので指の移動距離が最小の先頭に置く。 ── */}
       <div className="patientSheetField patientSheetStatusField">
         <span className="patientSheetFieldLabel">{t('patientSheet.status')}</span>
-        <div className="statusPickerList">
-          {getStatusOptions().map((opt) => (
-            <button
-              key={opt.status}
-              type="button"
-              className={`statusPickerBox ${statusClass(opt.status) || 'status-none'}${p.status === opt.status ? ' selected' : ''}`}
-              aria-pressed={p.status === opt.status}
-              aria-label={opt.label}
-              title={opt.label}
-              data-ui={UI.patient.statusOption}
-              onClick={() => commit(() => (p.status = opt.status as PatientStatus))}
-            >
-              <span aria-hidden="true">{opt.mark}</span>
-            </button>
-          ))}
-        </div>
+        <StatusSwatchRow
+          value={p.status}
+          onSelect={(status) => commit(() => (p.status = status as PatientStatus))}
+          dataUi={UI.patient.statusOption}
+        />
       </div>
 
       {/* ── 部屋番号 + 氏名 (頻繁に編集しないのでコンパクト横並び) ── */}

@@ -121,9 +121,10 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
     return () => ro.disconnect();
   }, [ready]);
 
-  // ── スクロール体験 (P1):
-  //   - ホーム一覧の位置は「患者詳細へ行って戻るだけ」なら保持する (openPatient で控え、
-  //     home へ戻った描画後に復元)。明示的なホーム遷移 (ヘッダー/メニュー) はトップから。
+  // ── スクロール体験:
+  //   - ホーム一覧の位置は常に保持する (ホームを離れる時に控え、戻った描画後に復元)。
+  //     ヘッダーのホームボタン経由でも復元する (回診中は同じ位置に戻れることが最優先)。
+  //     リセットされるのは病棟/ユーザー切替時のみ。
   //   - 患者詳細は常に上部から開始 (前/次の切替も含む)。Ver1 の「全画面で同じ位置を共有」
   //     は誤タップの一因だったため持ち越さない。
   const homeScrollYRef = useRef(0);
@@ -171,11 +172,13 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
   const goto = useCallback(
     (next: ViewName) => {
       captureNavSnapshot();
-      if (next === 'home') homeScrollYRef.current = 0; // 明示遷移はトップから
+      // ホームを離れるとき (home 以外へ goto) はスクロール位置を控える。
+      // ホームへ戻るときは useLayoutEffect が控えた位置を復元する (トップに飛ばさない)。
+      if (view === 'home' && next !== 'home') homeScrollYRef.current = window.scrollY;
       window.scrollTo(0, 0);
       navigate(next);
     },
-    [captureNavSnapshot, navigate],
+    [captureNavSnapshot, navigate, view],
   );
 
   const openPatient = useCallback(

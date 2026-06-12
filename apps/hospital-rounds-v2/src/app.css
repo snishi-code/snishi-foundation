@@ -209,16 +209,115 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   padding: var(--space-2) var(--space-3);
 }
 
-/* ── ホーム患者カード行: 大ボタン + 右端に埋め込み QR ボタン ──
-   (simple-ledger-v2 の行内アクション方式: 行全体タップ = 詳細、右端ボタン = QR) */
+/* ── ホーム患者カード行: [ステータスボタン][患者ボタン][QR ボタン] の 3 ボタン構成 ──
+   左端: 44-48px 正方のステータス変更ボタン
+   中央: 患者名ボタン (flex:1 で残幅を埋める)
+   右端: 56px 正方の電子カルテ転記 QR ボタン */
 .patientCardRow {
   position: relative;
   display: flex;
+  gap: 0;
 }
 
 .patientCardRow .patientBtn {
-  width: 100%;
-  padding-right: 76px; /* 右端の QR ボタン領域を空ける */
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 左端ステータスボタン・右端 QR ボタン分の内側余白を詰める */
+  padding-left: var(--space-2);
+  padding-right: 66px; /* 右端の QR ボタン領域を空ける */
+  border-left: none;
+  border-radius: 0;
+}
+
+/* 左端ステータスボタン: 現ステータス色 + 形マークのみ (44-48px 正方) */
+.patientStatusBtn {
+  flex: 0 0 48px;
+  width: 48px;
+  min-height: 76px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid var(--status-none-bd);
+  border-right: none;
+  border-radius: 14px 0 0 14px;
+  background: var(--status-none-bg);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+  /* ステータス色は status-* クラスと同じ CSS 変数 */
+}
+
+.patientStatusBtn.status-yellow {
+  background: var(--status-yellow-bg);
+  border-color: var(--status-yellow-bd);
+  color: var(--status-yellow-fg);
+}
+
+.patientStatusBtn.status-green {
+  background: var(--status-green-bg);
+  border-color: var(--status-green-bd);
+  color: var(--status-green-fg);
+}
+
+.patientStatusBtn.status-gray {
+  background: var(--status-gray-bg);
+  border-color: var(--status-gray-bd);
+  color: var(--status-gray-fg);
+}
+
+.patientStatusBtn.status-blue {
+  background: var(--status-blue-bg);
+  border-color: var(--status-blue-bd);
+  color: var(--status-blue-fg);
+}
+
+/* Trash 病棟 (ステータスボタンなし) は患者ボタンの左角を元に戻す */
+.patientCardRow:not(:has(.patientStatusBtn)) .patientBtn {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--status-none-bd);
+  border-radius: 14px 0 0 14px;
+}
+
+/* QR ボタンなし (Trash) の患者ボタン右角 */
+.patientCardRow:not(:has(.patientQrBtn)) .patientBtn {
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--status-none-bd);
+  border-radius: 0 14px 14px 0;
+}
+
+/* ステータスボタンもQRボタンもなし (Trash で両方なし) */
+.patientCardRow:not(:has(.patientStatusBtn)):not(:has(.patientQrBtn)) .patientBtn {
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+  border: 1px solid var(--status-none-bd);
+  border-radius: 14px;
+}
+
+/* ステータスボタンと患者ボタン間の境界を status クラスに合わせる */
+.patientStatusBtn.status-yellow + .patientBtn {
+  border-color: var(--status-yellow-bd);
+}
+.patientStatusBtn.status-green + .patientBtn {
+  border-color: var(--status-green-bd);
+}
+.patientStatusBtn.status-gray + .patientBtn {
+  border-color: var(--status-gray-bd);
+}
+.patientStatusBtn.status-blue + .patientBtn {
+  border-color: var(--status-blue-bd);
+}
+
+/* 患者ボタンの右角を丸くする (QR ボタンがある場合は QR 側に角をつける) */
+.patientCardRow .patientBtn {
+  border-radius: 0;
+}
+
+/* ステータスボタンの :active */
+.patientStatusBtn:active {
+  filter: brightness(0.92);
 }
 
 .patientQrBtn {
@@ -338,6 +437,11 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 .statusPickerBox.selected {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* ステータス変更ポップアップ (ホームの左端ボタンから開く軽量版) */
+.statusPickerPopupBody {
+  padding: var(--space-2);
 }
 
 /* ── 患者シート (PatientEditPopup。v1 popups.css の patientMetaMenu 系) ── */

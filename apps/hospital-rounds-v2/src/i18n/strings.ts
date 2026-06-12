@@ -40,6 +40,8 @@ export const STRINGS_JA = {
   'home.qr.show': 'ホームQR表示',
   'home.patientQr.title': 'この患者の電子カルテ転記用QRを表示',
   'home.patientQr.aria': '{label} の電子カルテ転記用QRを表示',
+  'home.statusBtn.aria': '{label} のステータスを変更',
+  'home.statusPicker.aria': 'ステータスを選択',
 
   // ステータス
   'tagStatus.none': '白',

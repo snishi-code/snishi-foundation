@@ -17,10 +17,12 @@ export const UI = {
     grid: 'home.grid',
     addPatient: 'home.addPatient',
     patientQr: 'home.patientQr',
+    statusZone: 'home.statusZone', // ホーム患者行の左端ステータスボタン
   },
   patient: {
     card: 'patient.card',
     statusOption: 'patient.status.option',
+    statusPopup: 'patient.statusPopup', // ホームのステータス変更ポップアップ
     move: 'patient.move',
     editPopup: 'patient.edit.popup',
     name: 'patient.edit.name',

@@ -1,6 +1,7 @@
 // (e) ステータス変更が保存スケジュールされる (患者シートのステータスボックス →
 //     markUpdated + scheduleSave)。導線は v1 同様: 患者カード → 詳細 → 患者メタ →
 //     シート内ステータス (色 + 形マークのみ・シートは開いたまま)。
+// また Phase 4 で追加したホームの左端ステータスボタン経由の変更も検証する。
 import './setup';
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
@@ -29,6 +30,31 @@ describe('ステータス変更', () => {
 
     // シートは開いたまま (複数項目を続けて編集できる) + 選択状態が移る
     expect(screen.getByRole('button', { name: '緑' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('ホームの左端ステータスボタン → ポップアップ → 色選択で status 反映 + scheduleSave + ポップアップが閉じる', async () => {
+    const { runtime } = await renderApp({ bundle: seedBundle([{ name: '花子', room: '101' }]) });
+    const user = userEvent.setup();
+    const scheduleSpy = vi.spyOn(runtime.store, 'scheduleSave');
+
+    // ホームに左端ステータスボタンがある
+    const statusBtn = await screen.findByRole('button', { name: '101 花子 のステータスを変更' });
+    expect(statusBtn).toBeInTheDocument();
+
+    // ステータスボタンをタップ → ポップアップが開く
+    await user.click(statusBtn);
+
+    // ポップアップ内の「緑」をクリック
+    const popup = await screen.findByRole('dialog', { name: 'ステータスを選択' });
+    await user.click(within(popup).getByRole('button', { name: '緑' }));
+
+    // ポップアップが閉じる
+    expect(screen.queryByRole('dialog', { name: 'ステータスを選択' })).toBeNull();
+
+    // status が反映される
+    const patient = runtime.store.getAppState().patients.find((p) => p.name === '花子')!;
+    expect(patient.status).toBe(STATUS.GREEN);
+    expect(scheduleSpy).toHaveBeenCalled();
   });
 });
 
