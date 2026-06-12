@@ -139,7 +139,6 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
     if (lastWsIdRef.current && lastWsIdRef.current !== wsId) {
       setSelectedNo(1);
       homeScrollYRef.current = 0; // 別病棟の一覧位置を持ち越さない
-      runtime.undo.clearAll(); // 病棟/ユーザー切替で患者ごとの undo 履歴を破棄
       runtime.eventlog.log(EVENT.WS_SWITCH);
     }
     lastWsIdRef.current = wsId;

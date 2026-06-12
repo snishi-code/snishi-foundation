@@ -1,12 +1,12 @@
-// 移植元: snishi-code-medical/hospital-rounds/src/views/detail.js (renderDetail / メタボタン /
-//          undo ボタン) + features/formats.js の inline 編集セッション管理
+// 移植元: snishi-code-medical/hospital-rounds/src/views/detail.js (renderDetail / メタボタン)
+//          + features/formats.js の inline 編集セッション管理
 //          (_inlineEdit / enterInlineEdit / commitInlineDraft / cancelInlineFormatEdit)
 //
 // 詳細 (患者) ビュー:
 //   - 患者ヘッダ: 前後ナビ + メタボタン (ステータス形マーク + 部屋 + 氏名 + タグ概要)
 //     → 患者情報ポップアップ / 転棟済バナー / 転棟ボタン
 //   - 6 パネル (problem/S/O/A/P/shared) の展開フォーマットカード + inline 編集
-//   - 戻す/進む (患者ごとの Undo/Redo)、患者画面 QR (平文)
+//   - 患者画面 QR (平文)
 //
 // inline 編集セッションは ref で保持 (1 文字ごとに React 再描画しない = v1 と同じ
 // 「編集終了時にまとめて反映」)。セッション開始/終了時だけ tick で再描画する。
@@ -32,7 +32,7 @@ import { FormatSheet } from './FormatSheet';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
 import { PatientLifecyclePanel } from './PatientLifecyclePanel';
-import { applyFormatTags, formatTagsToAdd, writeFormatValue } from './formatLogic';
+import { applyFormatTags, writeFormatValue } from './formatLogic';
 import { hapticTick } from './feedback';
 import { registerEditingSession } from './registries';
 import { t } from '../i18n/strings';
@@ -61,7 +61,7 @@ export function DetailView({
 }) {
   const toast = useToast();
   useRevision(runtime);
-  const { store, undo } = runtime;
+  const { store } = runtime;
   const appState = store.getAppState();
   const settings = store.getSettings();
   const patient = appState.patients[selectedNo - 1] ?? null;
@@ -74,8 +74,6 @@ export function DetailView({
   // 描画用ミラー inline は state (開始/終了時のみ setState)。同一オブジェクト参照。
   const inlineRef = useRef<InlineSession | null>(null);
   const [inline, setInline] = useState<InlineSession | null>(null);
-  // undo ボタンの活性更新用 (capture 直後の再描画 — v1 refreshUndoButtons)
-  const [, setUndoTick] = useState(0);
 
   // 誤タップガード (ゴーストクリック抑止): detail 入場後、新しい pointerdown が来るまで
   // 入力シート / inline 編集 / 正常チェックを開かない (v1 _freshTapSinceEntry)。
@@ -146,7 +144,7 @@ export function DetailView({
   }, []);
 
   // write-through 本体 (v1 commitInlineDraft): input ごとに formatValues へ書き込む。
-  // Undo 起点はセッション最初の実変更で 1 回だけ。fail-closed: 患者/フォーマット消失で中断。
+  // fail-closed: 患者/フォーマット消失で中断。
   function commitInline(): void {
     const s = inlineRef.current;
     if (!s) return;
@@ -166,19 +164,17 @@ export function DetailView({
     const value = kind === 'text' ? commitDraftTextEntry(s.orig, s.draft) : s.draft;
     if (!s.captured) {
       if (inlineValueUnchanged(kind, value, s.orig)) return; // 実変更なし → 何も書かない
-      undo.capture(p, 'format', { tagsAdded: formatTagsToAdd(format, p, liveSettings) });
       s.captured = true;
       writeFormatValue(store, p, selectedNo, format, s.i, value);
       applyFormatTags(format, p, liveSettings);
       s.dirty = true;
-      setUndoTick((n) => n + 1); // undo ボタンの活性化 (v1 refreshUndoButtons)
       return;
     }
     writeFormatValue(store, p, selectedNo, format, s.i, value);
     s.dirty = true;
   }
 
-  // number/fraction 常時入力欄の Undo セッション (フォーカスごとに 1 回だけ capture)
+  // number/fraction 常時入力欄のフォーカスセッション (フォーカスごとに実変更を 1 回検出)
   const numericRef = useRef<{
     formatId: string;
     i: number;
@@ -235,8 +231,6 @@ export function DetailView({
         return;
       }
       const liveSettings = store.getSettings();
-      const tagsAdded = decision.action === 'write' ? formatTagsToAdd(format, patient, liveSettings) : [];
-      undo.capture(patient, 'format', { tagsAdded });
       writeFormatValue(store, patient, selectedNo, format, i, decision.value);
       if (decision.action === 'write') applyFormatTags(format, patient, liveSettings);
       hapticTick(); // 成功体感の補助 (視覚は .formatNormalBtn.on のアニメ)
@@ -266,7 +260,6 @@ export function DetailView({
       const session =
         s && s.formatId === format.id && s.i === i && s.openPid === (p.pid ?? null) ? s : null;
       if (!session || !session.captured) {
-        // フォーカスセッション内の最初の実変更で 1 回だけ Undo 起点 + 自動付与タグ
         const slot = p.formatValues?.[format.id];
         const orig = session
           ? session.orig
@@ -276,37 +269,14 @@ export function DetailView({
         const a = readNumericEntry(value);
         const b = readNumericEntry(orig);
         if (a.value === b.value && a.note === b.note) return; // 実変更なし → 何も書かない
-        undo.capture(p, 'format', { tagsAdded: formatTagsToAdd(format, p, liveSettings) });
         writeFormatValue(store, p, selectedNo, format, i, value);
         applyFormatTags(format, p, liveSettings);
         if (session) session.captured = true;
-        setUndoTick((n) => n + 1);
         return;
       }
       writeFormatValue(store, p, selectedNo, format, i, value);
     },
   };
-
-  async function runUndo(dir: 'undo' | 'redo'): Promise<void> {
-    const p = store.getAppState().patients[selectedNo - 1];
-    if (!p) return;
-    if (dir === 'undo' ? !undo.canUndo(p) : !undo.canRedo(p)) return;
-    endInline({ silent: true });
-    const res = dir === 'undo' ? await undo.undo(p) : await undo.redo(p);
-    if (res.ok) {
-      runtime.eventlog.log(EVENT.PATIENT_EDIT);
-      toast.show(
-        t(dir === 'undo' ? 'undo.done' : 'redo.done', {
-          name: formatPatientLabel(p, String(selectedNo)),
-          kind: t('undo.kind.format'),
-        }),
-      );
-    } else {
-      // 履歴はあったのに失敗 = 保存失敗 (fail-closed rollback 済)。握らず可視化。
-      toast.show(t('save.failed'), 'error');
-    }
-    runtime.bump();
-  }
 
   if (!patient) return null;
 
@@ -370,7 +340,7 @@ export function DetailView({
         }}
       />
 
-      {/* 下部固定の操作バー: スクロール中でも前/次・患者編集・Undo/Redo・QR に届く
+      {/* 下部固定の操作バー: スクロール中でも前/次・患者編集・QR に届く
           (Ver1 の上部 sticky の代替。片手操作で親指が届く位置 + safe-area 対応)。 */}
       <div className="detailActionBar" data-ui={UI.detail.actionBar}>
         <IconButton
@@ -403,22 +373,6 @@ export function DetailView({
           <Icon name="edit" size={20} />
         </IconButton>
         <span className="viewToolbarSpacer" />
-        <IconButton
-          label={t('undo.aria')}
-          disabled={!undo.canUndo(patient)}
-          dataUi={UI.undo.btn}
-          onClick={() => void runUndo('undo')}
-        >
-          <Icon name="reverse" size={20} />
-        </IconButton>
-        <IconButton
-          label={t('redo.aria')}
-          disabled={!undo.canRedo(patient)}
-          dataUi={UI.undo.redoBtn}
-          onClick={() => void runUndo('redo')}
-        >
-          <Icon name="reverse" size={20} className="iconFlipX" />
-        </IconButton>
         <IconButton
           label={t('detail.qr.show')}
           dataUi={UI.detail.qrShow}

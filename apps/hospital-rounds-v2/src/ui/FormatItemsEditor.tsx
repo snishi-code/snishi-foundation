@@ -9,8 +9,8 @@
 //   - number   : [ラベル][値 1fr][単位][備考ボタン]。単位は固定幅で縦に揃え、備考は
 //                小ボタン + ポップアップ (NoteButton)。備考がある時だけ行下に小さく表示。
 //   - fraction : [ラベル][上]/[下][単位][備考ボタン]。
-// Undo は 'format' スコープ。フォーカスセッションごとに 1 回 capture し、フォーマット
-// 自動付与タグも最初の実変更で patient.tags へ merge する (患者画面と同じ挙動)。
+// フォーカスセッションの最初の実変更でフォーマット自動付与タグを patient.tags へ merge する
+// (患者画面と同じ挙動)。
 
 import { useRef } from 'react';
 import {
@@ -27,7 +27,7 @@ import {
   readTextValue,
 } from '../domain/formatValues';
 import type { AppRuntime } from './appRuntime';
-import { applyFormatTags, formatTagsToAdd, shownCardFormatsForPanel, writeFormatValue } from './formatLogic';
+import { applyFormatTags, shownCardFormatsForPanel, writeFormatValue } from './formatLogic';
 import { hapticTick } from './feedback';
 import { NormalCheckButton } from './NormalCheckButton';
 import { NoteButton } from './NoteButton';
@@ -70,7 +70,7 @@ export function FormatItemsEditor({
     sessRef.current = { pid, key: `${format.id}:${i}`, orig: storedOf(format, i), captured: false };
   }
 
-  // write-through (Undo 起点 + 自動付与タグはセッション最初の実変更で 1 回)
+  // write-through (自動付与タグはセッション最初の実変更で 1 回)
   function write(format: Format, i: number, value: unknown, changed: boolean): void {
     const p = live();
     if (!p) return;
@@ -80,7 +80,6 @@ export function FormatItemsEditor({
     const session = s && s.pid === pid && s.key === `${format.id}:${i}` ? s : null;
     if (!session || !session.captured) {
       if (!changed) return;
-      runtime.undo.capture(p, 'format', { tagsAdded: formatTagsToAdd(format, p, liveSettings) });
       writeFormatValue(store, p, no, format, i, value);
       applyFormatTags(format, p, liveSettings);
       if (session) session.captured = true;
@@ -96,8 +95,6 @@ export function FormatItemsEditor({
     const p = live();
     if (!p) return;
     const liveSettings = store.getSettings();
-    const tagsAdded = decision.action === 'write' ? formatTagsToAdd(format, p, liveSettings) : [];
-    runtime.undo.capture(p, 'format', { tagsAdded });
     writeFormatValue(store, p, liveNo(), format, i, decision.value);
     if (decision.action === 'write') applyFormatTags(format, p, liveSettings);
     hapticTick();

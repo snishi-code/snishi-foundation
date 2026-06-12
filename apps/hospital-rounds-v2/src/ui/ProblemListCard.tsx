@@ -11,7 +11,7 @@
 //     (MemoSharedView memo) の両方で使う。患者は pid で捕捉する (並び替えで
 //     別患者へ書かない)。
 //
-// 書き込みは write-through (markUpdated + scheduleSave)。Undo は 'problem' スコープ。
+// 書き込みは write-through (markUpdated + scheduleSave)。
 
 import { useRef, useState } from 'react';
 import { Icon } from '@snishi/foundation/ui/Icon';
@@ -34,7 +34,6 @@ function autosize(el: HTMLTextAreaElement): void {
 export function ProblemListEditor({ runtime, pid }: { runtime: AppRuntime; pid: string }) {
   const { store } = runtime;
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
-  // テキスト編集の Undo 起点はフォーカスセッションごとに 1 回 (inline 編集と同じ考え方)
   const editSessionRef = useRef<{ pid: string; orig: string[]; captured: boolean } | null>(null);
 
   const live = () => store.getAppState().patients.find((x) => x.pid === pid) ?? null;
@@ -52,10 +51,8 @@ export function ProblemListEditor({ runtime, pid }: { runtime: AppRuntime; pid: 
     if (!p) return;
     const arr = readProblems(p);
     while (arr.length <= i) arr.push('');
-    // フォーカスセッション内の最初の実変更で 1 回だけ Undo 起点を積む
     const session = editSessionRef.current;
     if (session && session.pid === pid && !session.captured && value !== (session.orig[i] ?? '')) {
-      runtime.undo.capture(p, 'problem', { preFields: { problems: session.orig.slice() } });
       session.captured = true;
     }
     arr[i] = value;
@@ -67,7 +64,6 @@ export function ProblemListEditor({ runtime, pid }: { runtime: AppRuntime; pid: 
   function addRow(): void {
     const p = live();
     if (!p) return;
-    runtime.undo.capture(p, 'problem');
     const arr = readProblems(p);
     // 0 行のときに見えている仮想 #1 行を実体化してから #2 を足す (見た目と番号を一致させる)
     if (!arr.length) arr.push('');
@@ -87,7 +83,6 @@ export function ProblemListEditor({ runtime, pid }: { runtime: AppRuntime; pid: 
       setDeleteIdx(null);
       return;
     }
-    runtime.undo.capture(p, 'problem');
     arr.splice(i, 1); // 下の行が詰まり、表示番号は自動で再採番される
     p.problems = arr;
     store.markUpdated(liveNo());

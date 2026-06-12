@@ -1,4 +1,4 @@
-// アプリ実行時の束 (store / undo / snapshots / eventlog / 変更通知)。
+// アプリ実行時の束 (store / snapshots / eventlog / 変更通知)。
 //
 // v1 の main.js が live binding + 中央 refreshPatientUI() で行っていた
 // 「ミューテーション後の全 view 一括再描画」を、React では revision カウンタ +
@@ -16,12 +16,10 @@ import type { EventLog } from '@snishi/foundation/eventlog/createEventLog';
 import { createHrStore, type HrStore, type StoreChangeEvent } from '../data/store';
 import { createHrSnapshots, type SnapshotData } from '../data/snapshots';
 import { createHrEventLog } from '../data/eventlog';
-import { createPatientUndo, type PatientUndo } from '../domain/patientUndo';
 import { t } from '../i18n/strings';
 
 export interface AppRuntime {
   store: HrStore;
-  undo: PatientUndo;
   snapshots: SnapshotStore<SnapshotData>;
   eventlog: EventLog;
   /** データ変更後の再描画通知 (v1 refreshPatientUI 相当)。 */
@@ -66,15 +64,8 @@ export function createAppRuntime(): AppRuntime {
   const snapshots = createHrSnapshots(store.storage.pointers);
   const eventlog = createHrEventLog(() => store.storage.getCurrentUserId() || null);
 
-  const undo = createPatientUndo({
-    persist: store.persistActiveOrThrow,
-    // 書き戻し成功後の再描画。toast は呼び出し側 (DetailView) が結果から出す。
-    onApplied: () => bump(),
-  });
-
   return {
     store,
-    undo,
     snapshots,
     eventlog,
     bump,

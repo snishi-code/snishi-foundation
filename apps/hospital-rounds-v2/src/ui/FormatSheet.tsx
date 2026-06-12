@@ -5,7 +5,6 @@
 // draft を編集し「保存」で formatValues へ確定 / キャンセルで破棄 / 消去で空に。
 //
 // fail-closed: 開いた時点と患者 (pid) が変わっていたら保存しない (別患者への誤入力防止)。
-// 保存時: 値確定の直前に Undo 起点 capture (自動付与タグ delta も履歴へ)。
 // 自動フォーカスはしない (開いただけでキーボードを出さない — popup-behavior の中央ルール)。
 
 import { useState } from 'react';
@@ -15,7 +14,7 @@ import { useToast } from '@snishi/foundation/ui/toast';
 import { DEFAULT_ITEM_KIND, type Format, type FormatItem } from '../domain/types';
 import { commitDraftTextEntry, readNumericEntry, readTextValue } from '../domain/formatValues';
 import type { AppRuntime } from './appRuntime';
-import { applyFormatTags, formatTagsToAdd } from './formatLogic';
+import { applyFormatTags } from './formatLogic';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
 import { useRegisterOverlay } from './registries';
@@ -184,8 +183,6 @@ export function FormatSheet({
     }
     if (!p.formatValues || typeof p.formatValues !== 'object') p.formatValues = {};
     const settings = store.getSettings();
-    // 値確定の直前に Undo 起点 (自動付与タグ delta も履歴へ — Undo で撤回できる)
-    runtime.undo.capture(p, 'format', { tagsAdded: formatTagsToAdd(format, p, settings) });
     const next: Record<string, unknown> = {};
     const items = format.items || [];
     for (let i = 0; i < items.length; i++) {

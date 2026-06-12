@@ -84,13 +84,6 @@ export const STRINGS_JA = {
   'move.banner': '{dest} へ転棟済 ({date})',
   'move.namePrefix': '(移)',
 
-  // Undo / Redo
-  'undo.aria': '戻す（直前の入力を取り消し）',
-  'redo.aria': '進む（取り消した入力をやり直し）',
-  'undo.done': '戻しました：{name} の{kind}',
-  'redo.done': 'やり直しました：{name} の{kind}',
-  'undo.kind.format': '入力',
-
   // フォーマット入力
   'format.input.clear': '消去',
   'format.cell.edit.aria': '{label} を入力',

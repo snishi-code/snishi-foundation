@@ -39,10 +39,6 @@ export const UI = {
     qrShow: 'detail.qr.show',
     qrDialog: 'detail.qr.dialog',
   },
-  undo: {
-    btn: 'undo.btn',
-    redoBtn: 'redo.btn',
-  },
   problem: {
     card: 'problem.card',
     list: 'problem.list',
