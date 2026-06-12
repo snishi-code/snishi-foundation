@@ -40,7 +40,7 @@ export const DEFAULT_WORKSPACE_ID = 'default';
 
 /**
  * ユーザーごとの設定レコード: `__settings__::<userId>`。
- * 設定 (formats / formatGroups / tags / clearTargets / qr 設定) はユーザー共通
+ * 設定 (formats / tags / clearTargets / qr 設定) はユーザー共通
  * (= 1 ユーザー内の全ワークスペースで共通) で、bundles ストア内に予約 ID で置き、
  * listBundles では除外する。DB スキーマ追加は不要 (v1 と同じ設計)。
  */

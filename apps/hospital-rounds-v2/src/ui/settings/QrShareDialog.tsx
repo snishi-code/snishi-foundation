@@ -1,8 +1,8 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-format.js / qr-set.js の
 //          送信オーバーレイ部 (openQrFormatOverlay / openQrSetOverlay)
 //
-// FMT / FS の「QR で共有」モーダル。送信カードは表示専用 (受信導線を持たせない —
-// 受信は設定の統一「QR から追加」のみ。v1 受信ルーター規約)。
+// ST「QR で共有」モーダル。送信カードは表示専用
+// (受信は設定の統一「QR から追加」のみ)。
 
 import { useEffect } from 'react';
 import { Modal } from '@snishi/foundation/ui/Modal';

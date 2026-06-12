@@ -5,7 +5,7 @@
 // 改名/削除は **アクティブ病棟の患者にのみ** 波及する (v1 仕様準拠 — 非アクティブ病棟の
 // 患者タグは名前参照のため、改名後は「未登録タグ」として表示されず無害)。
 //
-// 共有フィルタ (home / memo / shared 横断) は v1 同様モジュールレベル状態。
+// タグフィルタはモジュールレベル状態 (アプリ起動中のみ保持)。
 // 変更後の再描画は呼び出し側が runtime.bump() で行う。
 // フィルタはユーザータグのみ・全タグ一致 (AND) 固定。AND/OR 切替と仮想ステータスタグは
 // v2 では撤去済み (仕様判断 2026-06)。
@@ -83,25 +83,25 @@ export function setTagClearOnStart(store: HrStore, idx: number, on: boolean): vo
 }
 
 // ============================
-// 共有フィルタ状態 (home / memo / shared 横断。アプリ起動中のみ保持)
+// ホームタグフィルタ状態 (アプリ起動中のみ保持)
 // ============================
 
-let _sharedTagFilter: string[] = [];
+let _homeTagFilter: string[] = [];
 
-export function getSharedTagFilter(): string[] {
-  return _sharedTagFilter.slice();
+export function getHomeTagFilter(): string[] {
+  return _homeTagFilter.slice();
 }
-export function setSharedTagFilter(tags: string[]): void {
-  _sharedTagFilter = tags.slice();
+export function setHomeTagFilter(tags: string[]): void {
+  _homeTagFilter = tags.slice();
 }
 /** テスト間の残留防止。 */
-export function _resetSharedFilterForTests(): void {
-  _sharedTagFilter = [];
+export function _resetHomeTagFilterForTests(): void {
+  _homeTagFilter = [];
 }
 
 /** 選択タグをすべて持つ患者だけ表示する (AND 固定・ユーザータグのみ)。 */
-export function patientMatchesSharedFilter(p: Patient): boolean {
-  if (!_sharedTagFilter.length) return true;
+export function patientMatchesTagFilter(p: Patient): boolean {
+  if (!_homeTagFilter.length) return true;
   const have = new Set(Array.isArray(p.tags) ? p.tags : []);
-  return _sharedTagFilter.every((tg) => have.has(tg));
+  return _homeTagFilter.every((tg) => have.has(tg));
 }

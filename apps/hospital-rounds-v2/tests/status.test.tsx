@@ -1,7 +1,7 @@
-// (e) ステータス変更が保存スケジュールされる (患者シートのステータスボックス →
-//     markUpdated + scheduleSave)。導線は v1 同様: 患者カード → 詳細 → 患者メタ →
+// ステータス変更が保存スケジュールされる (患者シートのステータスボックス →
+//     markUpdated + scheduleSave)。導線: 患者カード → 詳細 → 患者メタ →
 //     シート内ステータス (色 + 形マークのみ・シートは開いたまま)。
-// また Phase 4 で追加したホームの左端ステータスボタン経由の変更も検証する。
+// またホームの左端ステータスボタン経由の変更も検証する。
 import './setup';
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';

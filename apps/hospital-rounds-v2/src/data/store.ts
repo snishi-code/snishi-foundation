@@ -155,7 +155,7 @@ export interface HrStore {
   persistActiveOrThrow(): Promise<void>;
   /** beforeunload / visibilitychange="hidden" 用。debounce 中のセーブを即時実行に切替 */
   flushSavePending(): void;
-  /** 設定保存 (実体は saveNow。呼び出し側の意図を名前に残す v1 互換) */
+  /** 設定保存 (実体は saveNow。呼び出し側の意図を名前で示す) */
   saveSettings(): Promise<void>;
   /** fail-closed 版 saveSettings (QR 取込などが使う) */
   saveSettingsOrThrow(): Promise<void>;
@@ -412,12 +412,12 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       }
     },
 
-    // 設定はアクティブ bundle と同じ経路で保存する。関数名は呼び出し側の意図を残す (v1 互換)。
+    // 設定はアクティブ bundle と同じ経路で保存する。関数名は呼び出し側の意図を示す。
     saveSettings() {
       return saveNow();
     },
 
-    // fail-closed 版 saveSettings。QR 取込 (設定/フォーマット/セットの追加・上書き) など
+    // fail-closed 版 saveSettings。QR 取込 (設定/フォーマットの追加・上書き) など
     // 「保存できていないのに成功表示すると設定の取り違え/消失になる」操作が使う。
     // 失敗は throw して呼び出し側に中断 + ロールバックさせる。
     saveSettingsOrThrow() {

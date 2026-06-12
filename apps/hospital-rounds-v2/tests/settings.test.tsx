@@ -20,7 +20,7 @@ describe('設定: フォーマット CRUD', () => {
     const user = userEvent.setup();
     await openSettings(user);
 
-    // S 欄など各パネルに追加ボタンがある。先頭 (S 欄。problem はフォーマット対象外) で新規作成。
+    // S/O/A/P 各パネルに追加ボタンがある。先頭 (S 欄) で新規作成。
     const addButtons = screen.getAllByRole('button', { name: 'フォーマット追加' });
     await user.click(addButtons[0] as HTMLElement);
 

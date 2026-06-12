@@ -3,7 +3,6 @@
 // ST 受信の「適用」部 (確認ダイアログの後段)。fail-closed 規約:
 //   適用 → saveSettingsOrThrow() を await → 失敗は in-memory をロールバックして
 //   { ok:false } (成功表示・クローズへ進ませない)。
-// FMT (フォーマット単体) / FS (フォーマットセット) は廃止済み。
 // UI から分離してテスト可能にする (confirm 文言の組み立てもここ)。
 
 import type { Settings } from '../../domain/types';

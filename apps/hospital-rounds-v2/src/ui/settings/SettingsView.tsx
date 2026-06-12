@@ -2,8 +2,8 @@
 //          + features/import-export.js (JSON/端末まるごと/ログ入出力)
 //          + features/qr-settings.js (ST 送信カード) + qr-receive.js (統一受信入口)
 //
-// 設定画面の構成 (v1 settings-view.js と同じ並び):
-//   QR (ST 送信カード + QR から追加) / フォーマット CRUD (パネル別カード) / セット CRUD /
+// 設定画面の構成:
+//   QR (ST 送信カード + QR から追加) / フォーマット CRUD (パネル別カード) /
 //   クリア対象 / タグ管理 / ユーザー管理 / 病棟 (JSON 取込・書出) / 巻き戻し /
 //   研究ログ / 端末まるごと / 操作ガイド (準備中プレースホルダ)
 //
@@ -1179,9 +1179,9 @@ function WardSection({ runtime }: { runtime: AppRuntime }) {
 
 export function SettingsView({ runtime, onNavigateHome }: { runtime: AppRuntime; onNavigateHome?: () => void }) {
   useRevision(runtime);
-  // 並びは v1 settings-view.js 準拠: QR → フォーマット (パネル別) → セット → クリア対象 →
+  // 並び: QR → フォーマット (パネル別) → クリア対象 →
   // タグ → ユーザー → 病棟 (JSON) → 巻き戻し → 研究ログ → 端末まるごと → 操作ガイド。
-  // 画面タイトルの見出しは出さない (v1 同様、内容を見れば分かる)。
+  // 画面タイトルの見出しは出さない (内容を見れば分かる)。
   return (
     <section aria-label={t('header.settings')} className="settingsView" data-ui={UI.settings.view}>
       <QrSection runtime={runtime} />

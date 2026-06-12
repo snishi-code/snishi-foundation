@@ -73,7 +73,7 @@ export function encodePatientList(
 export interface DecodedPatientListEntry {
   room: string;
   name: string;
-  /** sender 辞書に対する 1-based index (v1 互換の受信側形) */
+  /** sender 辞書に対する 1-based index (受信側の呼び出し形式) */
   tagIdxs: number[];
   content: string;
 }
@@ -98,7 +98,7 @@ export function decodePatientList(payload: string): DecodedPatientList {
     ? rec.td.filter((x): x is string => typeof x === 'string')
     : [];
   const rawList = Array.isArray(rec.p) ? (rec.p as WirePatient[]) : [];
-  // 呼び出し側は { tagNames, patients:[{room,name,tagIdxs,content}] } を期待 (v1 互換)。
+  // 呼び出し側は { tagNames, patients:[{room,name,tagIdxs,content}] } を期待する。
   const patients = rawList.map((entry) => {
     const decoded = patientFromWire(entry, tagDict);
     // tagIdxs は「sender 辞書に対する 1-based index」を期待する呼び出し用に再構築

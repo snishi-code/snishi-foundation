@@ -5,7 +5,7 @@
 // (appState/settings) 直読みをやめて patient / settings を引数で受ける純関数に変えた。
 // 合成ロジック自体は v1 と同一。
 
-import type { AppState, Format, FormatPanel, Patient, Settings } from './types';
+import type { Format, FormatPanel, Patient, Settings } from './types';
 import { composeFormatFromValues } from './formatValues';
 
 // v1 では payload.js に utf8ByteLength があったが、v2 は foundation qr/protocol の
@@ -68,8 +68,7 @@ export function buildSoapParts(patient: Patient | null | undefined, settings: Se
 }
 
 /**
- * 患者画面 QR の本文 = S/O/A/P。プロブレムリスト機能は撤去済み (patient.problems は
- * 保存データ温存のみ。出力には載せない)。
+ * 患者画面 QR の本文 = S/O/A/P。プロブレムリスト機能は撤去済み。
  */
 export function buildTabPayload(patient: Patient | null | undefined, settings: Settings): string {
   const { sOut, oOut, aOut, pOut } = buildSoapParts(patient, settings);
@@ -89,7 +88,3 @@ export function buildTabPayload(patient: Patient | null | undefined, settings: S
   return parts.join('\n');
 }
 
-/** no (1-based) 指定の v1 互換ヘルパ。React 層は patient を直接渡す方を推奨。 */
-export function buildTabPayloadForNo(appState: AppState, no: number, settings: Settings): string {
-  return buildTabPayload(appState.patients[no - 1] ?? null, settings);
-}

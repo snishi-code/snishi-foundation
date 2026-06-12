@@ -27,14 +27,14 @@
 //     v   = version (WIRE_V)
 //     td  = tag dictionary (string[]、1-based で参照される)
 //           ※ ST は「設定全体」なので空でも常に載せる (受信側のタグを一致させる)
-//     p   = patients array (HM/MM/SH)
+//     p   = patients array (HM)
 //     f   = formats array (ST)
-//     fg  = formatGroups array (ST) … 各要素は下記「フォーマットセット」
+//     fg  = formatGroups (廃止済み; 旧 ST のみ。受信側 normalize が display に変換)
 //     ct  = clearTargets (ST)
 //
 //   患者 (p[i]):
 //     r = room / n = name / t = tag indices (td への 1-based。文字列も互換受信)
-//     c = content (MM/SH のみ; HM では省略)
+//     c = content (HM では使わない。将来拡張用に wire は受信できる)
 //
 //   フォーマット (f[i] または FMT の f):
 //     n  = name
@@ -52,14 +52,8 @@
 //     nm = normal       (空は省略)
 //     fm = fraction 入力方式 (1=numeric。default text は省略。新規フィールド=bump 不要)
 //
-//   フォーマットセット = formatGroup (ST の fg[i]):
-//     n  = name
-//     d  = isDefault (1 の時だけ出力、省略時 false)
-//     fi = formatIds        (同 payload の f 配列への 1-based index 配列)
-//     df = defaultFormatIds (同・fi の部分集合。規定文)
-//     xf = expandFormatIds  (同・fi の部分集合。展開=A)
-//     注: id は wire に含めない (受信側で新発番)。原則① に従い ID 直書きせず f 配列への
-//         index 参照にする (フォーマット順が変わっても壊れない)。
+//   formatGroup (fg[i]) は廃止済み (FormatGroup 全廃 2026-06)。旧 ST 受信時のみ
+//   normalize が display フィールドに変換する (legacyMigrate / normalize 参照)。
 //
 // ── 互換性ルール (WIRE_V bump 判定) ──
 //
@@ -279,8 +273,7 @@ function itemFromWire(w: WireItem | null | undefined): FormatItem {
 }
 
 // ============================
-// Patient ↔ wire (HM/MM/SH 用)
-//   content は呼び出し側が注入する (Phase 7 で patient[field] 直読みを廃止)。
+// Patient ↔ wire (HM 用)
 //   HM では content=null/undefined で content を省く。
 // ============================
 

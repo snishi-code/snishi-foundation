@@ -3,8 +3,8 @@
 //
 // - TagSelection: タグ複数選択チップ列 (+ 新規タグ追加)。患者編集・フォーマット編集に
 //   inline で埋め込む (v1 renderTagSelectionInto 相当。複数選択 = 開いたまま)。
-// - TagFilterPicker: home/memo/shared のタグ絞り込み (ユーザータグのみ・AND 固定 + クリア)。
-//   共有フィルタ状態 (ui/tags.ts) を更新し onChange で再描画させる。
+// - TagFilterPicker: ホームのタグ絞り込み (ユーザータグのみ・AND 固定 + クリア)。
+//   タグフィルタ状態 (ui/tags.ts) を更新し onChange で再描画させる。
 //   AND/OR 切替と仮想ステータスタグは v2 では撤去済み (仕様判断 2026-06)。
 
 import { useState } from 'react';
@@ -12,7 +12,7 @@ import { Popup } from '@snishi/foundation/ui/Popup';
 import { Icon } from '@snishi/foundation/ui/Icon';
 import { useToast } from '@snishi/foundation/ui/toast';
 import type { HrStore } from '../data/store';
-import { addNewTag, getAllTags, getSharedTagFilter, setSharedTagFilter } from './tags';
+import { addNewTag, getAllTags, getHomeTagFilter, setHomeTagFilter } from './tags';
 import { useRegisterOverlay } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -119,17 +119,17 @@ export function TagSelection({
 }
 
 /**
- * タグ絞り込みピッカー (home/memo/shared 共通)。共有フィルタ状態を直接更新する。
+ * タグ絞り込みピッカー (ホーム用)。タグフィルタ状態を直接更新する。
  * 複数選択 = 開いたまま (背景タップ/× で閉じる)。onChange で親 view が再描画する。
  */
 export function TagFilterPicker({ store, onChange }: { store: HrStore; onChange: () => void }) {
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
-  const selected = getSharedTagFilter();
+  const selected = getHomeTagFilter();
   const tags = getAllTags(store.getSettings());
 
   function update(next: string[]): void {
-    setSharedTagFilter(next);
+    setHomeTagFilter(next);
     setTick((n) => n + 1);
     onChange();
   }

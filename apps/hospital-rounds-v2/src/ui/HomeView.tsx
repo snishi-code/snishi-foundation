@@ -33,7 +33,7 @@ import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
 import { StatusPickerPopup } from './StatusPicker';
 import { TagFilterPicker } from './TagPicker';
-import { patientMatchesSharedFilter } from './tags';
+import { patientMatchesTagFilter } from './tags';
 import { isPatientDeleted, isTrashActive } from './patientLifecycle';
 import { OverlayBinding } from './registries';
 import { t } from '../i18n/strings';
@@ -222,7 +222,7 @@ export function HomeView({
         {appState.patients.map((p, idx) => {
           // Trash では削除患者だけを出す (空スロットの inflate 分は隠す)
           if (trash && !isPatientDeleted(p)) return null;
-          if (!patientMatchesSharedFilter(p)) return null;
+          if (!patientMatchesTagFilter(p)) return null;
           const no = idx + 1;
           const label = formatPatientLabel(p, String(no));
           const cls = statusClass(p.status);

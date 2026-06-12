@@ -20,8 +20,7 @@ export const SECTION = Object.freeze({
   SETTINGS: 'settings',
   PATIENTS: 'patients',
   ROSTER: 'roster',
-  // v7.7+ (v1): HISTORY section は撤去。Phase 7: MEMO/SHARED 派生セクションも撤去。
-  // 旧 bundle の未知 section は parseBundle が温存する (forward compat)。
+  // 旧 bundle の未知 section (HISTORY / MEMO / SHARED 等) は parseBundle が温存する (forward compat)。
 } as const);
 export type SectionKey = (typeof SECTION)[keyof typeof SECTION];
 

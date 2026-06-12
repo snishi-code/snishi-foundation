@@ -1,7 +1,7 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-flow.js の表示/受信 UI 部
 //          (フロー制御は foundation qr/useQrFlow、描画は qr/render に分離済み)
 //
-// HM/MM/SH/ST 共通の QR 表示: canvas 描画 + ページナビ + カメラ scan。
+// HM/ST 共通の QR 表示: canvas 描画 + ページナビ + カメラ scan。
 // 受信ステータス文言 (progress/duplicate/wrongKind 等) はここで i18n に変換する。
 // テキスト貼り付け受信 (RND_… 貼付) は PWA 以前の遺残として撤去済み (2026-06)。
 //
@@ -78,7 +78,7 @@ function ScanDialog({
 export interface QrCardProps {
   flow: QrFlow;
   kindLabel: string;
-  /** カメラ/テキスト受信の入口を出すか (HM/MM/SH は true) */
+  /** カメラ受信の入口を出すか (HM は true) */
   receivable?: boolean;
   /** カード内に閉じる × を出すか。Modal 内 (フロート × がある) では false にする */
   showClose?: boolean;
@@ -191,9 +191,9 @@ export function QrCardBody({ flow, kindLabel, receivable = true, showClose = tru
 }
 
 /**
- * QR 表示ポップアップ (HM/MM/SH/ST 共通)。患者詳細 QR と同じ Modal で表示し、
+ * QR 表示ポップアップ (HM/ST 共通)。患者詳細 QR と同じ Modal で表示し、
  * overlay 登録により Back は QR だけを閉じる。ページ送り / カメラ読み取り /
- * テキスト受信 / 閉じるは QrCardBody のまま維持する。
+ * 閉じるは QrCardBody のまま維持する。
  */
 export function QrDialog(props: QrCardProps) {
   useRegisterOverlay(props.onClose);

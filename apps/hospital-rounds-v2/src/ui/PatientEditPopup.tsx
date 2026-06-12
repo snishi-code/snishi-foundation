@@ -6,7 +6,6 @@
 // 指の移動距離が最小になる先頭に置く (ユーザー意図: 部屋番号付近の自然な位置)。
 // v1 と同じく「キャンセル/保存ボタンなし・即時反映 (write-through)」。
 // 可視タイトルは出さない (見れば分かる)。aria 上の名前は Modal の sr-only title で維持。
-// フォーマットセット選択 UI は撤去済み (複数セット運用 UI を削除したため)。
 
 import { Modal } from '@snishi/foundation/ui/Modal';
 import type { PatientStatus } from '../domain/types';

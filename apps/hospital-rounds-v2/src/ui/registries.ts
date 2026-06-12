@@ -5,7 +5,7 @@
 // (v1 main.js の closeTransientPopups / cancelInlineFormatEdit / exitAllEdits 相当)。
 //
 // - overlay: 最前面 (= 最後に開いたもの) を 1 つだけ閉じる。
-// - editing: inline 編集 / memo・shared の編集モード。Back 1 回 = 編集解除のみ
+// - editing: inline 編集モード。Back 1 回 = 編集解除のみ
 //   (view 遷移と同時に未保存ドラフトを黙って消さない — v1 HR 修正#3)。
 
 import { useEffect, useRef } from 'react';

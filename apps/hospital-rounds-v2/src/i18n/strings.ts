@@ -229,7 +229,7 @@ export const STRINGS_JA = {
   'qrSettings.imported.alert': '設定を取り込みました。',
   'qrReceive.open': '設定を受け取る',
   'qrReceive.hint':
-    '他の端末の設定QR（フォーマット・セット・タグなど）を読み取って取り込みます。',
+    '他の端末の設定QR（フォーマット・タグなど）を読み取って取り込みます。',
   'qrReceive.title': '設定を受け取る',
   'qrReceive.overlayHint.st':
     'カメラで設定QRを読み取ります。複数ページのときは 1 つずつ読み込みます。',
