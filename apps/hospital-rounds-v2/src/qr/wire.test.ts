@@ -164,7 +164,7 @@ const EXPECTED_ST = {
     S: true,
     O: true,
     A: false,
-    P: false,
+    P: true,
     shared: false,
     statusYellow: true,
     statusGreen: true,

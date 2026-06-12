@@ -343,6 +343,10 @@ export const STRINGS_JA = {
   'io.ws.delete.failed': '削除に失敗しました',
   'io.ws.create.failed': '病棟作成に失敗しました',
 
+  // 設定: 開発者向けセクション
+  'settings.dev.section': '開発者向け',
+  'settings.dev.hint': '通常の運用では使いません。',
+
   // 操作ガイド (docs-bundle は v2 では未移植 — 配信前に人間判断)
   'settings.guide.section': '操作ガイド',
   'settings.guide.pending': '操作ガイドは準備中です。',

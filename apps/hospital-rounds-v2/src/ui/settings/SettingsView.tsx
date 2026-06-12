@@ -579,31 +579,39 @@ function DataSection({ runtime, between }: { runtime: AppRuntime; between?: Reac
 
       {between}
 
-      <div className="card card--pad settingsSection">
-        <div className="section-label">{t('settings.log.section')}</div>
-        <p className="muted settingsHint">{t('settings.log.hint')}</p>
-        <div className="settingsRowActions">
-          <Button dataUi={UI.settings.logExport} onClick={() => void exportLog()}>
-            {t('io.log.export.label')}
-          </Button>
-          <Button dataUi={UI.settings.logClear} onClick={() => setLogClearConfirm(true)}>
-            {t('io.log.clear.label')}
-          </Button>
-        </div>
-      </div>
+      {/* 開発者向け: 研究ログ・端末まるごと — デフォルト閉の折りたたみ */}
+      <details className="settingsDevDetails">
+        <summary className="settingsDevSummary">
+          <span className="section-label">{t('settings.dev.section')}</span>
+          <span className="muted settingsHint">{t('settings.dev.hint')}</span>
+        </summary>
 
-      <div className="card card--pad settingsSection">
-        <div className="section-label">{t('settings.device.section')}</div>
-        <p className="muted settingsHint">{t('settings.device.hint')}</p>
-        <div className="settingsRowActions">
-          <Button dataUi={UI.settings.ioDeviceImport} onClick={() => fileRef.current?.click()}>
-            {t('io.device.import.label')}
-          </Button>
-          <Button dataUi={UI.settings.ioDeviceExport} onClick={() => void exportDevice()}>
-            {t('io.device.export.label')}
-          </Button>
+        <div className="card card--pad settingsSection">
+          <div className="section-label">{t('settings.log.section')}</div>
+          <p className="muted settingsHint">{t('settings.log.hint')}</p>
+          <div className="settingsRowActions">
+            <Button dataUi={UI.settings.logExport} onClick={() => void exportLog()}>
+              {t('io.log.export.label')}
+            </Button>
+            <Button dataUi={UI.settings.logClear} onClick={() => setLogClearConfirm(true)}>
+              {t('io.log.clear.label')}
+            </Button>
+          </div>
         </div>
-      </div>
+
+        <div className="card card--pad settingsSection">
+          <div className="section-label">{t('settings.device.section')}</div>
+          <p className="muted settingsHint">{t('settings.device.hint')}</p>
+          <div className="settingsRowActions">
+            <Button dataUi={UI.settings.ioDeviceImport} onClick={() => fileRef.current?.click()}>
+              {t('io.device.import.label')}
+            </Button>
+            <Button dataUi={UI.settings.ioDeviceExport} onClick={() => void exportDevice()}>
+              {t('io.device.export.label')}
+            </Button>
+          </div>
+        </div>
+      </details>
 
       <input
         ref={fileRef}
