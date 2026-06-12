@@ -6,12 +6,15 @@
 // カード群。
 //
 // 入力方式 (2026-06 フィードバック反映):
-//   - number / fraction は **常時表示の入力欄** (単位・備考も最初から見えたまま、
-//     見た場所にそのまま入力できる。タップで UI が変形しない)。write-through 保存。
-//     値は controlled (undo/redo の外部変更も即反映)。Undo 起点はフォーカスセッション
-//     ごとに 1 回 (DetailView 側 onNumericFocus / onNumericWrite)。
+//   - number / fraction は **常時表示の入力欄**。行構成は [入力 1fr][単位][備考ボタン]
+//     で、入力欄と単位は最初から見えたまま、見た場所にそのまま入力できる (タップで UI が
+//     変形しない)。単位列は空でも固定幅で確保し、全行で縦に揃える。備考は使用頻度が低い
+//     ため小ボタン + ポップアップへ分離し (NoteButton)、備考がある時だけ行下に小さく
+//     本文を出す (「見たまま記入」の例外)。値は controlled (undo/redo の外部変更も即反映)。
+//     Undo 起点はフォーカスセッションごとに 1 回 (DetailView 側 onNumericFocus / onNumericWrite)。
 //   - text は v1 同様タップで inline 編集 (正常チェックの provenance と Back=編集解除のみ
 //     の挙動を保つ)。編集中もグリッド列 ([ラベル][正常][値]) を崩さない。
+//   - 正常チェック (✓) は誤タップ対策で長押し発火 (NormalCheckButton, 350ms)。
 
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@snishi/foundation/ui/Icon';

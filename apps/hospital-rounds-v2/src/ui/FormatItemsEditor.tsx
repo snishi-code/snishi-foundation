@@ -2,11 +2,13 @@
 //
 // 患者画面の該当パネルを抜き出した形 (2026-06 フィードバック): 一覧の行から患者画面へ
 // 飛ばずにその場で入力できる。shownCardFormatsForPanel の各 item を controlled 入力で
-// write-through 保存する。患者は pid で捕捉 (並び替えで別患者へ書かない)。
-//   - text     : [ラベル][正常 ✓][textarea]。✓ は decidePresetToggle 準拠
-//                (空→正常文 / preset→解除 / 手入力→何もしない: 直接編集できるため)。
-//   - number   : [ラベル][値][単位][備考] の 1 行。
-//   - fraction : [ラベル][上]/[下][単位][備考] の 1 行。
+// write-through 保存する。患者は pid で捕捉 (並び替えで別患者へ書かない)。患者画面
+// (PanelCard) と入力部品・挙動を揃える。
+//   - text     : [ラベル][正常 ✓][textarea]。✓ は長押し発火 (NormalCheckButton) で
+//                decidePresetToggle 準拠 (空→正常文 / preset→解除 / 手入力→何もしない)。
+//   - number   : [ラベル][値 1fr][単位][備考ボタン]。単位は固定幅で縦に揃え、備考は
+//                小ボタン + ポップアップ (NoteButton)。備考がある時だけ行下に小さく表示。
+//   - fraction : [ラベル][上]/[下][単位][備考ボタン]。
 // Undo は 'format' スコープ。フォーカスセッションごとに 1 回 capture し、フォーマット
 // 自動付与タグも最初の実変更で patient.tags へ merge する (患者画面と同じ挙動)。
 
