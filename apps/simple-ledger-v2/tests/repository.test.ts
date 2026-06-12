@@ -2460,4 +2460,55 @@ describe('import の勘定科目名一意性（有効な同名重複を拒否）
     const outcome = await importFromJsonText(JSON.stringify(pkg));
     expect(outcome.kind).toBe('ok');
   });
+
+  it('空白違いの有効な同名（「預金」と「預金 」）も重複として拒否する', async () => {
+    await loadLedger();
+    const text = exportToJsonText(await loadLedger());
+    const pkg = JSON.parse(text);
+    // 「現金」を「預金 」（末尾空白）に書き換える → trim 後は「預金」と同名なので拒否。
+    const cash = pkg.accounts.find((a: { name: string }) => a.name === '現金');
+    cash.name = '預金 ';
+    const outcome = await importFromJsonText(JSON.stringify(pkg));
+    expect(outcome.kind).toBe('validation-error');
+  });
+
+  it('空白のみの科目名は拒否する', async () => {
+    await loadLedger();
+    const text = exportToJsonText(await loadLedger());
+    const pkg = JSON.parse(text);
+    const cash = pkg.accounts.find((a: { name: string }) => a.name === '現金');
+    cash.name = '   ';
+    const outcome = await importFromJsonText(JSON.stringify(pkg));
+    expect(outcome.kind).toBe('validation-error');
+  });
+
+  it('保存値に空白が混じっても、後続の内訳作成は trim 後の同名を重複として弾く', async () => {
+    // 直接 upsert で末尾空白名を保存（import 由来の非正規化値を模す）。
+    await loadLedger();
+    await upsertAccount({
+      id: newId(),
+      name: '財布 ',
+      type: 'asset',
+      role: 'daily-asset',
+      archived: false,
+      createdAt: 'x',
+      updatedAt: 'x',
+    });
+    // trim 後の同名「財布」は重複として拒否される。
+    let err: unknown;
+    try {
+      await upsertAccount({
+        id: newId(),
+        name: '財布',
+        type: 'asset',
+        role: 'daily-asset',
+        archived: false,
+        createdAt: 'x',
+        updatedAt: 'x',
+      });
+    } catch (e) {
+      err = e;
+    }
+    expect((err as LedgerError).code).toBe('error.account.nameConflict');
+  });
 });

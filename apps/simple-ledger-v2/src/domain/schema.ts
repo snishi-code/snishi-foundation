@@ -58,6 +58,15 @@ export const accountSchema = z
         path: ['role'],
       });
     }
+    // 名前は空白のみ不可（通常保存の upsertAccount と同じ不変条件。min(1) は空白を通すため
+    // 実効名 = trim 後で判定する。import / 復元が空白名の抜け道にならないようにする）。
+    if (a.name.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '勘定科目名が空白のみです。',
+        path: ['name'],
+      });
+    }
   });
 
 const tagIdList = z.array(z.string().min(1));
@@ -306,9 +315,11 @@ export const ledgerExportPackageSchema = z
       accountType.set(a.id, a.type);
       accountRole.set(a.id, a.role);
       if (!a.archived) {
-        if (activeAccountNames.has(a.name))
-          issue(`同名の有効な勘定科目が重複しています(${a.name})`, ['accounts', i, 'name']);
-        activeAccountNames.add(a.name);
+        // 空白違いの同名（例: 「預金」と「預金 」）を別名にしないよう trim 後で比較する。
+        const trimmedName = a.name.trim();
+        if (activeAccountNames.has(trimmedName))
+          issue(`同名の有効な勘定科目が重複しています(${trimmedName})`, ['accounts', i, 'name']);
+        activeAccountNames.add(trimmedName);
       }
       // 集約モデルの不変条件（聖域化）: 内部集約ロールは唯一の集約口座 id のみ許す。
       // これがないと import で目的別の reserve-asset / continuing-cost-asset 科目を再導入できてしまう。

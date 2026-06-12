@@ -16,14 +16,18 @@ export interface AccountNameConflicts {
   archived: Account[];
 }
 
-/** trimmed 完全一致で同名科目を探す（excludeId は自分自身の更新を除外する）。 */
+/**
+ * trimmed 完全一致で同名科目を探す（excludeId は自分自身の更新を除外する）。
+ * 入力・保存済みの両側を trim して比較するため、保存値に空白が混じっても
+ * （import 等で持ち込まれた場合でも）「預金」と「預金 」を同名として扱える。
+ */
 export function findAccountNameConflicts(
   accounts: Account[],
   name: string,
   excludeId?: string,
 ): AccountNameConflicts {
   const trimmed = name.trim();
-  const same = accounts.filter((a) => a.id !== excludeId && a.name === trimmed);
+  const same = accounts.filter((a) => a.id !== excludeId && a.name.trim() === trimmed);
   return {
     active: same.find((a) => !a.archived) ?? null,
     archived: same.filter((a) => a.archived),
