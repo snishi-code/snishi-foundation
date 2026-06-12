@@ -210,7 +210,7 @@ describe('switchWorkspace / createWorkspace (fail-closed)', () => {
 describe('switchUser / createUserAndSwitch / renameCurrentUser', () => {
   it('createUserAndSwitch: 空病棟を作って切替・設定はユーザーごとに分離', async () => {
     await store.initStore();
-    store.getSettings().tags = ['ユーザー1のタグ'];
+    store.getSettings().tags = [{ name: 'ユーザー1のタグ', clearOnStart: false }];
     store.getAppState().patients[0]!.name = 'ユーザー1の患者';
 
     const res = await store.createUserAndSwitch('医師B');
@@ -225,7 +225,7 @@ describe('switchUser / createUserAndSwitch / renameCurrentUser', () => {
     const u1 = back.find((u) => u.name === 'ユーザー1')!;
     await store.switchUser(u1.id);
     expect(store.getAppState().patients[0]?.name).toBe('ユーザー1の患者');
-    expect(store.getSettings().tags).toEqual(['ユーザー1のタグ']);
+    expect(store.getSettings().tags).toEqual([{ name: 'ユーザー1のタグ', clearOnStart: false }]);
   });
 
   it('重複名・空名は拒否する', async () => {
@@ -250,7 +250,7 @@ describe('アーカイブ入出力', () => {
   it('exportArchive → importArchive round-trip (空病棟はスキップ・非破壊追記)', async () => {
     await store.initStore();
     store.getAppState().patients[0]!.name = '輸出太郎';
-    store.getSettings().tags = ['輸出タグ'];
+    store.getSettings().tags = [{ name: '輸出タグ', clearOnStart: false }];
     const empty = await store.createWorkspace('空病棟'); // 患者ゼロ → import でスキップされる
     await store.switchWorkspace('default');
 
@@ -263,7 +263,7 @@ describe('アーカイブ入出力', () => {
     const created = await store.importArchive(archive, { includeSettings: true });
     expect(created).toBe(1); // 中身のある default だけ
     expect((await storage.listBundles()).length).toBe(before + 1); // 既存は消さない
-    expect(store.getSettings().tags).toEqual(['輸出タグ']);
+    expect(store.getSettings().tags).toEqual([{ name: '輸出タグ', clearOnStart: false }]);
     void empty;
   });
 
@@ -322,11 +322,11 @@ describe('アーカイブ取込の原子性 (Codex 監査 M3: 部分適用を残
   it('importArchive: 途中 put 失敗で settings 不変 + bundles に何も増えない (全 rollback)', async () => {
     await store.initStore();
     store.getAppState().patients[0]!.name = '患者A';
-    store.getSettings().tags = ['元のタグ'];
+    store.getSettings().tags = [{ name: '元のタグ', clearOnStart: false }];
     await store.persistActiveOrThrow();
     // export は live settings の参照を返すため、archive は deep copy してから書き換える
     const archive = JSON.parse(JSON.stringify(await store.exportArchive())) as Archive;
-    archive.settings.tags = ['取込タグ'];
+    archive.settings.tags = [{ name: '取込タグ', clearOnStart: false }];
     archive.workspaces.push(JSON.parse(JSON.stringify(archive.workspaces[0])) as Archive['workspaces'][number]);
 
     const idsBefore = await allRecordIds();
@@ -338,9 +338,9 @@ describe('アーカイブ取込の原子性 (Codex 監査 M3: 部分適用を残
     vi.restoreAllMocks();
 
     // in-memory settings 不変 (失敗時は live state も変更しない)
-    expect(store.getSettings().tags).toEqual(['元のタグ']);
+    expect(store.getSettings().tags).toEqual([{ name: '元のタグ', clearOnStart: false }]);
     // 保存済み settings 不変 (settings put は発行済みでも rollback されている)
-    expect(((await storage.loadGlobalSettings()) as { tags: string[] }).tags).toEqual(['元のタグ']);
+    expect(((await storage.loadGlobalSettings()) as { tags: Array<{ name: string; clearOnStart: boolean }> }).tags).toEqual([{ name: '元のタグ', clearOnStart: false }]);
     // bundles ストアにレコードが 1 つも増えていない
     expect(await allRecordIds()).toEqual(idsBefore);
   });

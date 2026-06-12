@@ -40,7 +40,7 @@ import { useRevision, type AppRuntime } from '../appRuntime';
 import { statusClass, STATUS_MARK } from '../patientDisplay';
 import { QrDialog } from '../QrCard';
 import { AddTagWidget } from '../TagPicker';
-import { deleteTagAt, renameTagAt } from '../tags';
+import { deleteTagAt, renameTagAt, setTagClearOnStart } from '../tags';
 import { OverlayBinding } from '../registries';
 import { FormatEditDialog } from './FormatEditDialog';
 import { FormatGroupEditDialog } from './FormatGroupEditDialog';
@@ -175,7 +175,7 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
   function commitRename(idx: number): void {
     const next = renameDraft.trim();
     setRenamingIdx(null);
-    if (!next || next === tags[idx]) return;
+    if (!next || next === tags[idx]?.name) return;
     if (!renameTagAt(store, idx, next)) {
       toast.show(t('settings.tag.name.duplicate'), 'error');
       return;
@@ -187,57 +187,74 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
     <div className="card card--pad settingsSection">
       <div className="section-label">{t('settings.title.tags')}</div>
       <div className="tagSettingList" data-ui={UI.settings.tagList}>
-        {tags.map((name, idx) => (
-          <span key={`${name}-${idx}`} className="tagSettingChip" data-ui={UI.settings.tagRow}>
-            {renamingIdx === idx ? (
-              <input
-                className="input tagSettingInput"
-                type="text"
-                value={renameDraft}
-                placeholder={t('settings.tag.placeholder')}
-                autoComplete="off"
-                aria-label={t('common.edit')}
-                // 明示的な編集タップ後の単一入力 (中央ルールの明示経路)
-                autoFocus
-                onChange={(e) => setRenameDraft(e.target.value)}
-                onBlur={() => commitRename(idx)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitRename(idx);
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setRenamingIdx(null);
-                  }
-                }}
-              />
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="tagSettingChipLabel"
-                  title={t('common.edit')}
-                  onClick={() => {
-                    setRenamingIdx(idx);
-                    setRenameDraft(name);
+        {tags.map((tagDef, idx) => {
+          const name = tagDef.name;
+          return (
+            <span key={`${name}-${idx}`} className="tagSettingChip" data-ui={UI.settings.tagRow}>
+              {renamingIdx === idx ? (
+                <input
+                  className="input tagSettingInput"
+                  type="text"
+                  value={renameDraft}
+                  placeholder={t('settings.tag.placeholder')}
+                  autoComplete="off"
+                  aria-label={t('common.edit')}
+                  // 明示的な編集タップ後の単一入力 (中央ルールの明示経路)
+                  autoFocus
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={() => commitRename(idx)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitRename(idx);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setRenamingIdx(null);
+                    }
                   }}
-                >
-                  {name || t('settings.tagGroup.name.empty')}
-                </button>
-                <button
-                  type="button"
-                  className="tagSettingDel"
-                  title={t('common.delete')}
-                  aria-label={t('settings.tag.delete.aria', { name: name || t('settings.tagGroup.name.empty') })}
-                  data-ui={UI.settings.tagDelete}
-                  onClick={() => setDeleteIdx(idx)}
-                >
-                  <Icon name="close" size={12} />
-                </button>
-              </>
-            )}
-          </span>
-        ))}
+                />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="tagSettingChipLabel"
+                    title={t('common.edit')}
+                    onClick={() => {
+                      setRenamingIdx(idx);
+                      setRenameDraft(name);
+                    }}
+                  >
+                    {name || t('settings.tagGroup.name.empty')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`tagSettingClearOnStart${tagDef.clearOnStart ? ' selected' : ''}`}
+                    aria-label={t('settings.tag.clearOnStart.label')}
+                    aria-pressed={tagDef.clearOnStart}
+                    title={t('settings.tag.clearOnStart.label')}
+                    data-ui={UI.settings.tagClearOnStart}
+                    onClick={() => {
+                      setTagClearOnStart(store, idx, !store.getSettings().tags[idx]?.clearOnStart);
+                      runtime.bump();
+                    }}
+                  >
+                    {t('settings.tag.clearOnStart.label')}
+                  </button>
+                  <button
+                    type="button"
+                    className="tagSettingDel"
+                    title={t('common.delete')}
+                    aria-label={t('settings.tag.delete.aria', { name: name || t('settings.tagGroup.name.empty') })}
+                    data-ui={UI.settings.tagDelete}
+                    onClick={() => setDeleteIdx(idx)}
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                </>
+              )}
+            </span>
+          );
+        })}
         <AddTagWidget store={store} onAdded={() => runtime.bump()} />
       </div>
 
@@ -245,7 +262,7 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
       {deleteIdx != null ? (
         <ConfirmDialog
           title={t('common.delete')}
-          body={t('settings.tag.delete.confirm', { name: tags[deleteIdx] ?? '' })}
+          body={t('settings.tag.delete.confirm', { name: tags[deleteIdx]?.name ?? '' })}
           confirmLabel={t('common.delete')}
           cancelLabel={t('common.cancel')}
           danger

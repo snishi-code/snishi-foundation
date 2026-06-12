@@ -116,7 +116,8 @@ export function HomeView({
     const liveSettings = store.getSettings();
     const prevTags = liveSettings.tags.slice();
     for (const tag of senderTagNames) {
-      if (!liveSettings.tags.includes(tag)) liveSettings.tags.push(tag);
+      if (!liveSettings.tags.some((t) => t.name === tag))
+        liveSettings.tags.push({ name: tag, clearOnStart: false });
     }
     const newAppState: AppState = {
       v: 3,
@@ -156,6 +157,10 @@ export function HomeView({
     const ct = store.getSettings().clearTargets;
     const now = Date.now();
     const backup = state.patients.map((p) => clone(p));
+    // clearOnStart=true のタグを全患者から外す
+    const drop = new Set(
+      store.getSettings().tags.filter((t) => t.clearOnStart).map((t) => t.name),
+    );
     for (const p of state.patients) {
       for (const panel of FORMAT_PANELS) {
         if (ct[panel]) clearPanelClinicalInput(p, panel, store.getSettings().formats);
@@ -164,6 +169,7 @@ export function HomeView({
       else if (p.status === STATUS.GREEN && ct.statusGreen) p.status = STATUS.NONE;
       else if (p.status === STATUS.GRAY && ct.statusGray) p.status = STATUS.NONE;
       else if (p.status === STATUS.BLUE && ct.statusBlue) p.status = STATUS.NONE;
+      if (drop.size) p.tags = p.tags.filter((tg) => !drop.has(tg));
       p.updatedAt = now;
     }
     try {

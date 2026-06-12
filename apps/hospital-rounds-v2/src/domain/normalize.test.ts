@@ -13,8 +13,9 @@ import {
   normalizePatientArray,
   normalizeSettings,
 } from './normalize';
+import { migrateLegacyTagList } from './legacyMigrate';
 import { FORMAT_PANELS, STATUS } from './types';
-import type { FormatGroup } from './types';
+import type { FormatGroup, TagDef } from './types';
 
 // problem / shared は機能撤去済みのため、既定フォーマットを置かない (既存データは温存)。
 const PANELS_WITH_DEFAULT_FORMATS = FORMAT_PANELS.filter((p) => p !== 'problem' && p !== 'shared');
@@ -309,5 +310,88 @@ describe('isPatientEmpty', () => {
     );
     // fraction の "/" だけは入力なし扱い
     expect(isPatientEmpty({ ...base, formatValues: { f1: { 0: '/' } } })).toBe(true);
+  });
+});
+
+describe('migrateLegacyTagList (旧 string[] → TagDef[] 移行)', () => {
+  it('旧形式 (string 要素) → { name, clearOnStart:false }', () => {
+    const result = migrateLegacyTagList(['内科', '外科', '要フォロー']);
+    expect(result).toEqual([
+      { name: '内科', clearOnStart: false },
+      { name: '外科', clearOnStart: false },
+      { name: '要フォロー', clearOnStart: false },
+    ]);
+  });
+
+  it('新形式 (オブジェクト要素) は素通しで validation', () => {
+    const input: TagDef[] = [
+      { name: '内科', clearOnStart: true },
+      { name: '外科', clearOnStart: false },
+    ];
+    expect(migrateLegacyTagList(input)).toEqual(input);
+  });
+
+  it('空文字・trim 後空は捨てる', () => {
+    expect(migrateLegacyTagList(['', '  ', '内科'])).toEqual([{ name: '内科', clearOnStart: false }]);
+  });
+
+  it('不正要素 (数値・null・boolean・配列) は捨てる', () => {
+    expect(migrateLegacyTagList([42, null, true, [], '内科'])).toEqual([
+      { name: '内科', clearOnStart: false },
+    ]);
+  });
+
+  it('重複 name は先勝ち (string と object が混在しても)', () => {
+    const result = migrateLegacyTagList(['内科', '内科', { name: '内科', clearOnStart: true }]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ name: '内科', clearOnStart: false }); // 先勝ち = string 由来
+  });
+
+  it('name が非文字列のオブジェクトは捨てる', () => {
+    expect(migrateLegacyTagList([{ name: 123, clearOnStart: false }, { name: '内科', clearOnStart: false }])).toEqual([
+      { name: '内科', clearOnStart: false },
+    ]);
+  });
+
+  it('clearOnStart が boolean でない場合は false に倒す', () => {
+    expect(migrateLegacyTagList([{ name: '内科', clearOnStart: 'yes' }])).toEqual([
+      { name: '内科', clearOnStart: false },
+    ]);
+  });
+
+  it('非配列入力は空配列を返す', () => {
+    expect(migrateLegacyTagList(null)).toEqual([]);
+    expect(migrateLegacyTagList(undefined)).toEqual([]);
+    expect(migrateLegacyTagList('内科')).toEqual([]);
+  });
+});
+
+describe('normalizeSettings: tags の TagDef 移行 (旧 string[] / 新形式 / 2回通し冪等)', () => {
+  it('旧 string[] → normalizeSettings が TagDef[] に変換する', () => {
+    const s = normalizeSettings({ tags: ['内科', '外科'] });
+    expect(s.tags).toEqual([
+      { name: '内科', clearOnStart: false },
+      { name: '外科', clearOnStart: false },
+    ]);
+  });
+
+  it('新形式 (TagDef[]) はそのまま素通し', () => {
+    const tags: TagDef[] = [
+      { name: '内科', clearOnStart: true },
+      { name: '外科', clearOnStart: false },
+    ];
+    const s = normalizeSettings({ tags });
+    expect(s.tags).toEqual(tags);
+  });
+
+  it('2回通して冪等 (再保存→再読み込み経路で変化しない)', () => {
+    const raw = { tags: ['内科', '外科'] };
+    const s1 = normalizeSettings(raw);
+    const s2 = normalizeSettings(JSON.parse(JSON.stringify(s1)));
+    expect(s2.tags).toEqual(s1.tags);
+    expect(s2.tags).toEqual([
+      { name: '内科', clearOnStart: false },
+      { name: '外科', clearOnStart: false },
+    ]);
   });
 });

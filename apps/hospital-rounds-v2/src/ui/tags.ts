@@ -17,10 +17,10 @@ import type { HrStore } from '../data/store';
 // クエリ
 // ============================
 
-/** ユーザー定義タグ一覧。 */
+/** ユーザー定義タグ名一覧 (TagDef[] → string[])。 */
 export function getAllTags(settings: Settings): string[] {
   return Array.isArray(settings.tags)
-    ? settings.tags.filter((d) => typeof d === 'string' && d.trim()).map((d) => d.trim())
+    ? settings.tags.map((t) => t.name).filter((n) => n.trim())
     : [];
 }
 
@@ -35,8 +35,8 @@ export function addNewTag(store: HrStore, name: string): boolean {
   if (!trimmed) return false;
   const settings = store.getSettings();
   if (!Array.isArray(settings.tags)) settings.tags = [];
-  if (settings.tags.includes(trimmed)) return false;
-  settings.tags.push(trimmed);
+  if (settings.tags.some((t) => t.name === trimmed)) return false;
+  settings.tags.push({ name: trimmed, clearOnStart: false });
   void store.saveSettings();
   return true;
 }
@@ -45,12 +45,12 @@ export function addNewTag(store: HrStore, name: string): boolean {
 export function renameTagAt(store: HrStore, idx: number, newName: string): boolean {
   const settings = store.getSettings();
   if (!Array.isArray(settings.tags) || idx < 0 || idx >= settings.tags.length) return false;
-  const oldName = settings.tags[idx];
+  const oldName = settings.tags[idx]!.name;
   const next = String(newName || '').trim();
   if (!next) return false;
   if (oldName === next) return true;
-  if (settings.tags.includes(next)) return false;
-  settings.tags[idx] = next;
+  if (settings.tags.some((t) => t.name === next)) return false;
+  settings.tags[idx]!.name = next;
   for (const p of store.getAppState().patients) {
     if (Array.isArray(p.tags)) p.tags = p.tags.map((tg) => (tg === oldName ? next : tg));
   }
@@ -63,15 +63,23 @@ export function renameTagAt(store: HrStore, idx: number, newName: string): boole
 export function deleteTagAt(store: HrStore, idx: number): void {
   const settings = store.getSettings();
   if (!Array.isArray(settings.tags) || idx < 0 || idx >= settings.tags.length) return;
-  const name = settings.tags[idx];
+  const name = settings.tags[idx]!.name;
   settings.tags.splice(idx, 1);
   for (const p of store.getAppState().patients) {
-    if (Array.isArray(p.tags) && p.tags.includes(name as string)) {
+    if (Array.isArray(p.tags) && p.tags.includes(name)) {
       p.tags = p.tags.filter((tg) => tg !== name);
     }
   }
   void store.saveSettings();
   store.scheduleSave();
+}
+
+/** idx のタグの clearOnStart フラグを変更する。 */
+export function setTagClearOnStart(store: HrStore, idx: number, on: boolean): void {
+  const settings = store.getSettings();
+  if (!Array.isArray(settings.tags) || idx < 0 || idx >= settings.tags.length) return;
+  settings.tags[idx]!.clearOnStart = on;
+  void store.saveSettings();
 }
 
 // ============================

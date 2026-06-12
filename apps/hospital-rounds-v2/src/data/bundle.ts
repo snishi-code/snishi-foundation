@@ -51,7 +51,9 @@ function nowIso(): string {
   }
 }
 
-function projectRosterView(patients: AppState['patients'], tags: string[] | undefined) {
+function projectRosterView(patients: AppState['patients'], tags: Settings['tags'] | undefined) {
+  // tags は TagDef[] → roster は name の文字列配列として射影する
+  const tagNames = Array.isArray(tags) ? tags.map((t) => t.name) : [];
   return {
     patients: (patients || []).map((p) => ({
       pid: String(p.pid || ''),
@@ -59,7 +61,7 @@ function projectRosterView(patients: AppState['patients'], tags: string[] | unde
       room: String(p.room || ''),
       tags: Array.isArray(p.tags) ? p.tags.slice() : [],
     })),
-    tags: Array.isArray(tags) ? tags.slice() : [],
+    tags: tagNames,
   };
 }
 

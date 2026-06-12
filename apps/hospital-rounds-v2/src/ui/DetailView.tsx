@@ -280,7 +280,7 @@ export function DetailView({
   if (!patient) return null;
 
   const label = formatPatientLabel(patient, String(selectedNo));
-  const orderedTags = (settings.tags || []).filter((tg) => (patient.tags || []).includes(tg));
+  const orderedTags = (settings.tags || []).map((t) => t.name).filter((tg) => (patient.tags || []).includes(tg));
   // 患者が変わっていたら inline 編集は表示しない (別患者のカードに前患者のドラフトを
   // 出さない = fail-safe。セッション自体は prev/next ハンドラと unmount cleanup が破棄する)
   const inlineForRender = inline && inline.openPid === (patient.pid ?? null) ? inline : null;

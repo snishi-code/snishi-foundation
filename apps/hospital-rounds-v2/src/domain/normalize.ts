@@ -31,6 +31,7 @@ import {
   type Settings,
 } from './types';
 import { formatValueHasInput, repairGroupExpandInvariant } from './formatValues';
+import { migrateLegacyTagList } from './legacyMigrate';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object';
@@ -118,7 +119,8 @@ export function defaultSettings(): Settings {
     // isDefault=true のグループに解決される。デフォルトグループは起動時に必ず 1 つ存在する。
     formatGroups: makeDefaultFormatGroups(formats),
     clearTargets: clone(DEFAULT_CLEAR_TARGETS),
-    tags: clone(DEFAULT_TAGS),
+    // DEFAULT_TAGS は defaults.json の string[] → TagDef[] に変換する
+    tags: migrateLegacyTagList(DEFAULT_TAGS),
     deviceId: '',
     // QR セキュリティ: kind 別の暗号化フラグ ("HM" → true/false)
     qrEncryption: clone(DEFAULT_QR_ENCRYPTION) as Settings['qrEncryption'],
@@ -301,7 +303,8 @@ export function normalizeSettings(raw: unknown): Settings {
     }
   }
   if (Array.isArray(raw.tags)) {
-    out.tags = raw.tags.filter((d): d is string => typeof d === 'string').map((d) => String(d));
+    // migrateLegacyTagList: 旧 string[] と新 TagDef[] の両方を受け付ける (一回限り移行)
+    out.tags = migrateLegacyTagList(raw.tags);
   }
   if (typeof raw.deviceId === 'string') out.deviceId = raw.deviceId;
   if (Array.isArray(raw.formatGroups) && raw.formatGroups.length) {

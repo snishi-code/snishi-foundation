@@ -7,7 +7,7 @@
 // 書き換えてはならない** (直すのは実装の方)。
 
 import { describe, expect, it } from 'vitest';
-import type { Format, FormatGroup, Patient, Settings } from '../domain/types';
+import type { Format, FormatGroup, Patient, Settings, TagDef } from '../domain/types';
 import { defaultSettings, makeDefaultPatient } from '../domain/normalize';
 import {
   KIND_BY_INDEX,
@@ -28,6 +28,10 @@ import { decodeSettingsPayload, encodeSettingsPayload } from './settingsQr';
 // ============================
 
 const tagDict = ['内科', '外科', '要フォロー'];
+/** tagDict を TagDef[] に変換するヘルパ (wire テスト用。clearOnStart は false 固定) */
+function tagDefsFrom(names: string[]): TagDef[] {
+  return names.map((name) => ({ name, clearOnStart: false }));
+}
 
 const fmtVitals: Format = {
   id: 'fmt_a',
@@ -278,7 +282,7 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
   ];
 
   it('HM restricted: origin=external を空スロット化し、末尾連続空をトリム (v1 実出力)', () => {
-    const settings = settingsWith({ tags: tagDict.slice() });
+    const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
     settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'restricted' };
     const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
     expect(out).toEqual({
@@ -289,7 +293,7 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
   });
 
   it('HM free: external 患者も載る (v1 実出力)', () => {
-    const settings = settingsWith({ tags: tagDict.slice() });
+    const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
     settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'free' };
     const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
     expect(out).toEqual({
@@ -300,7 +304,7 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
   });
 
   it('decode round-trip: tagIdxs (sender 辞書 1-based) を復元', () => {
-    const settings = settingsWith({ tags: tagDict.slice() });
+    const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
     settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'free' };
     const payload = encodePatientList(patients, settings, { kind: 'HM' });
     const decoded = decodePatientList(payload);
@@ -322,9 +326,9 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
 // ============================
 
 describe('settingsQr (ST v6)', () => {
-  it('encodeSettingsPayload は v1 実出力と一致する', () => {
+  it('encodeSettingsPayload は v1 実出力と一致する (clearOnStart=false のタグは tc 省略)', () => {
     const settings = settingsWith({
-      tags: tagDict.slice(),
+      tags: tagDefsFrom(tagDict),
       formats: [fmtVitals, fmtFindings, fmtProblem],
       formatGroups: [group],
     });
@@ -333,12 +337,12 @@ describe('settingsQr (ST v6)', () => {
 
   it('decode round-trip: formats 新 ID 採番 + groups がその ID を参照', () => {
     const settings = settingsWith({
-      tags: tagDict.slice(),
+      tags: tagDefsFrom(tagDict),
       formats: [fmtVitals, fmtFindings, fmtProblem],
       formatGroups: [group],
     });
     const out = decodeSettingsPayload(encodeSettingsPayload(settings));
-    expect(out.tags).toEqual(tagDict);
+    expect(out.tags).toEqual(tagDefsFrom(tagDict));
     expect(out.formats).toHaveLength(3);
     expect(out.formats?.[0]?.name).toBe('バイタル');
     expect(out.formats?.[0]?.id).toMatch(/^fmt_/);
@@ -349,6 +353,21 @@ describe('settingsQr (ST v6)', () => {
     expect(out.formatGroups?.[0]?.expandFormatIds).toEqual([ids[0], ids[2]]);
     expect(out.formatGroups?.[0]?.isDefault).toBe(true);
     expect(out.clearTargets).toEqual(EXPECTED_ST.ct);
+  });
+
+  it('tc encode/decode round-trip: clearOnStart=true のタグ索引が tc に載り、decode で復元される', () => {
+    const tags: TagDef[] = [
+      { name: '内科', clearOnStart: false },
+      { name: '外科', clearOnStart: true },
+      { name: '要フォロー', clearOnStart: true },
+    ];
+    const settings = settingsWith({ tags, formats: [fmtVitals], formatGroups: [] });
+    const raw = JSON.parse(encodeSettingsPayload(settings)) as Record<string, unknown>;
+    // tc: 2-based (外科=2, 要フォロー=3)
+    expect(raw.tc).toEqual([2, 3]);
+    // decode で TagDef[] として復元
+    const decoded = decodeSettingsPayload(JSON.stringify(raw));
+    expect(decoded.tags).toEqual(tags);
   });
 
   it('td は空でも常に載る (タグ消去も伝わる「設定全体」の意味論)', () => {

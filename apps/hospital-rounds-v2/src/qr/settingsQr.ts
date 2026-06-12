@@ -19,7 +19,7 @@
 // 受信フローの apply (confirm ダイアログ・saveSettingsOrThrow + ロールバック) は UI 層の
 // 責務 (fail-closed: 保存が確認できてから閉じる/成功表示。失敗は in-memory を戻して中断)。
 
-import type { Format, FormatGroup, Settings } from '../domain/types';
+import type { Format, FormatGroup, Settings, TagDef } from '../domain/types';
 import {
   ensureOneDefaultGroup,
   makeDefaultFormatGroups,
@@ -40,7 +40,8 @@ export const SETTINGS_WIRE_V = WIRE_V.ST;
 
 /** settings → ST payload 文字列 (純関数・テスト容易化のため export)。 */
 export function encodeSettingsPayload(settings: Settings): string {
-  const tagDict = (Array.isArray(settings.tags) ? settings.tags : []).slice();
+  const tagDefs = Array.isArray(settings.tags) ? settings.tags : [];
+  const tagDict = tagDefs.map((t) => t.name);
   const formats = Array.isArray(settings.formats) ? settings.formats : [];
   const groups = Array.isArray(settings.formatGroups) ? settings.formatGroups : [];
 
@@ -48,6 +49,12 @@ export function encodeSettingsPayload(settings: Settings): string {
   // td は「設定全体のタグ辞書」。設定全体 QR なので空でも常に載せる
   // (= 受信側のタグを送信側に一致させる。0 個ならタグ消去も伝わる)。
   out.td = tagDict;
+  // tc: clearOnStart=true のタグの 1-based index 配列。空なら省略。
+  // ※ WIRE_V bump は次フェーズでまとめて行うため、今は新規フィールド追加のみ (backward compat)。
+  const tc = tagDefs
+    .map((t, i) => (t.clearOnStart ? i + 1 : 0))
+    .filter((i) => i > 0);
+  if (tc.length) out.tc = tc;
   if (formats.length) out.f = formats.map((f) => formatToWire(f, tagDict));
   if (groups.length) {
     // format id → f 配列での 1-based index
@@ -65,7 +72,7 @@ export function encodeSettingsPayload(settings: Settings): string {
 
 /** 受信して適用可能な settings 断片。formats/formatGroups は ID 解決済み (= そのまま適用可)。 */
 export interface DecodedSettingsPatch {
-  tags: string[];
+  tags: TagDef[];
   formats?: Format[];
   formatGroups?: FormatGroup[];
   clearTargets?: Record<string, boolean>;
@@ -88,9 +95,19 @@ export function decodeSettingsPayload(payload: string): DecodedSettingsPatch {
   const tagDict = Array.isArray(rec.td)
     ? rec.td.filter((s): s is string => typeof s === 'string')
     : [];
+  // tc: clearOnStart=true のタグの 1-based index 配列 (新フィールド・旧版では省略)
+  const clearOnStartSet = new Set<number>(
+    Array.isArray(rec.tc)
+      ? (rec.tc as unknown[]).filter((v): v is number => typeof v === 'number' && v >= 1)
+      : [],
+  );
+  const decodedTags: TagDef[] = tagDict.map((name, i) => ({
+    name,
+    clearOnStart: clearOnStartSet.has(i + 1),
+  }));
   const out: DecodedSettingsPatch = {
     // td は常に送る (設定全体) ので tags を常に適用 = 空配列ならタグ消去も反映。
-    tags: tagDict.slice(),
+    tags: decodedTags,
   };
 
   // formats: 新 ID 採番。formatGroups がこの ID を参照する。

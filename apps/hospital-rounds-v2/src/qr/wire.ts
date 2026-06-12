@@ -179,9 +179,9 @@ export interface WirePatient {
 // wire に乗せる (後方互換受信のために維持)。
 // ============================
 
-/** 送信側の現在のタグ辞書を取得 (settings.tags のコピー)。ST (settingsQr.ts) が使用。 */
+/** 送信側の現在のタグ辞書を取得 (settings.tags の name 配列コピー)。ST (settingsQr.ts) が使用。 */
 export function buildTagDict(settings: Pick<Settings, 'tags'>): string[] {
-  return (settings.tags || []).slice();
+  return (settings.tags || []).map((t) => t.name);
 }
 
 /** タグ名配列 → wire 用の値配列。dict 指定時は 1-based index、なしは文字列のまま。 */

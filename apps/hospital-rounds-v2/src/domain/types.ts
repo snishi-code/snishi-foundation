@@ -214,6 +214,15 @@ export interface Patient {
 }
 
 /**
+ * タグ定義オブジェクト。patient.tags は名前参照の string[] のまま。
+ * clearOnStart: 「診察開始」ボタンで全患者からこのタグを外すかどうか。
+ */
+export interface TagDef {
+  name: string;
+  clearOnStart: boolean;
+}
+
+/**
  * ユーザーごとの設定 (v1 の __settings__::<userId> レコード相当)。
  * 未知フィールドは normalizeSettings が温存する (forward compat)。
  */
@@ -223,7 +232,7 @@ export interface Settings {
   formatGroups: FormatGroup[];
   /** panel キー (problem/S/O/A/P/shared) + statusYellow/Green/Gray/Blue */
   clearTargets: Record<string, boolean>;
-  tags: string[];
+  tags: TagDef[];
   deviceId: string;
   /** QR セキュリティ: kind 別の暗号化フラグ */
   qrEncryption: Record<QrKind, boolean>;

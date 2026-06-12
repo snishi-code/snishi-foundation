@@ -158,6 +158,7 @@ export const STRINGS_JA = {
   'settings.tag.delete.confirm':
     'タグ「{name}」を削除します。よろしいですか？\n（このタグが付いている患者のタグも一緒に外れます）',
   'settings.tag.delete.aria': 'タグ「{name}」を削除',
+  'settings.tag.clearOnStart.label': '診察開始で外す',
   'settings.tagGroup.name.empty': '(無名)',
 
   // 設定: クリア対象
