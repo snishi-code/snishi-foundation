@@ -15,9 +15,7 @@ import { useToast } from '@snishi/foundation/ui/toast';
 import { FORMAT_PANELS, type FormatGroup, type FormatPanel } from '../../domain/types';
 import { newGroupId } from '../../domain/normalize';
 import { isLastExpandInPanel, repairGroupExpandInvariant } from '../../domain/formatValues';
-import { encodeSetPayload } from '../../qr/setQr';
 import type { AppRuntime } from '../appRuntime';
-import { QrShareDialog } from './QrShareDialog';
 import { useRegisterOverlay } from '../registries';
 import { t } from '../../i18n/strings';
 import { UI } from '../../ui-contract';
@@ -58,8 +56,6 @@ export function FormatGroupEditDialog({
           expandFormatIds: [],
         },
   );
-  const [qrShareOpen, setQrShareOpen] = useState(false);
-
   const allFormats = store.getSettings().formats || [];
 
   function toggleInclude(formatId: string, panel: FormatPanel, next: boolean): void {
@@ -157,19 +153,6 @@ export function FormatGroupEditDialog({
           <Button variant="ghost" onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button
-            variant="ghost"
-            dataUi={UI.settings.groupEditQrShare}
-            onClick={() => {
-              if (!target.name.trim()) {
-                toast.show(t('formatGroup.name.required'), 'error');
-                return;
-              }
-              setQrShareOpen(true);
-            }}
-          >
-            {t('qr.kind.set')}
-          </Button>
           <Button variant="primary" onClick={save} dataUi={UI.settings.groupEditSave}>
             {t('common.save')}
           </Button>
@@ -265,17 +248,6 @@ export function FormatGroupEditDialog({
         })}
       </div>
 
-      {qrShareOpen ? (
-        <QrShareDialog
-          kind="FS"
-          kindLabel={t('qr.kind.set')}
-          title={t('qrSet.share.title')}
-          // 未保存でも編集中状態のセットがそのまま QR 化される (参照 formats は settings から解決)
-          encodePayload={() => encodeSetPayload(target, store.getSettings().formats, store.getSettings().tags)}
-          shouldEncrypt={() => !!store.getSettings().qrEncryption?.FS}
-          onClose={() => setQrShareOpen(false)}
-        />
-      ) : null}
     </Modal>
   );
 }

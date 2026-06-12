@@ -42,9 +42,9 @@ export const DEFAULT_LABEL_SEP_OTHER = ' ';
 
 // QR 種別 (kind コード)。患者画面 QR (clinical text → 電子カルテ貼付) は電子カルテ端末の
 // 標準カメラで読む前提のため、この暗号化マトリクスに含まれない (常に平文・常に再配布可)。
-// FS = フォーマットセット (formatGroup 1 つ + 参照フォーマット一式)。
+// FMT (フォーマット単体) / FS (フォーマットセット) は廃止。設定共有は ST のみ。
 // MM (プロブレムリスト共有 QR) / SH (共有欄 QR) は機能撤去済み (UI なし)。
-export const QR_KINDS = Object.freeze(['HM', 'ST', 'FMT', 'FS'] as const);
+export const QR_KINDS = Object.freeze(['HM', 'ST'] as const);
 export type QrKind = (typeof QR_KINDS)[number];
 
 export type QrRedistribution = 'restricted' | 'free';
@@ -54,15 +54,11 @@ export type QrRedistribution = 'restricted' | 'free';
 export const DEFAULT_QR_ENCRYPTION: Readonly<Record<QrKind, boolean>> = Object.freeze({
   HM: true,
   ST: true,
-  FMT: true,
-  FS: true,
 });
 export const DEFAULT_QR_REDISTRIBUTION: Readonly<Record<QrKind, QrRedistribution>> =
   Object.freeze({
     HM: 'restricted',
     ST: 'free',
-    FMT: 'free',
-    FS: 'free',
   });
 
 // アプリ表示名の既定 (= v1 の t("app.title"))。ドメイン層は i18n に依存しないため

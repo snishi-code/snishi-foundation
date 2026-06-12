@@ -39,11 +39,9 @@ import {
 import { newFormatId } from '../../domain/normalize';
 import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { formatItemKindChangeBlocked } from '../../domain/formatValues';
-import { encodeFormatPayload } from '../../qr/formatQr';
 import type { AppRuntime } from '../appRuntime';
 import { getAllTags } from '../tags';
 import { TagSelection } from '../TagPicker';
-import { QrShareDialog } from './QrShareDialog';
 import { OverlayBinding, useRegisterOverlay } from '../registries';
 import { t } from '../../i18n/strings';
 import { UI } from '../../ui-contract';
@@ -112,7 +110,6 @@ export function FormatEditDialog({
           items: [],
         },
   );
-  const [qrShareOpen, setQrShareOpen] = useState(false);
   // 各 draft item の元 index (mapping[newIndex]=oldIndex。新規追加は -1)。
   // 保存時に全患者の formatValues[formatId] を同じ移動/削除で変換するために持つ。
   const [origIdx, setOrigIdx] = useState<number[]>(() => (format?.items || []).map((_, i) => i));
@@ -335,19 +332,6 @@ export function FormatEditDialog({
           <Button variant="ghost" onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button
-            variant="ghost"
-            dataUi={UI.settings.formatEditQrShare}
-            onClick={() => {
-              if (!target.name.trim()) {
-                toast.show(t('format.name.required'), 'error');
-                return;
-              }
-              setQrShareOpen(true);
-            }}
-          >
-            {t('qr.kind.format')}
-          </Button>
           <Button variant="primary" disabled={saving} onClick={() => void save()} dataUi={UI.settings.formatEditSave}>
             {t('common.save')}
           </Button>
@@ -525,17 +509,6 @@ export function FormatEditDialog({
         />
       ) : null}
 
-      {qrShareOpen ? (
-        <QrShareDialog
-          kind="FMT"
-          kindLabel={t('qr.kind.format')}
-          title={t('qrFormat.share.title')}
-          // 未保存でも編集中状態の中身がそのまま QR 化される (= 試行錯誤しやすい・v1 準拠)
-          encodePayload={() => encodeFormatPayload(target)}
-          shouldEncrypt={() => !!store.getSettings().qrEncryption?.FMT}
-          onClose={() => setQrShareOpen(false)}
-        />
-      ) : null}
     </Modal>
   );
 }

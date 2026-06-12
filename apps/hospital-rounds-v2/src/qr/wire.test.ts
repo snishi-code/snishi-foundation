@@ -22,8 +22,6 @@ import {
 } from './wire';
 import { decodePatientList, encodePatientList } from './patientList';
 import { decodeSettingsPayload, encodeSettingsPayload } from './settingsQr';
-import { decodeFormatPayload, encodeFormatPayload } from './formatQr';
-import { decodeSetPayload, encodeSetPayload } from './setQr';
 
 // ============================
 // 固定入力 (fixture 生成スクリプトと同一)
@@ -175,15 +173,6 @@ const EXPECTED_ST = {
   },
 };
 
-const EXPECTED_FMT = { v: 3, f: EXPECTED_FORMAT_NODICT };
-
-const EXPECTED_FS = {
-  v: 2,
-  td: tagDict,
-  f: EXPECTED_WIRE_FORMATS,
-  g: { n: '標準', fi: [1, 2, 3], df: [2], xf: [1, 3] },
-};
-
 // ============================
 // enum 表と WIRE_V (ここを変える = v1 端末との互換を破壊する)
 // ============================
@@ -194,8 +183,8 @@ describe('wire enum tables / WIRE_V (v1 互換)', () => {
     expect(KIND_BY_INDEX).toEqual(['text', 'number', 'fraction']);
   });
 
-  it('kind 別 WIRE_V は現行実装値と一致する (MM/SH は機能撤去済みのため除外)', () => {
-    expect(WIRE_V).toEqual({ HM: 3, ST: 6, FMT: 3, FS: 2 });
+  it('kind 別 WIRE_V は現行実装値と一致する (MM/SH/FMT/FS は機能撤去済みのため除外)', () => {
+    expect(WIRE_V).toEqual({ HM: 3, ST: 6 });
   });
 });
 
@@ -208,7 +197,7 @@ describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
     expect(formatToWire(fmtVitals, tagDict)).toEqual(EXPECTED_FORMAT_DICT);
   });
 
-  it('formatToWire (dict=null、FMT 用): タグは文字列のまま inline', () => {
+  it('formatToWire (dict=null): タグは文字列のまま inline', () => {
     expect(formatToWire(fmtVitals, null)).toEqual(EXPECTED_FORMAT_NODICT);
   });
 
@@ -374,50 +363,3 @@ describe('settingsQr (ST v6)', () => {
   });
 });
 
-describe('formatQr (FMT v3)', () => {
-  it('encodeFormatPayload は v1 実出力と一致する (tags は文字列 inline)', () => {
-    expect(JSON.parse(encodeFormatPayload(fmtVitals))).toEqual(EXPECTED_FMT);
-  });
-
-  it('decode round-trip + name 欠落は throw', () => {
-    const fmt = decodeFormatPayload(encodeFormatPayload(fmtVitals));
-    expect(fmt.name).toBe('バイタル');
-    expect(fmt.tags).toEqual(['内科', '未知タグ']); // 未登録タグの除外は apply 側の責務
-    expect(() =>
-      decodeFormatPayload(JSON.stringify({ v: 3, f: { n: '', p: 2, i: [] } })),
-    ).toThrow(/name/);
-  });
-
-  it('null フォーマットは空ペイロード (QR 非表示)', () => {
-    expect(encodeFormatPayload(null)).toBe('');
-  });
-});
-
-describe('setQr (FS v2)', () => {
-  it('encodeSetPayload は v1 実出力と一致する (isDefault は wire に載せない)', () => {
-    const payload = encodeSetPayload(group, [fmtVitals, fmtFindings, fmtProblem], tagDict);
-    expect(JSON.parse(payload)).toEqual(EXPECTED_FS);
-  });
-
-  it('tagDict が空なら td を載せずタグ文字列 inline (v1 実出力)', () => {
-    const payload = encodeSetPayload(group, [fmtVitals, fmtFindings, fmtProblem], []);
-    const out = JSON.parse(payload);
-    expect(out.td).toBeUndefined();
-    expect(out.f[0].t).toEqual(['内科', '未知タグ']);
-  });
-
-  it('decode round-trip: formats 新 ID + group 参照解決 + 常に isDefault=false', () => {
-    const payload = encodeSetPayload(group, [fmtVitals, fmtFindings, fmtProblem], tagDict);
-    const out = decodeSetPayload(payload);
-    expect(out.formats).toHaveLength(3);
-    const ids = out.formats.map((f) => f.id);
-    expect(out.group.isDefault).toBe(false);
-    expect(out.group.formatIds).toEqual(ids);
-    expect(out.group.defaultFormatIds).toEqual([ids[1]]);
-    expect(out.group.expandFormatIds).toEqual([ids[0], ids[2]]);
-  });
-
-  it('旧版 (v1) payload は明示エラーで弾く', () => {
-    expect(() => decodeSetPayload(JSON.stringify({ v: 1, g: {} }))).toThrow(/version/);
-  });
-});

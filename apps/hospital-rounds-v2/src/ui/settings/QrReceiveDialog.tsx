@@ -1,11 +1,11 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-receive.js (統一 QR 受信ルーター)
 //
-// 設定の「QR から追加」1 箇所で、カメラ / 貼り付け のいずれでも QR を受け取り、
-// 読み取った kind (ST/FS/FMT) を見て該当フローの受信処理へ自動で振り分ける。
+// 設定の「設定を受け取る」1 箇所で、カメラ / 貼り付け のいずれでも QR を受け取り、
+// ST (設定全体) の受信処理へ振り分ける。
+// FMT (フォーマット単体) / FS (フォーマットセット) は廃止済み。
 // 患者系 (HM/MM/SH) はこの入口では読まない (各画面の受信導線が担う)。
 //
-// 受信 apply は fail-closed (qrApply.ts): confirm → uniqueName リネーム →
-// repairGroupExpandInvariant → saveSettingsOrThrow → 失敗は in-memory rollback。
+// 受信 apply は fail-closed (qrApply.ts): confirm → saveSettingsOrThrow → 失敗は in-memory rollback。
 
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '@snishi/foundation/ui/Modal';
@@ -16,31 +16,20 @@ import { useQrFlow, type QrFlow, type ReceiveResult } from '@snishi/foundation/q
 import { decodePage } from '@snishi/foundation/qr/protocol';
 import { isScannerSupported, scanQrStream } from '@snishi/foundation/qr/scan';
 import { decodeSettingsPayload, type DecodedSettingsPatch } from '../../qr/settingsQr';
-import { decodeFormatPayload } from '../../qr/formatQr';
-import { decodeSetPayload, type DecodedSetPayload } from '../../qr/setQr';
 import { APP_KEY_BYTES } from '../../qr/appKey';
 import type { AppRuntime } from '../appRuntime';
 import { OverlayBinding, useRegisterOverlay } from '../registries';
 import {
-  applyReceivedFormat,
-  applyReceivedSet,
   applySettingsPatch,
-  prepareReceivedFormat,
-  prepareReceivedSet,
   settingsImportConfirmBody,
   type ApplyResult,
-  type PreparedFormat,
-  type PreparedSet,
 } from './qrApply';
 import { t } from '../../i18n/strings';
 import { UI } from '../../ui-contract';
 
-const ALLOWED_KINDS = ['ST', 'FS', 'FMT'] as const;
+const ALLOWED_KINDS = ['ST'] as const;
 
-type Pending =
-  | { kind: 'ST'; patch: DecodedSettingsPatch; body: string }
-  | { kind: 'FMT'; prepared: PreparedFormat; body: string }
-  | { kind: 'FS'; prepared: PreparedSet; body: string };
+type Pending = { kind: 'ST'; patch: DecodedSettingsPatch; body: string };
 
 function receiveStatusText(res: ReceiveResult, kindLabel: string): string {
   switch (res.status) {
@@ -102,7 +91,7 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // kind 別の受信フロー。onApply は確認ダイアログを出すだけ (適用は confirm 後・fail-closed)。
+  // ST 受信フロー。onApply は確認ダイアログを出すだけ (適用は confirm 後・fail-closed)。
   const stFlow = useQrFlow<DecodedSettingsPatch>({
     kind: 'ST',
     kindLabel: t('qr.kind.settings'),
@@ -114,32 +103,8 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
       setPending({ kind: 'ST', patch, body: settingsImportConfirmBody(patch) });
     },
   });
-  const fmtFlow = useQrFlow<ReturnType<typeof decodeFormatPayload>>({
-    kind: 'FMT',
-    kindLabel: t('qr.kind.format'),
-    keyBytes: APP_KEY_BYTES,
-    encodePayload: () => '',
-    decodePayload: decodeFormatPayload,
-    shouldEncrypt: () => false,
-    onApply(decoded) {
-      const prepared = prepareReceivedFormat(store, decoded);
-      setPending({ kind: 'FMT', prepared, body: prepared.confirmBody });
-    },
-  });
-  const fsFlow = useQrFlow<DecodedSetPayload>({
-    kind: 'FS',
-    kindLabel: t('qr.kind.set'),
-    keyBytes: APP_KEY_BYTES,
-    encodePayload: () => '',
-    decodePayload: decodeSetPayload,
-    shouldEncrypt: () => false,
-    onApply(decoded) {
-      const prepared = prepareReceivedSet(store, decoded);
-      setPending({ kind: 'FS', prepared, body: prepared.confirmBody });
-    },
-  });
 
-  const flowByKind: Record<string, QrFlow> = { ST: stFlow, FMT: fmtFlow, FS: fsFlow };
+  const flowByKind: Record<string, QrFlow> = { ST: stFlow };
 
   // 生 QR テキスト 1 ページを kind 判定して該当フローへ (v1 routePage)。
   async function route(text: string): Promise<void> {
@@ -158,12 +123,7 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
     if (!flow) return;
     try {
       const res = await flow.receivePage(raw);
-      const label =
-        decoded.kind === 'ST'
-          ? t('qr.kind.settings')
-          : decoded.kind === 'FMT'
-            ? t('qr.kind.format')
-            : t('qr.kind.set');
+      const label = t('qr.kind.settings');
       setStatus(receiveStatusText(res, label));
       if (res.done) setScanOpen(false); // 全ページ受信 → 確認ダイアログへ (onApply 済)
     } catch (e) {
@@ -179,10 +139,7 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
     if (busy) return;
     setBusy(true);
     try {
-      let res: ApplyResult;
-      if (target.kind === 'ST') res = await applySettingsPatch(store, target.patch);
-      else if (target.kind === 'FMT') res = await applyReceivedFormat(store, target.prepared.format);
-      else res = await applyReceivedSet(store, target.prepared);
+      const res: ApplyResult = await applySettingsPatch(store, target.patch);
       if (!res.ok) {
         toast.show(res.message, 'error');
         return; // 受信ダイアログは開いたまま (再試行可能)
@@ -205,7 +162,7 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
       dataUi={UI.settings.qrReceiveDialog}
       closeLabel={t('common.close')}
     >
-      <p className="muted">{t('qrReceive.overlayHint')}</p>
+      <p className="muted">{t('qrReceive.overlayHint.st')}</p>
       <div className="qrReceiveActions">
         <Button
           onClick={() => setScanOpen(true)}

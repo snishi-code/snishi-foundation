@@ -37,7 +37,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 // ============================
-// ID 採番 (QR 受信 (settingsQr / setQr) でも共有するため export)
+// ID 採番 (QR 受信 (settingsQr) でも共有するため export)
 // ============================
 
 export function newFormatId(): string {

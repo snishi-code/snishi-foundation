@@ -38,14 +38,12 @@ describe('defaultSettings (cold boot)', () => {
     expect(def.expandFormatIds).toEqual(def.formatIds);
   });
 
-  it('qrEncryption / qrRedistribution の既定値 (MM/SH は機能撤去済み)', () => {
+  it('qrEncryption / qrRedistribution の既定値 (MM/SH/FMT/FS は機能撤去済み)', () => {
     const s = defaultSettings();
-    expect(s.qrEncryption).toEqual({ HM: true, ST: true, FMT: true, FS: true });
+    expect(s.qrEncryption).toEqual({ HM: true, ST: true });
     expect(s.qrRedistribution).toEqual({
       HM: 'restricted',
       ST: 'free',
-      FMT: 'free',
-      FS: 'free',
     });
   });
 });

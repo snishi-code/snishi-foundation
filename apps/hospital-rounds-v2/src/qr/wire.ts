@@ -6,8 +6,10 @@
 // transport 層 (ページ分割 RND_<KIND> / 圧縮・暗号 prefix) は foundation の
 // qr/protocol.ts + qr/crypto.ts。このファイルはその上に乗る **ドメイン wire 変換**
 // (Format / FormatGroup / Patient ↔ 短キー JSON) を定義する。各 kind モジュール
-// (patientList / settingsQr / formatQr / setQr) は本ファイルのヘルパーを **必ず経由**
+// (patientList / settingsQr) は本ファイルのヘルパーを **必ず経由**
 // すること。独自の wire format を定義しないこと。
+// FMT (フォーマット単体 QR) / FS (フォーマットセット QR) は廃止済み。
+// 変換ヘルパー (formatToWire / formatGroupToWire 等) は ST (settingsQr.ts) が引き続き使用。
 //
 // ── 設計 2 原則 ──
 //
@@ -27,9 +29,8 @@
 //     td  = tag dictionary (string[]、1-based で参照される)
 //           ※ ST は「設定全体」なので空でも常に載せる (受信側のタグを一致させる)
 //     p   = patients array (HM/MM/SH)
-//     f   = formats array (ST/FS) / format object (FMT)
+//     f   = formats array (ST)
 //     fg  = formatGroups array (ST) … 各要素は下記「フォーマットセット」
-//     g   = formatGroup object (FS) … 単一セット
 //     ct  = clearTargets (ST)
 //
 //   患者 (p[i]):
@@ -52,10 +53,9 @@
 //     nm = normal       (空は省略)
 //     fm = fraction 入力方式 (1=numeric。default text は省略。新規フィールド=bump 不要)
 //
-//   フォーマットセット = formatGroup (ST の fg[i] / FS の g):
+//   フォーマットセット = formatGroup (ST の fg[i]):
 //     n  = name
-//     d  = isDefault (ST のみ。1 の時だけ出力、省略時 false。FS は単体共有で受信側は
-//          常に非デフォルト追加するため d を載せない)
+//     d  = isDefault (1 の時だけ出力、省略時 false)
 //     fi = formatIds        (同 payload の f 配列への 1-based index 配列)
 //     df = defaultFormatIds (同・fi の部分集合。規定文)
 //     xf = expandFormatIds  (同・fi の部分集合。展開=A)
@@ -94,15 +94,13 @@ import {
 // kind 別 WIRE_V (一箇所集約)
 //
 // **現行 v1 アプリの実装値と一致させること** (v1 Phase 7 で panel enum 拡張のため
-// ST 5→6 / FMT 2→3 / FS 1→2 に bump 済み。患者リスト系 HM は v3)。
+// ST 5→6 に bump 済み。患者リスト系 HM は v3)。
 // ここを変える = v1 端末との QR 互換を破壊する。
-// MM/SH は機能撤去済みのため WIRE_V から削除。
+// MM/SH は機能撤去済み。FMT/FS は廃止のため WIRE_V から削除。
 // ============================
 export const WIRE_V = Object.freeze({
   HM: 3,
   ST: 6,
-  FMT: 3,
-  FS: 2,
 } as const);
 
 // ============================
@@ -177,11 +175,11 @@ export interface WirePatient {
 // Tag dictionary helpers (原則 ①)
 //
 // 送信側の settings.tags を辞書として 1 回だけ wire に乗せ、その他のタグ参照は 1-based の
-// 数値 index に置換する。受信側は辞書から文字列を復元する。dict が null の時 (= FMT の
-// 単独 QR で辞書化のオーバーヘッドを避けたい場合) は文字列のまま wire に乗せる。
+// 数値 index に置換する。受信側は辞書から文字列を復元する。dict が null の時は文字列のまま
+// wire に乗せる (後方互換受信のために維持)。
 // ============================
 
-/** 送信側の現在のタグ辞書を取得 (settings.tags のコピー)。 */
+/** 送信側の現在のタグ辞書を取得 (settings.tags のコピー)。ST (settingsQr.ts) が使用。 */
 export function buildTagDict(settings: Pick<Settings, 'tags'>): string[] {
   return (settings.tags || []).slice();
 }

@@ -253,15 +253,9 @@ export const STRINGS_JA = {
   'formatGroup.expand.lastBlocked':
     '{panel} の最後の入力カードなので、セットから外せません。先に別のフォーマットを {panel} の入力カードに設定してください。',
 
-  // QR (ST / FMT / FS)
+  // QR (ST)
   'qr.kind.settings': '設定QR',
-  'qr.kind.format': 'フォーマットQR',
-  'qr.kind.set': 'セットQR',
   'settings.qr.show': '設定QR表示',
-  'qrFormat.share.title': 'このフォーマットを QR で共有',
-  'qrSet.share.title': 'このセットを QR で共有',
-  'qrFormat.untitled': '(無題)',
-  'qrSet.untitled': '(無題セット)',
   'qrSettings.summary.tags': 'タグ {n} 件',
   'qrSettings.summary.formats': 'フォーマット {n} 件',
   'qrSettings.summary.sets': 'セット {n} 件',
@@ -269,23 +263,14 @@ export const STRINGS_JA = {
   'qrSettings.import.confirm':
     '現在の設定 {summary} を上書きします。\n端末固有設定 (deviceId 等) は維持されます。よろしいですか？',
   'qrSettings.imported.alert': '設定を取り込みました。',
-  'qrFormat.import.confirm': 'フォーマット「{name}」を追加します。{summary}\nよろしいですか？',
-  'qrFormat.imported.alert': 'フォーマット「{name}」を追加しました',
-  'qrFormat.summary.panel': '{panel}',
-  'qrFormat.summary.items': '{n} 項目',
-  'qrFormat.summary.tags': 'タグ {n} 個',
-  'qrFormat.summary.droppedTags': '未登録タグ {n} 個は無視',
-  'qrSet.summary.formats': 'フォーマット {n} 個',
-  'qrSet.import.confirm': 'セット「{name}」を追加します。{summary}\nよろしいですか？',
-  'qrSet.imported.alert': 'セット「{name}」を追加しました',
-  'qrReceive.open': 'QR から追加',
+  'qrReceive.open': '設定を受け取る',
   'qrReceive.hint':
-    '他の端末で共有された QR（設定全体 / セット / フォーマット）を読み取って追加します。',
-  'qrReceive.title': 'QR から追加',
-  'qrReceive.overlayHint':
-    'カメラで QR を読み取ります。設定全体 / セット / フォーマット を自動で見分けます。複数ページのときは 1 つずつ読み込みます。',
+    '他の端末の設定QR（フォーマット・セット・タグなど）を読み取って取り込みます。',
+  'qrReceive.title': '設定を受け取る',
+  'qrReceive.overlayHint.st':
+    'カメラで設定QRを読み取ります。複数ページのときは 1 つずつ読み込みます。',
   'qr.recv.router.notAllowed':
-    'この入口では 設定 / セット / フォーマット の QR のみ読めます（kind={got}）',
+    'この入口では設定QR（ST）のみ読めます（kind={got}）',
   'qr.recv.save.failed':
     '保存に失敗したため取り込みを中断しました。空き容量を確認してもう一度お試しください。',
 
