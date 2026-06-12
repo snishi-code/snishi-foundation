@@ -148,7 +148,7 @@ export async function ensureTrashWorkspace(store: HrStore): Promise<string> {
   const trashId = getTrashWorkspaceId(store);
   const existing = await store.storage.loadBundle(trashId);
   if (existing) return trashId;
-  const emptyState: AppState = { v: 3, title: '', patients: [], recvMemo: '', recvShared: '' };
+  const emptyState: AppState = { v: 3, title: '', patients: [] };
   const bundle = projectBundle({
     appState: emptyState,
     settings: store.getSettings(),

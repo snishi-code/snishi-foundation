@@ -87,7 +87,8 @@ function envPrefix(): string {
 // クリア対象 (診察開始で消す項目)
 // ============================
 
-const CLEAR_KEY_ORDER = [...FORMAT_PANELS, 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue'] as const;
+// problem と shared は UI から除外 (機能撤去済み)。データのキー自体は normalize が温存するので触らない。
+const CLEAR_KEY_ORDER = ['S', 'O', 'A', 'P', 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue'] as const;
 
 const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.freeze({
   statusYellow: STATUS.YELLOW,
@@ -115,8 +116,6 @@ function ClearTargetLabel({ key_ }: { key_: string }) {
       </span>
     );
   }
-  if (key_ === 'problem') return <Icon name="memo" size={16} />;
-  if (key_ === 'shared') return <Icon name="share" size={16} />;
   return <span>{t(`panel.${key_}` as StringKey)}</span>;
 }
 
@@ -279,9 +278,9 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
     <>
       {FORMAT_PANELS.map((panel) => {
         const list = all.filter((f) => f.panel === panel);
-        // プロブレムリストはフォーマットではなく患者ごとの独立データになったため、
-        // problem パネルは legacy フォーマットが残っている場合のみ (削除導線として) 出す。
-        if (panel === 'problem' && list.length === 0) return null;
+        // problem / shared はフォーマットとしての機能が撤去済みのため、
+        // legacy フォーマットが残っている場合のみ (削除導線として) 出す。
+        if ((panel === 'problem' || panel === 'shared') && list.length === 0) return null;
         return (
           <div key={panel} className="card card--pad settingsSection settingsFormatPanel" data-ui={UI.settings.formatList}>
             <div className="settingsFormatPanelHead">

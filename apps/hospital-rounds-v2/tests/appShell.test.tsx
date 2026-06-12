@@ -16,12 +16,12 @@ describe('App シェル', () => {
     const taro = await screen.findByRole('button', { name: '203 テスト太郎' });
     expect(screen.getByRole('button', { name: '101 テスト次郎' })).toBeInTheDocument();
 
-    // 患者タップ → detail (6 パネルカード + 患者メタ)
+    // 患者タップ → detail (S/O/A/P パネルカード + 患者メタ)
     await user.click(taro);
     expect(await screen.findByText('203 テスト太郎')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'プロブレムリスト' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'S' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '共有' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'プロブレムリスト' })).toBeNull();
+    expect(screen.queryByRole('region', { name: '共有' })).toBeNull();
 
     // 選択患者は部屋順ソート後の index に一致する (203 = 2 番目)
     expect(runtime.store.getAppState().patients[1]?.name).toBe('テスト太郎');

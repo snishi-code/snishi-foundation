@@ -194,8 +194,8 @@ describe('wire enum tables / WIRE_V (v1 互換)', () => {
     expect(KIND_BY_INDEX).toEqual(['text', 'number', 'fraction']);
   });
 
-  it('kind 別 WIRE_V は現行 v1 実装値と一致する', () => {
-    expect(WIRE_V).toEqual({ HM: 3, MM: 3, SH: 3, ST: 6, FMT: 3, FS: 2 });
+  it('kind 別 WIRE_V は現行実装値と一致する (MM/SH は機能撤去済みのため除外)', () => {
+    expect(WIRE_V).toEqual({ HM: 3, ST: 6, FMT: 3, FS: 2 });
   });
 });
 
@@ -291,7 +291,7 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
   it('HM restricted: origin=external を空スロット化し、末尾連続空をトリム (v1 実出力)', () => {
     const settings = settingsWith({ tags: tagDict.slice() });
     settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'restricted' };
-    const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM', includeEmpty: true }));
+    const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
     expect(out).toEqual({
       v: 3,
       td: tagDict,
@@ -302,7 +302,7 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
   it('HM free: external 患者も載る (v1 実出力)', () => {
     const settings = settingsWith({ tags: tagDict.slice() });
     settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'free' };
-    const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM', includeEmpty: true }));
+    const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
     expect(out).toEqual({
       v: 3,
       td: tagDict,
@@ -310,27 +310,10 @@ describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
     });
   });
 
-  it('MM (contentOf 注入): content がある患者だけを列挙 (v1 実出力)', () => {
-    const settings = settingsWith({ tags: tagDict.slice() });
-    // MM は既定 restricted → external の外部花子は除外される
-    const out = JSON.parse(
-      encodePatientList(patients, settings, {
-        kind: 'MM',
-        includeEmpty: false,
-        contentOf: (p) => (p.name ? `内容:${p.name}` : ''),
-      }),
-    );
-    expect(out).toEqual({
-      v: 3,
-      td: tagDict,
-      p: [{ r: '203', n: 'テスト太郎', t: [1], c: '内容:テスト太郎' }],
-    });
-  });
-
-  it('decode round-trip: tagIdxs (sender 辞書 1-based) と content を復元', () => {
+  it('decode round-trip: tagIdxs (sender 辞書 1-based) を復元', () => {
     const settings = settingsWith({ tags: tagDict.slice() });
     settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'free' };
-    const payload = encodePatientList(patients, settings, { kind: 'HM', includeEmpty: true });
+    const payload = encodePatientList(patients, settings, { kind: 'HM' });
     const decoded = decodePatientList(payload);
     expect(decoded.tagNames).toEqual(tagDict);
     expect(decoded.patients).toEqual([

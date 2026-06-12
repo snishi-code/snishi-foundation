@@ -462,6 +462,7 @@ export function normalizePatientArray(arr: readonly unknown[] | null | undefined
         r && typeof r.activeFormatGroupId === 'string' ? r.activeFormatGroupId : '',
       formatValues:
         r && isRecord(r.formatValues) ? (r.formatValues as Patient['formatValues']) : {},
+      // 機能撤去済み・保存データ温存のみ (UI なし)。local-first: 既存ユーザーのデータを消さない。
       problems:
         r && Array.isArray(r.problems)
           ? r.problems.filter((x): x is string => typeof x === 'string').map((x) => String(x))
@@ -484,7 +485,5 @@ export function normalizeLoaded(raw: unknown, defaultTitle: string = DEFAULT_APP
     v: 3,
     title: rec && typeof rec.title === 'string' ? rec.title : defaultTitle,
     patients: normalizePatientArray(arr),
-    recvMemo: rec && typeof rec.recvMemo === 'string' ? rec.recvMemo : '',
-    recvShared: rec && typeof rec.recvShared === 'string' ? rec.recvShared : '',
   };
 }

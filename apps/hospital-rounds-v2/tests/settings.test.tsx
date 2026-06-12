@@ -12,8 +12,7 @@ import { FormatGroupEditDialog } from '../src/ui/settings/FormatGroupEditDialog'
 import { formatItemKindChangeBlocked } from '../src/domain/formatValues';
 
 async function openSettings(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(screen.getByRole('button', { name: 'メニュー' }));
-  await user.click(await screen.findByRole('button', { name: '設定' }));
+  await user.click(screen.getByRole('button', { name: '設定' }));
   await screen.findByText('診察開始でクリアする項目');
 }
 

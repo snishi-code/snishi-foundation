@@ -8,7 +8,6 @@
 
 import type { AppState, Format, FormatGroup, FormatPanel, Patient, Settings } from './types';
 import { composeFormatFromValues } from './formatValues';
-import { composeProblemsText } from './problems';
 
 // v1 では payload.js に utf8ByteLength があったが、v2 は foundation qr/protocol の
 // utf8ByteLength を使う (重複定義しない)。
@@ -95,32 +94,13 @@ export function buildSoapParts(patient: Patient | null | undefined, settings: Se
 }
 
 /**
- * プロブレム領域の出力テキスト。正本は patient.problems (患者ごとの独立データ・
- * `#n 本文` 形式)。旧 problem パネルの formatValues に入力が残っている場合は、
- * データを黙って出力から落とさないため後ろに併記する (legacy 互換)。
- */
-export function composeProblemAreaText(
-  patient: Patient | null | undefined,
-  settings: Settings,
-): string {
-  const problemsOut = composeProblemsText(patient?.problems);
-  const legacyOut = buildPanelOut(patient, 'problem', settings);
-  return [problemsOut, legacyOut].filter(Boolean).join('\n');
-}
-
-/**
- * 患者画面 QR の本文。先頭にプロブレムリスト (patient.problems + legacy problem panel)、
- * 続けて S/O/A/P。shared は含めない (共有 QR 専用)。
+ * 患者画面 QR の本文 = S/O/A/P。プロブレムリスト機能は撤去済み (patient.problems は
+ * 保存データ温存のみ。出力には載せない)。
  */
 export function buildTabPayload(patient: Patient | null | undefined, settings: Settings): string {
-  const problemOut = composeProblemAreaText(patient, settings);
   const { sOut, oOut, aOut, pOut } = buildSoapParts(patient, settings);
 
   const parts: string[] = [];
-  if (problemOut) {
-    parts.push(problemOut);
-    parts.push('――');
-  }
   parts.push('(S)');
   parts.push(sOut);
   parts.push('――');

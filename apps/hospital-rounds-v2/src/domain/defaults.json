@@ -77,28 +77,17 @@
       "items": [
         { "label": "", "kind": "text", "normal": "現治療を継続" }
       ]
-    },
-    {
-      "name": "共有",
-      "panel": "shared",
-      "joiner": "\n",
-      "labelSep": "：",
-      "titleWrap": "",
-      "tags": [],
-      "items": [
-        { "label": "", "kind": "text", "normal": "" }
-      ]
     }
   ],
 
-  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。S/O/A/P/shared の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。",
+  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。S/O/A/P の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。shared パネルの既定フォーマットは機能撤去済みのため削除。",
   "formatGroups": [
     {
       "name": "標準",
       "isDefault": true,
-      "formatIndexes": [0, 1, 2, 3, 4, 5, 6],
+      "formatIndexes": [0, 1, 2, 3, 4, 5],
       "defaultFormatIndexes": [],
-      "expandFormatIndexes": [0, 1, 2, 3, 4, 5, 6]
+      "expandFormatIndexes": [0, 1, 2, 3, 4, 5]
     }
   ],
 

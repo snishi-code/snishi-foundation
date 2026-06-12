@@ -82,19 +82,18 @@ describe('initStore', () => {
     await p1;
   });
 
-  it('warm boot: seed bundle から患者と受信ボックスを hydrate する', async () => {
+  it('warm boot: seed bundle から患者を hydrate する', async () => {
     const patients = normalizePatientArray(null);
     patients[0]!.name = 'テスト太郎';
     patients[0]!.status = 'yellow';
     const seed = projectBundle({
-      appState: { title: 'x', patients, recvMemo: '受信メモ', recvShared: '' },
+      appState: { title: 'x', patients },
       settings: defaultSettings(),
       sections: [SECTION.META, SECTION.PATIENTS],
     });
     await store.initStore({ bundle: JSON.parse(JSON.stringify(seed)) });
     const app = store.getAppState();
     expect(app.patients[0]?.name).toBe('テスト太郎');
-    expect(app.recvMemo).toBe('受信メモ');
   });
 
   it('未知フィールドが保存 round-trip で温存される (patient + settings)', async () => {
@@ -158,20 +157,7 @@ describe('保存 (debounce / fail-closed)', () => {
   });
 });
 
-describe('setRecvContent / markUpdated', () => {
-  it('setRecvContent は known キーだけ更新し保存予約する', async () => {
-    makeStore({ saveDebounceMs: 10 });
-    await store.initStore();
-    store.setRecvContent('recvMemo', 'メモ');
-    expect(store.getAppState().recvMemo).toBe('メモ');
-    store.setRecvContent('unknown' as 'recvMemo', 'x');
-    expect((store.getAppState() as unknown as Record<string, unknown>).unknown).toBeUndefined();
-    await wait(60);
-    // 保存されている
-    const loaded = await storage.loadBundle();
-    expect((getSection(loaded!, SECTION.META) as { recvMemo: string }).recvMemo).toBe('メモ');
-  });
-
+describe('markUpdated', () => {
   it('markUpdated は updatedAt を進め、単一 listener に通知する', async () => {
     await store.initStore();
     const events: unknown[] = [];

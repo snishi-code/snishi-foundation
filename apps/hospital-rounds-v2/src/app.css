@@ -753,62 +753,6 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   width: 100%;
 }
 
-/* ── プロブレムリスト (患者ごとの独立データ。#n は表示時の自動付番) ── */
-.problemList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.problemRow {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.problemRowNo {
-  flex: 0 0 auto;
-  min-width: 2.2em;
-  text-align: right;
-  font-weight: 800;
-  font-size: var(--hr-label-font);
-  color: var(--muted);
-  padding-top: 12px;
-}
-
-.problemRowInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: var(--hr-cell-h);
-  font-size: var(--hr-input-font);
-  line-height: 1.4;
-  resize: none;
-  overflow: hidden;
-  /* 対応ブラウザは内容に応じて自動で縦に伸びる (非対応は JS autosize がフォールバック) */
-  field-sizing: content;
-}
-
-.problemRow .icon-btn {
-  align-self: center;
-}
-
-.problemAddBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  align-self: flex-start;
-  min-height: var(--hr-cell-h);
-  padding: 8px 16px;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
 
 /* ── フォーマット入力シート (大入力面) ──
    スマホ幅でも 1 行 ([ラベル][値][単位][備考]) が崩れないよう、各セルに
@@ -971,34 +915,6 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 .memoNameInput {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-/* 行本文 = その場で編集できるエディタ (ProblemListEditor / FormatItemsEditor) */
-.memoRowBody {
-  border-radius: var(--radius-sm);
-  padding: 4px 0;
-}
-
-/* ── 受信ボックス ── */
-.recvCard {
-  padding: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.recvHint {
-  font-size: 12px;
-  margin: var(--space-1) 0 var(--space-2);
-}
-
-.recvArea {
-  width: 100%;
-}
-
-.recvActions {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  margin-top: var(--space-2);
 }
 
 /* ── QR 表示の中身 (Modal ポップアップ内に置くため余白は持たない) ── */

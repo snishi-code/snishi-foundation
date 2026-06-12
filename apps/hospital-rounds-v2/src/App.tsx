@@ -4,7 +4,7 @@
 // App シェル:
 //   - ToastProvider 配下で store.onSaveError → toast を必ず配線 (保存失敗を握らない)
 //   - initStore() 完了まで起動画面 (描画前に必ず await — store の契約)
-//   - useAppHistory で view 管理 (home/detail/memo/shared/settings)。戻る優先順位:
+//   - useAppHistory で view 管理 (home/detail/settings)。戻る優先順位:
 //     終了確認 > 一時 overlay > 編集モード解除 > view 復帰 > 終了確認表示
 //   - beforeunload + visibilitychange(hidden) で flushSavePending (debounce 中の保存を確定)
 //   - eventlog: APP_OPEN / APP_VISIBLE / APP_HIDDEN
@@ -14,25 +14,23 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { AppHeader } from '@snishi/foundation/ui/AppHeader';
 import { IconButton } from '@snishi/foundation/ui/IconButton';
 import { Icon } from '@snishi/foundation/ui/Icon';
-import { Menu } from '@snishi/foundation/ui/Menu';
 import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { ToastProvider, useToast } from '@snishi/foundation/ui/toast';
 import { useAppHistory } from '@snishi/foundation/history/useAppHistory';
 import { EVENT } from './data/eventlog';
 import { REASON, countActivePatients } from './data/snapshots';
 import { createAppRuntime, useRevision, type AppRuntime } from './ui/appRuntime';
-import { OverlayBinding, closeTopOverlay, exitTopEditing, isEditingActive } from './ui/registries';
+import { closeTopOverlay, exitTopEditing, isEditingActive } from './ui/registries';
 import { purgeExpiredPatientLifecycleRecords } from './ui/patientLifecycle';
 import { HomeView } from './ui/HomeView';
 import { DetailView } from './ui/DetailView';
-import { MemoSharedView } from './ui/MemoSharedView';
 import { SettingsView } from './ui/settings/SettingsView';
 import { UserPicker } from './ui/pickers/UserPicker';
 import { WsPicker } from './ui/pickers/WsPicker';
 import { t } from './i18n/strings';
 import { UI } from './ui-contract';
 
-type ViewName = 'home' | 'detail' | 'memo' | 'shared' | 'settings';
+type ViewName = 'home' | 'detail' | 'settings';
 
 function AppShell({ runtime }: { runtime: AppRuntime }) {
   const toast = useToast();
@@ -41,7 +39,6 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
 
   const [ready, setReady] = useState(false);
   const [selectedNo, setSelectedNo] = useState(1);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [wsPickerOpen, setWsPickerOpen] = useState(false);
@@ -255,8 +252,8 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
           </div>
         }
         right={
-          <IconButton label={t('header.menu')} dataUi={UI.nav.menu} onClick={() => setMenuOpen(true)}>
-            <Icon name="menu" size={18} />
+          <IconButton label={t('header.settings')} dataUi={UI.nav.settings} onClick={() => goto('settings')}>
+            <Icon name="settings" size={18} />
           </IconButton>
         }
       />
@@ -271,44 +268,8 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
             onNavigateHome={() => goto('home')}
           />
         ) : null}
-        {view === 'memo' ? <MemoSharedView kind="memo" runtime={runtime} onOpenPatient={openPatient} /> : null}
-        {view === 'shared' ? <MemoSharedView kind="shared" runtime={runtime} onOpenPatient={openPatient} /> : null}
         {view === 'settings' ? <SettingsView runtime={runtime} /> : null}
       </main>
-
-      {menuOpen ? <OverlayBinding onClose={() => setMenuOpen(false)} /> : null}
-      {menuOpen ? (
-        <Menu
-          title={t('header.menu')}
-          onClose={() => setMenuOpen(false)}
-          items={[
-            {
-              key: 'memo',
-              label: t('header.memo'),
-              icon: 'memo',
-              current: view === 'memo',
-              dataUi: UI.nav.menuMemo,
-              onSelect: () => goto('memo'),
-            },
-            {
-              key: 'shared',
-              label: t('header.shared'),
-              icon: 'share',
-              current: view === 'shared',
-              dataUi: UI.nav.menuShared,
-              onSelect: () => goto('shared'),
-            },
-            {
-              key: 'settings',
-              label: t('header.settings'),
-              icon: 'settings',
-              current: view === 'settings',
-              dataUi: UI.nav.menuSettings,
-              onSelect: () => goto('settings'),
-            },
-          ]}
-        />
-      ) : null}
 
       {userPickerOpen ? <UserPicker runtime={runtime} onClose={() => setUserPickerOpen(false)} /> : null}
       {wsPickerOpen ? <WsPicker runtime={runtime} onClose={() => setWsPickerOpen(false)} /> : null}

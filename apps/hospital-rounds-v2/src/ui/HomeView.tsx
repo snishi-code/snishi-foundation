@@ -75,7 +75,7 @@ export function HomeView({
     kindLabel: t('qr.kind.home'),
     keyBytes: APP_KEY_BYTES,
     encodePayload: () =>
-      encodePatientList(store.getAppState().patients, store.getSettings(), { kind: 'HM', includeEmpty: true }),
+      encodePatientList(store.getAppState().patients, store.getSettings(), { kind: 'HM' }),
     decodePayload: (plain) => decodePatientList(plain),
     shouldEncrypt: () => !!store.getSettings().qrEncryption?.HM,
     onApply(decoded, ctrl) {
@@ -122,8 +122,6 @@ export function HomeView({
       v: 3,
       title: store.getAppState().title,
       patients: newPatients,
-      recvMemo: '',
-      recvShared: '',
     };
     const bundle = projectBundle({
       appState: newAppState,

@@ -68,7 +68,7 @@ function projectRosterView(patients: AppState['patients'], tags: string[] | unde
 // ============================
 
 export interface ProjectBundleArgs {
-  appState: Pick<AppState, 'title' | 'patients'> & Partial<Pick<AppState, 'recvMemo' | 'recvShared'>>;
+  appState: Pick<AppState, 'title' | 'patients'>;
   settings: Settings;
   sections?: readonly string[];
   owner?: { deviceId: string; label: string };
@@ -94,13 +94,8 @@ export function projectBundle({
   };
 
   if (want.has(SECTION.META)) {
-    // recvMemo / recvShared = 受信ボックス (他端末から受け取った内容)。病棟単位で永続化し、
-    // 消去するまで残す (医師が後で転記する運用)。患者データではないが同じ病棟スナップ
-    // ショットに含めて保存・復元する。
     out.sections[SECTION.META] = {
       title: String(appState?.title || DEFAULT_APP_TITLE),
-      recvMemo: String(appState?.recvMemo || ''),
-      recvShared: String(appState?.recvShared || ''),
     };
   }
   if (want.has(SECTION.SETTINGS) && settings) {

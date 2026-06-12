@@ -14,8 +14,6 @@ function freshBundle(title = 'T') {
     appState: {
       title,
       patients: normalizePatientArray(null),
-      recvMemo: '',
-      recvShared: '',
     },
     settings: defaultSettings(),
     sections: [SECTION.META, SECTION.PATIENTS],

@@ -108,16 +108,20 @@ describe('buildTabPayload / buildSoapParts', () => {
     expect(payload).toBe('(S)\n頭痛あり\n――\n(O)\n（バイタル）\nSpO2 96%\n――\n(A)\n\n――\n(P)\n');
   });
 
-  it('problem は先頭に出る / shared は患者画面 QR に出ない', () => {
+  it('problem / shared パネルは患者画面 QR に出ない (機能撤去済み)', () => {
     const p = makeDefaultPatient();
     p.formatValues = {
       f_prob: { 0: { value: '1', note: 'HF' } },
       f_sh: { 0: '家族へ説明済み' },
     };
     const payload = buildTabPayload(p, settings);
-    expect(payload.startsWith('#1 HF\n――\n(S)')).toBe(true);
+    // problem パネル機能は撤去済み → 患者画面 QR に problem 出力は含まれない
+    expect(payload).not.toContain('#1 HF');
+    // shared も患者画面 QR には出ない
     expect(payload).not.toContain('家族へ説明済み');
-    // shared は共有 QR 用の合成 (composeExpandedForPanel) では出る
+    // S/O/A/P のみ出る
+    expect(payload.startsWith('(S)')).toBe(true);
+    // composeExpandedForPanel は shared データを正しく合成できる (データは温存)
     expect(composeExpandedForPanel('shared', p.formatValues, settings)).toBe('家族へ説明済み');
   });
 

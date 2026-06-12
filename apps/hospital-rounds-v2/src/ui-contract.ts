@@ -8,12 +8,9 @@
 export const UI = {
   nav: {
     home: 'nav.home',
-    menu: 'nav.menu',
     user: 'nav.user',
     ws: 'nav.ws',
-    menuMemo: 'nav.menu.memo',
-    menuShared: 'nav.menu.shared',
-    menuSettings: 'nav.menu.settings',
+    settings: 'nav.settings',
   },
   home: {
     start: 'home.start',
@@ -39,14 +36,6 @@ export const UI = {
     qrShow: 'detail.qr.show',
     qrDialog: 'detail.qr.dialog',
   },
-  problem: {
-    card: 'problem.card',
-    list: 'problem.list',
-    row: 'problem.row',
-    input: 'problem.input',
-    add: 'problem.add',
-    delete: 'problem.delete',
-  },
   format: {
     cell: 'format.cell',
     cellInput: 'format.cell.input',
@@ -68,17 +57,6 @@ export const UI = {
     next: 'qr.next',
     scan: 'qr.scan',
     recvStatus: 'qr.recv.status',
-  },
-  recv: {
-    open: 'recv.open',
-    box: 'recv.box',
-    area: 'recv.area',
-    clear: 'recv.clear',
-  },
-  list: {
-    editToggle: 'list.editToggle',
-    row: 'list.row',
-    rowBody: 'list.rowBody',
   },
   move: {
     dialog: 'move.dialog',

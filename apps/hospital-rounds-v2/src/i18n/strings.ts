@@ -27,10 +27,7 @@ export const STRINGS_JA = {
 
   // ヘッダー / ナビ
   'header.home': 'ホーム',
-  'header.memo': 'プロブレムリスト',
-  'header.shared': '共有',
   'header.settings': '設定',
-  'header.menu': 'メニュー',
   'header.user.tooltip': 'ユーザーを切替',
   'header.ws.tooltip': '病棟を切替',
   'app.exit.confirm.title': 'アプリを終了しますか？',
@@ -99,27 +96,6 @@ export const STRINGS_JA = {
   'format.launcher.aria': 'フォーマットを選ぶ',
   'format.launcher.empty': '追加で開けるフォーマットはありません',
 
-  // プロブレムリスト (患者ごとの独立データ)
-  'problem.placeholder': '病名・問題名',
-  'problem.add': 'プロブレム追加',
-  'problem.input.aria': 'プロブレム #{n}',
-  'problem.delete.aria': 'プロブレム #{n} を削除',
-  'problem.delete.confirm': 'プロブレム「{text}」を削除します。よろしいですか？',
-
-  // メモ / 共有一覧
-  'memo.edit.tooltip': '編集',
-  'memo.qr.show': 'プロブレムリストQR表示',
-  'shared.edit.tooltip': '編集',
-  'shared.qr.show': 'QR表示',
-
-  // 受信ボックス
-  'recv.label': '受信ボックス',
-  'recv.hint':
-    '他の端末から受け取った内容がここに表示されます。必要な部分を患者の記録にコピーしてください。この内容は保存され、「消去する」を押すまで残ります。',
-  'recv.open': '受信ボックスを開く',
-  'recv.clear': '消去する',
-  'recv.clear.confirm': '受信ボックスの内容を消去しますか？元に戻せません。',
-
   // QR 共通
   'qr.prev.tooltip': '前',
   'qr.next.tooltip': '次',
@@ -135,10 +111,7 @@ export const STRINGS_JA = {
   'qr.recv.parse.failed': '受信データの解析に失敗しました: {message}',
   'qr.render.failed': 'QR を描画できませんでした',
   'qr.kind.home': 'ホームQR',
-  'qr.kind.memo': 'プロブレムリストQR',
-  'qr.kind.shared': '共有QR',
   'qr.import.empty.home': '取込内容が空でした。',
-  'qr.import.empty.shared': '取込対象のエントリがありません。',
 
   // ホームQR 受信 (新規病棟として取込)
   'home.qrImport.newWs.label': '受信 {ts}',

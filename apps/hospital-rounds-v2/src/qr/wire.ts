@@ -94,13 +94,12 @@ import {
 // kind 別 WIRE_V (一箇所集約)
 //
 // **現行 v1 アプリの実装値と一致させること** (v1 Phase 7 で panel enum 拡張のため
-// ST 5→6 / FMT 2→3 / FS 1→2 に bump 済み。患者リスト系 HM/MM/SH は v3)。
+// ST 5→6 / FMT 2→3 / FS 1→2 に bump 済み。患者リスト系 HM は v3)。
 // ここを変える = v1 端末との QR 互換を破壊する。
+// MM/SH は機能撤去済みのため WIRE_V から削除。
 // ============================
 export const WIRE_V = Object.freeze({
   HM: 3,
-  MM: 3,
-  SH: 3,
   ST: 6,
   FMT: 3,
   FS: 2,

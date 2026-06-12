@@ -350,8 +350,7 @@ export function clearPanelFormatValues(
   }
 }
 
-/** panel に所属する展開フォーマット値を一括クリアする (診察開始)。6パネル共通の単一ソース。
- *  problem パネルは患者ごとの独立データ patient.problems も一緒にクリアする。 */
+/** panel に所属する展開フォーマット値を一括クリアする (診察開始)。6パネル共通の単一ソース。 */
 export function clearPanelClinicalInput(
   patient: Patient,
   panel: FormatPanel,
@@ -359,7 +358,6 @@ export function clearPanelClinicalInput(
 ): void {
   if (!patient) return;
   clearPanelFormatValues(patient, panel, formats);
-  if (panel === 'problem') patient.problems = [];
 }
 
 // ============================

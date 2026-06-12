@@ -16,16 +16,16 @@ import {
 import { FORMAT_PANELS, STATUS } from './types';
 import type { FormatGroup } from './types';
 
-// プロブレムリストは患者ごとの独立データ (patient.problems) になったため、
-// problem パネルには既定フォーマットを置かない (既存データの problem フォーマットは温存)。
-const PANELS_WITH_DEFAULT_FORMATS = FORMAT_PANELS.filter((p) => p !== 'problem');
+// problem / shared は機能撤去済みのため、既定フォーマットを置かない (既存データは温存)。
+const PANELS_WITH_DEFAULT_FORMATS = FORMAT_PANELS.filter((p) => p !== 'problem' && p !== 'shared');
 
 describe('defaultSettings (cold boot)', () => {
-  it('S/O/A/P/shared に既定フォーマットを持つ (problem は対象外)', () => {
+  it('S/O/A/P に既定フォーマットを持つ (problem / shared は対象外)', () => {
     const s = defaultSettings();
     const panels = new Set(s.formats.map((f) => f.panel));
     for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
     expect(panels.has('problem')).toBe(false);
+    expect(panels.has('shared')).toBe(false);
   });
 
   it('デフォルトグループがちょうど 1 つ存在し、全 format を展開に持つ', () => {
@@ -33,18 +33,16 @@ describe('defaultSettings (cold boot)', () => {
     const defs = s.formatGroups.filter((g) => g.isDefault);
     expect(defs).toHaveLength(1);
     const def = defs[0]!;
-    // defaults.json: 標準グループは全 8 formats を formatIndexes + expandFormatIndexes に持つ
+    // defaults.json: 標準グループは全 formats を formatIndexes + expandFormatIndexes に持つ
     expect(def.formatIds.length).toBeGreaterThan(0);
     expect(def.expandFormatIds).toEqual(def.formatIds);
   });
 
-  it('qrEncryption / qrRedistribution の既定値', () => {
+  it('qrEncryption / qrRedistribution の既定値 (MM/SH は機能撤去済み)', () => {
     const s = defaultSettings();
-    expect(s.qrEncryption).toEqual({ HM: true, MM: true, SH: true, ST: true, FMT: true, FS: true });
+    expect(s.qrEncryption).toEqual({ HM: true, ST: true, FMT: true, FS: true });
     expect(s.qrRedistribution).toEqual({
       HM: 'restricted',
-      MM: 'restricted',
-      SH: 'free',
       ST: 'free',
       FMT: 'free',
       FS: 'free',
@@ -144,16 +142,14 @@ describe('normalizeSettings', () => {
 
   it('qrEncryption / qrRedistribution: 保存値に関わらずコード内固定値へ正規化する (v1 authority)', () => {
     // 旧 UI 由来の値が保存に残っていても、常にデフォルト (全 kind 暗号化 ON /
-    // HM・MM のみ再配布制限) で動作する。ユーザー設定としては露出しない。
+    // HM のみ再配布制限) で動作する。ユーザー設定としては露出しない。
     const s = normalizeSettings({
       qrEncryption: { HM: false, XX: true, ST: 'yes' },
-      qrRedistribution: { HM: 'free', SH: 'restricted' },
+      qrRedistribution: { HM: 'free', ST: 'restricted' },
     });
     expect(s.qrEncryption.HM).toBe(true);
     expect(s.qrEncryption.ST).toBe(true);
     expect(s.qrRedistribution.HM).toBe('restricted');
-    expect(s.qrRedistribution.MM).toBe('restricted');
-    expect(s.qrRedistribution.SH).toBe('free');
     expect(s.qrRedistribution.ST).toBe('free');
   });
 });
@@ -276,12 +272,9 @@ describe('normalizePatientArray / normalizeLoaded', () => {
     const fromObj = normalizeLoaded({
       title: 'T',
       patients: [{ pid: 'y' }],
-      recvMemo: 'm',
-      recvShared: 's',
     });
     expect(fromObj.title).toBe('T');
-    expect(fromObj.recvMemo).toBe('m');
-    expect(fromObj.recvShared).toBe('s');
+    expect(fromObj.patients[0]?.pid).toBe('y');
   });
 });
 

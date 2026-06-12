@@ -215,6 +215,9 @@ export function FormatGroupEditDialog({
         <span className="field__label">{t('formatGroup.edit.formatsLabel')}</span>
         {allFormats.length === 0 ? <p className="muted">{t('formatGroup.edit.noFormats')}</p> : null}
         {FORMAT_PANELS.map((panel) => {
+          // problem / shared は機能撤去済み。legacy フォーマットが残っている場合は表示しない
+          // (FormatGroupEditDialog では S/O/A/P のみを対象とする)。
+          if (panel === 'problem' || panel === 'shared') return null;
           const inPanel = allFormats.filter((f) => f.panel === panel);
           if (!inPanel.length) return null;
           return (

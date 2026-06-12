@@ -43,7 +43,8 @@ export const DEFAULT_LABEL_SEP_OTHER = ' ';
 // QR 種別 (kind コード)。患者画面 QR (clinical text → 電子カルテ貼付) は電子カルテ端末の
 // 標準カメラで読む前提のため、この暗号化マトリクスに含まれない (常に平文・常に再配布可)。
 // FS = フォーマットセット (formatGroup 1 つ + 参照フォーマット一式)。
-export const QR_KINDS = Object.freeze(['HM', 'MM', 'SH', 'ST', 'FMT', 'FS'] as const);
+// MM (プロブレムリスト共有 QR) / SH (共有欄 QR) は機能撤去済み (UI なし)。
+export const QR_KINDS = Object.freeze(['HM', 'ST', 'FMT', 'FS'] as const);
 export type QrKind = (typeof QR_KINDS)[number];
 
 export type QrRedistribution = 'restricted' | 'free';
@@ -52,8 +53,6 @@ export type QrRedistribution = 'restricted' | 'free';
 //   redistribution: "restricted" = 受信データの再配布禁止 (= origin=external を送信時に除外)
 export const DEFAULT_QR_ENCRYPTION: Readonly<Record<QrKind, boolean>> = Object.freeze({
   HM: true,
-  MM: true,
-  SH: true,
   ST: true,
   FMT: true,
   FS: true,
@@ -61,8 +60,6 @@ export const DEFAULT_QR_ENCRYPTION: Readonly<Record<QrKind, boolean>> = Object.f
 export const DEFAULT_QR_REDISTRIBUTION: Readonly<Record<QrKind, QrRedistribution>> =
   Object.freeze({
     HM: 'restricted',
-    MM: 'restricted',
-    SH: 'free',
     ST: 'free',
     FMT: 'free',
     FS: 'free',
@@ -207,9 +204,8 @@ export interface Patient {
   activeFormatGroupId: string;
   formatValues: FormatValues;
   /**
-   * プロブレムリスト (患者ごとの独立データ)。フォーマット/設定とは無関係で、
-   * `#1` 等の番号は保存せず配列順から表示時に自動付与する (domain/problems.ts)。
-   * 旧 problem パネルの formatValues とは別物 (legacy データは温存し出力時に併記)。
+   * プロブレムリスト (患者ごとの独立データ)。機能撤去済み・保存データ温存のみ (UI なし)。
+   * local-first 原則: 既存ユーザーのデータを黙って消さないため、フィールドは維持する。
    */
   problems: string[];
   /**
@@ -245,9 +241,6 @@ export interface AppState {
   /** ヘッダー表示タイトル = 現ユーザー名 (ユーザー機能・案B) */
   title: string;
   patients: Patient[];
-  /** 受信ボックス (他端末から受け取った内容。病棟単位で永続化) */
-  recvMemo: string;
-  recvShared: string;
 }
 
 /** ユーザー登録簿 (__users__ レコード) の 1 ユーザー */

@@ -17,7 +17,7 @@ export function seedBundle(patches: Array<Partial<Patient>>): Bundle {
   patches.forEach((patch, i) => {
     Object.assign(patients[i] as Patient, patch);
   });
-  const appState: AppState = { v: 3, title: '回診', patients, recvMemo: '', recvShared: '' };
+  const appState: AppState = { v: 3, title: '回診', patients };
   return projectBundle({
     appState,
     settings: defaultSettings(),

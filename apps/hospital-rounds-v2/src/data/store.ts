@@ -160,9 +160,6 @@ export interface HrStore {
   /** fail-closed 版 saveSettings (QR 取込などが使う) */
   saveSettingsOrThrow(): Promise<void>;
 
-  // ── 受信ボックス ──
-  setRecvContent(key: 'recvMemo' | 'recvShared', value: string): void;
-
   // ── 患者更新マーカー ──
   markUpdated(no: number): void;
 
@@ -220,8 +217,6 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
     v: 3,
     title: defaultTitle,
     patients: normalizePatientArray(null),
-    recvMemo: '',
-    recvShared: '',
   };
   // ヘッダーのタイトル枠は「現ユーザー名」を表示する (ユーザー機能, 案B)。
   // 同期で参照したいので、initStore / switchUser で取得した名前をここにキャッシュする。
@@ -243,15 +238,11 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
   // 現ユーザー名) だけを live state へ反映する。bundle の settings section は無視。
   function applyBundleToLive(bundle: Bundle | null): void {
     const sPatients = bundle ? getSection(bundle, SECTION.PATIENTS) : null;
-    const meta = bundle ? (getSection(bundle, SECTION.META) as Record<string, unknown> | null) : null;
     appState = {
       v: 3,
       // title = 現ユーザー名。bundle.sections.meta.title は出力時の体裁のためだけに保持。
       title: currentUserName || defaultTitle,
       patients: normalizePatientArray(Array.isArray(sPatients) ? sPatients : null),
-      // 受信ボックス (病棟単位で永続化)
-      recvMemo: meta && typeof meta.recvMemo === 'string' ? meta.recvMemo : '',
-      recvShared: meta && typeof meta.recvShared === 'string' ? meta.recvShared : '',
     };
   }
 
@@ -318,8 +309,6 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       v: 3,
       title: defaultTitle,
       patients: normalizePatientArray(null),
-      recvMemo: '',
-      recvShared: '',
     };
     return projectBundle({
       appState: emptyAppState,
@@ -435,13 +424,6 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       return persistActiveOrThrow();
     },
 
-    // 受信ボックスの内容を更新して永続化する (caller は UI 同期の責務)。
-    setRecvContent(key, value) {
-      if (key !== 'recvMemo' && key !== 'recvShared') return;
-      appState[key] = String(value || '');
-      scheduleSave();
-    },
-
     markUpdated(no) {
       const p = appState.patients[no - 1];
       if (!p) return;
@@ -495,8 +477,6 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
         v: 3,
         title: appState.title || defaultTitle,
         patients: Array.isArray(patients) ? patients : [],
-        recvMemo: '',
-        recvShared: '',
       };
       const bundle = projectBundle({
         appState: appStateForBundle,

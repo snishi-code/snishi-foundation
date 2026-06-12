@@ -1,6 +1,6 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-patient-list.js (純関数化)
 //
-// 患者リスト系 QR ペイロード (HM/MM/SH 共通)。wire format の詳細は qr/wire.ts の
+// 患者リスト QR ペイロード (HM)。wire format の詳細は qr/wire.ts の
 // Wire Format Authority コメントを参照。ここでは「患者配列 + タグ辞書」のエンベロープを
 // 組み立てる。
 //
@@ -9,14 +9,15 @@
 //     "v": 3,
 //     "td": ["内科","外科"],          // tag dictionary (settings.tags のスナップショット)
 //     "p": [
-//       {"r":"203","n":"テスト太郎","t":[1,3],"c":"本日体温..."},
 //       {},                            ← HM の空 slot
+//       {"r":"203","n":"テスト太郎","t":[1,3]},
 //       {"r":"204","n":"テスト次郎","t":[2]}
 //     ]
 //   }
 //
-// - HM (ホーム): 全 slot をその順で並べる。末尾の空はトリム可
-// - MM/SH:       content がある患者だけを列挙
+// - HM (ホーム): 全 slot をその順で並べる。末尾の空はトリム可。content (c) は使わない
+//
+// MM/SH (プロブレムリスト共有 QR / 共有欄 QR) は機能撤去済み。
 //
 // v1 との差分: live binding (appState/settings) 直読みをやめ、patients / settings を引数で
 // 受ける純関数にした。decode のエラーは i18n キーでなく英語メッセージで throw する
@@ -25,18 +26,13 @@
 import type { Patient, Settings } from '../domain/types';
 import { WIRE_V, buildTagDict, patientFromWire, patientToWire, type WirePatient } from './wire';
 
-const PATIENT_LIST_WIRE_V = WIRE_V.HM; // HM/MM/SH 共通 (v3)
+const PATIENT_LIST_WIRE_V = WIRE_V.HM; // HM (v3)
 
+// HM のみ: content (c) は使わない (null 固定)、全 slot を includeEmpty=true で並べる。
+// MM/SH (contentOf / includeEmpty=false オプション) は機能撤去済み。
 export interface EncodePatientListConfig {
-  /** QR 種別 ("HM" / "MM" / "SH")。再配布制限 (qrRedistribution) の判定に使う */
+  /** QR 種別。現在は "HM" のみ。再配布制限 (qrRedistribution) の判定に使う */
   kind: string;
-  /**
-   * null (HM) | (patient)=>string (MM=problem / SH=shared)。patient[field] 直読みでなく
-   * 合成済みテキスト (composeExpandedForPanel) を返す関数を注入する (Phase 7)。
-   */
-  contentOf?: ((p: Patient) => string) | null;
-  /** true (HM) | false (MM/SH) */
-  includeEmpty?: boolean;
   /** 任意フィルタ。指定があれば該当患者だけを対象に */
   matchesFilter?: (p: Patient) => boolean;
 }
@@ -46,8 +42,6 @@ export function encodePatientList(
   settings: Settings,
   cfg: EncodePatientListConfig,
 ): string {
-  const contentOf = typeof cfg.contentOf === 'function' ? cfg.contentOf : null;
-  const includeEmpty = !!cfg.includeEmpty;
   const matchesFilter = cfg.matchesFilter || (() => true);
 
   // 再配布制限 (settings.qrRedistribution[kind] === "restricted") が ON なら
@@ -59,31 +53,26 @@ export function encodePatientList(
 
   const tagDict = buildTagDict(settings);
 
+  // HM: 全 slot をその順で並べる。restricted な kind では external 患者を空スロット扱い。
   const patientArr: WirePatient[] = [];
   for (const p of patients) {
-    // restricted な kind では external 患者を除外 (HM では空スロット扱い)
     if (restrict && p && p.origin === 'external') {
-      if (includeEmpty) patientArr.push({});
+      patientArr.push({});
       continue;
     }
     if (!matchesFilter(p)) {
-      if (includeEmpty) patientArr.push({});
+      patientArr.push({});
       continue;
     }
-    const content = contentOf ? contentOf(p) : null;
-    const wire = patientToWire(p, tagDict, content);
-    // MM/SH: content が無い患者は載せない
-    if (contentOf && !wire.c) continue;
-    patientArr.push(wire);
+    // HM: content は null (c キーを出さない)
+    patientArr.push(patientToWire(p, tagDict, null));
   }
 
   // HM の末尾連続空を削る (受信側は p.length までを反映、残りはデフォルト)
-  if (includeEmpty) {
-    while (patientArr.length > 0) {
-      const last = patientArr[patientArr.length - 1];
-      if (last && Object.keys(last).length === 0) patientArr.pop();
-      else break;
-    }
+  while (patientArr.length > 0) {
+    const last = patientArr[patientArr.length - 1];
+    if (last && Object.keys(last).length === 0) patientArr.pop();
+    else break;
   }
 
   const out = {

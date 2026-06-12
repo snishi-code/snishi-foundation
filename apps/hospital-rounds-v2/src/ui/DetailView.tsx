@@ -27,7 +27,6 @@ import { EVENT } from '../data/eventlog';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { formatPatientLabel, isPatientTransferred, statusClass, STATUS_MARK } from './patientDisplay';
 import { PanelCard, type InlineSession, type PanelCardCallbacks } from './PanelCard';
-import { ProblemListCard } from './ProblemListCard';
 import { FormatSheet } from './FormatSheet';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
@@ -325,9 +324,9 @@ export function DetailView({
         </div>
       ) : null}
 
-      {/* problem パネルはフォーマットではなく患者ごとの独立データ (ProblemListCard) */}
-      <ProblemListCard runtime={runtime} patient={patient} />
-      {FORMAT_PANELS.filter((panel) => panel !== 'problem').map((panel) => (
+      {/* problem / shared パネルは機能撤去済み (キーは保存データ・wire 互換のため温存)。
+          表示するのは S/O/A/P のみ。 */}
+      {FORMAT_PANELS.filter((panel) => panel !== 'problem' && panel !== 'shared').map((panel) => (
         <PanelCard key={panel} panel={panel} patient={patient} settings={settings} inline={inlineForRender} cb={cb} />
       ))}
 
