@@ -22,11 +22,14 @@ import type { RestorePoint } from '@snishi/foundation/snapshot/snapshots';
 import {
   FORMAT_PANELS,
   STATUS,
+  TAG_COLORS,
+  tagClearKey,
   type Format,
   type FormatDisplay,
   type FormatPanel,
   type Patient,
   type PatientStatus,
+  type TagColor,
 } from '../../domain/types';
 import { SECTION, getSection } from '../../data/bundle';
 import { normalizePatientArray } from '../../domain/normalize';
@@ -39,7 +42,7 @@ import { useRevision, type AppRuntime } from '../appRuntime';
 import { statusClass, STATUS_MARK } from '../patientDisplay';
 import { QrDialog } from '../QrCard';
 import { AddTagWidget } from '../TagPicker';
-import { deleteTagAt, renameTagAt, setTagClearOnStart } from '../tags';
+import { deleteTagAt, renameTagAt, setTagColor } from '../tags';
 import { OverlayBinding } from '../registries';
 import { FormatEditDialog } from './FormatEditDialog';
 import { QrReceiveDialog } from './QrReceiveDialog';
@@ -85,7 +88,7 @@ function envPrefix(): string {
 // クリア対象 (診察開始で消す項目)
 // ============================
 
-const CLEAR_KEY_ORDER = ['S', 'O', 'A', 'P', 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue'] as const;
+const CLEAR_KEY_ORDER = ['S', 'O', 'A', 'P', 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue', 'tagAmber', 'tagGray'] as const;
 
 const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.freeze({
   statusYellow: STATUS.YELLOW,
@@ -94,15 +97,18 @@ const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.free
   statusBlue: STATUS.BLUE,
 });
 
+// tagAmber / tagGray は clearTargets の tag 色キー
+const CLEAR_TAG_COLOR_KEYS = new Set<string>(TAG_COLORS.map(tagClearKey));
+
 function clearItemTitle(key: string): string {
-  if (key in CLEAR_STATUS_BY_KEY) {
+  if (key in CLEAR_STATUS_BY_KEY || CLEAR_TAG_COLOR_KEYS.has(key)) {
     return t(`settings.clear.${key}` as StringKey);
   }
   return t(`panel.${key}` as StringKey);
 }
 
 /** チップの中身 (v1 buildClearTargetLabelContent):
- *  S/O/A/P = 短いテキスト、ステータス = 色スウォッチ + 形マーク。
+ *  S/O/A/P = 短いテキスト、ステータス = 色スウォッチ + 形マーク、タグ色 = チップ。
  *  文言は aria-label / title で読める (色だけに依存しない)。 */
 function ClearTargetLabel({ key_ }: { key_: string }) {
   const status = CLEAR_STATUS_BY_KEY[key_];
@@ -112,6 +118,10 @@ function ClearTargetLabel({ key_ }: { key_: string }) {
         {STATUS_MARK[status]}
       </span>
     );
+  }
+  if (CLEAR_TAG_COLOR_KEYS.has(key_)) {
+    // タグ色のクリア対象: clearItemTitle が i18n テキストを返す
+    return <span>{t(`settings.clear.${key_}` as StringKey)}</span>;
   }
   return <span>{t(`panel.${key_}` as StringKey)}</span>;
 }
@@ -223,20 +233,25 @@ function TagManagerSection({ runtime }: { runtime: AppRuntime }) {
                   >
                     {name || t('settings.tagGroup.name.empty')}
                   </button>
-                  <button
-                    type="button"
-                    className={`tagSettingClearOnStart${tagDef.clearOnStart ? ' selected' : ''}`}
-                    aria-label={t('settings.tag.clearOnStart.label')}
-                    aria-pressed={tagDef.clearOnStart}
-                    title={t('settings.tag.clearOnStart.label')}
-                    data-ui={UI.settings.tagClearOnStart}
-                    onClick={() => {
-                      setTagClearOnStart(store, idx, !store.getSettings().tags[idx]?.clearOnStart);
-                      runtime.bump();
-                    }}
-                  >
-                    {t('settings.tag.clearOnStart.label')}
-                  </button>
+                  {/* 色スウォッチ: TAG_COLORS 分の小丸ボタン。タップで setTagColor。選択中は枠強調 */}
+                  {(TAG_COLORS as readonly TagColor[]).map((color) => {
+                    const isSelected = tagDef.color === color;
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`tagColorSwatch tagColorSwatch--${color}${isSelected ? ' selected' : ''}`}
+                        aria-label={t(`settings.tag.color.${color}` as StringKey)}
+                        aria-pressed={isSelected}
+                        title={t(`settings.tag.color.${color}` as StringKey)}
+                        data-ui={UI.settings.tagColor}
+                        onClick={() => {
+                          setTagColor(store, idx, color);
+                          runtime.bump();
+                        }}
+                      />
+                    );
+                  })}
                   <button
                     type="button"
                     className="tagSettingDel"

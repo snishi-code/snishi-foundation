@@ -91,7 +91,7 @@ import {
 // ============================
 export const WIRE_V = Object.freeze({
   HM: 4,
-  ST: 7,
+  ST: 8, // v8: TagDef.color 追加 + tc (clearOnStart index) → tgc (color index) 置換
 } as const);
 
 // ============================

@@ -15,7 +15,9 @@ import { useQrFlow } from '@snishi/foundation/qr/useQrFlow';
 import {
   FORMAT_PANELS,
   STATUS,
+  TAG_COLORS,
   clone,
+  tagClearKey,
   DEFAULT_PATIENT_COUNT,
   type AppState,
 } from '../domain/types';
@@ -118,7 +120,7 @@ export function HomeView({
     const prevTags = liveSettings.tags.slice();
     for (const tag of senderTagNames) {
       if (!liveSettings.tags.some((t) => t.name === tag))
-        liveSettings.tags.push({ name: tag, clearOnStart: false });
+        liveSettings.tags.push({ name: tag, color: 'gray' });
     }
     const newAppState: AppState = {
       v: 3,
@@ -155,16 +157,16 @@ export function HomeView({
       { title: state.title, patients: state.patients },
       String(countActivePatients(state.patients)),
     );
-    const ct = store.getSettings().clearTargets;
+    const live = store.getSettings();
+    const ct = live.clearTargets;
     const now = Date.now();
     const backup = state.patients.map((p) => clone(p));
-    // clearOnStart=true のタグを全患者から外す
-    const drop = new Set(
-      store.getSettings().tags.filter((t) => t.clearOnStart).map((t) => t.name),
-    );
+    // clearTargets で ON の色のタグを全患者から外す
+    const dropColors = new Set(TAG_COLORS.filter((c) => !!ct?.[tagClearKey(c)]));
+    const drop = new Set(live.tags.filter((t) => dropColors.has(t.color)).map((t) => t.name));
     for (const p of state.patients) {
       for (const panel of FORMAT_PANELS) {
-        if (ct[panel]) clearPanelClinicalInput(p, panel, store.getSettings().formats);
+        if (ct[panel]) clearPanelClinicalInput(p, panel, live.formats);
       }
       if (p.status === STATUS.YELLOW && ct.statusYellow) p.status = STATUS.NONE;
       else if (p.status === STATUS.GREEN && ct.statusGreen) p.status = STATUS.NONE;

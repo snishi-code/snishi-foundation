@@ -34,6 +34,7 @@ import { PatientEditPopup } from './PatientEditPopup';
 import { PatientLifecyclePanel } from './PatientLifecyclePanel';
 import { StatusPickerPopup } from './StatusPicker';
 import { TagSelection } from './TagPicker';
+import { tagColorOf } from './tags';
 import { applyFormatTags, writeFormatValue } from './formatLogic';
 import { hapticTick } from './feedback';
 import { registerEditingSession, useRegisterOverlay } from './registries';
@@ -361,11 +362,15 @@ export function DetailView({
           <span className="detailMetaLabel">{label}</span>
           {orderedTags.length ? (
             <span className="detailMetaTags">
-              {orderedTags.map((tg) => (
-                <span key={tg} className="tag tag--neutral detailMetaTagChip">
-                  {tg}
-                </span>
-              ))}
+              {orderedTags.map((tg) => {
+                const color = tagColorOf(settings, tg);
+                const colorMod = color !== 'gray' ? ` tag--${color}` : ' tag--gray';
+                return (
+                  <span key={tg} className={`tag${colorMod} detailMetaTagChip`}>
+                    {tg}
+                  </span>
+                );
+              })}
             </span>
           ) : null}
           <Icon name="edit" size={15} className="detailMetaEditIcon" />

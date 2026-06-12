@@ -10,7 +10,7 @@
 // フィルタはユーザータグのみ・全タグ一致 (AND) 固定。AND/OR 切替と仮想ステータスタグは
 // v2 では撤去済み (仕様判断 2026-06)。
 
-import type { Patient, Settings } from '../domain/types';
+import { type Patient, type Settings, type TagColor } from '../domain/types';
 import type { HrStore } from '../data/store';
 
 // ============================
@@ -29,14 +29,14 @@ export function getAllTags(settings: Settings): string[] {
 // しない — v1 同様ここで saveSettings / scheduleSave まで行う。
 // ============================
 
-/** 新規タグ追加 (重複は false)。 */
+/** 新規タグ追加 (重複は false)。日常導線で追加されたタグは常に color:'gray'。 */
 export function addNewTag(store: HrStore, name: string): boolean {
   const trimmed = String(name || '').trim();
   if (!trimmed) return false;
   const settings = store.getSettings();
   if (!Array.isArray(settings.tags)) settings.tags = [];
   if (settings.tags.some((t) => t.name === trimmed)) return false;
-  settings.tags.push({ name: trimmed, clearOnStart: false });
+  settings.tags.push({ name: trimmed, color: 'gray' });
   void store.saveSettings();
   return true;
 }
@@ -74,12 +74,24 @@ export function deleteTagAt(store: HrStore, idx: number): void {
   store.scheduleSave();
 }
 
-/** idx のタグの clearOnStart フラグを変更する。 */
-export function setTagClearOnStart(store: HrStore, idx: number, on: boolean): void {
+/** idx のタグの color を変更する。色の変更は設定のタグ管理でのみ行う。 */
+export function setTagColor(store: HrStore, idx: number, color: TagColor): void {
   const settings = store.getSettings();
   if (!Array.isArray(settings.tags) || idx < 0 || idx >= settings.tags.length) return;
-  settings.tags[idx]!.clearOnStart = on;
+  settings.tags[idx]!.color = color;
   void store.saveSettings();
+}
+
+/**
+ * タグ名から TagColor を解決する。settings.tags に登録されていれば color を返す。
+ * 見つからない場合は 'gray' (ニュートラル) にフォールバック。
+ */
+export function tagColorOf(settings: Settings, name: string): TagColor {
+  if (Array.isArray(settings.tags)) {
+    const def = settings.tags.find((t) => t.name === name);
+    if (def) return def.color;
+  }
+  return 'gray';
 }
 
 // ============================

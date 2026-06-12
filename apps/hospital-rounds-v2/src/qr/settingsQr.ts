@@ -3,22 +3,23 @@
 // 設定 QR (ST) — 設定全体 (formats + clearTargets + tags)。
 // wire format の詳細は qr/wire.ts の Wire Format Authority コメントを参照。
 //
-// 形式 (v7):
+// 形式 (v8):
 //   {
-//     "v": 7,
+//     "v": 8,
 //     "td": ["内科","外科"],           // tag dictionary
+//     "tgc": [1],                      // 色 index 配列 (TAG_COLORS の index。全 gray なら省略)
 //     "f":  [<formatToWire>, ...],     // formats (q:1 = quick / 省略 = expand)
-//     "ct": {S:true,O:true,...}        // clearTargets
+//     "ct": {S:true,O:true,...,tagAmber:true,tagGray:false}  // clearTargets
 //   }
 //
-// v2: パネル縮小 (S/O/A/P のみ) のため WIRE_V を 6→7 に bump。
-// v7 のみ受理し、それ以外は version mismatch エラー。
+// v8: TagDef.color 追加 + tc (clearOnStart index) → tgc (color index) 置換のため bump。
+// v8 のみ受理し、それ以外は version mismatch エラー。
 // 端末固有値 (deviceId 等) は wire に載せない。
 //
 // 受信フローの apply (confirm ダイアログ・saveSettingsOrThrow + ロールバック) は UI 層の
 // 責務 (fail-closed: 保存が確認できてから閉じる/成功表示。失敗は in-memory を戻して中断)。
 
-import { FORMAT_PANELS, type Format, type Settings, type TagDef } from '../domain/types';
+import { FORMAT_PANELS, TAG_COLORS, tagClearKey, type Format, type Settings, type TagDef } from '../domain/types';
 import { newFormatId } from '../domain/normalize';
 import {
   WIRE_V,
@@ -39,11 +40,10 @@ export function encodeSettingsPayload(settings: Settings): string {
   // td は「設定全体のタグ辞書」。設定全体 QR なので空でも常に載せる
   // (= 受信側のタグを送信側に一致させる。0 個ならタグ消去も伝わる)。
   out.td = tagDict;
-  // tc: clearOnStart=true のタグの 1-based index 配列。空なら省略。
-  const tc = tagDefs
-    .map((t, i) => (t.clearOnStart ? i + 1 : 0))
-    .filter((i) => i > 0);
-  if (tc.length) out.tc = tc;
+  // tgc: td と同順の色 index 配列 (TAG_COLORS の 0-based index)。全 gray なら省略。
+  const tgc = tagDefs.map((t) => TAG_COLORS.indexOf(t.color));
+  const hasNonGray = tgc.some((i) => i !== 0);
+  if (hasNonGray) out.tgc = tgc;
   if (formats.length) out.f = formats.map((f) => formatToWire(f, tagDict));
   if (settings.clearTargets && typeof settings.clearTargets === 'object') {
     out.ct = settings.clearTargets;
@@ -74,16 +74,14 @@ export function decodeSettingsPayload(payload: string): DecodedSettingsPatch {
   const tagDict = Array.isArray(rec.td)
     ? rec.td.filter((s): s is string => typeof s === 'string')
     : [];
-  // tc: clearOnStart=true のタグの 1-based index 配列 (新フィールド・旧版では省略)
-  const clearOnStartSet = new Set<number>(
-    Array.isArray(rec.tc)
-      ? (rec.tc as unknown[]).filter((v): v is number => typeof v === 'number' && v >= 1)
-      : [],
-  );
-  const decodedTags: TagDef[] = tagDict.map((name, i) => ({
-    name,
-    clearOnStart: clearOnStartSet.has(i + 1),
-  }));
+  // tgc: td と同順の色 index 配列 (TAG_COLORS の 0-based index。省略 = 全 gray)。
+  // 範囲外 index は gray に倒す (fail-safe)。
+  const tgcArr: unknown[] = Array.isArray(rec.tgc) ? (rec.tgc as unknown[]) : [];
+  const decodedTags: TagDef[] = tagDict.map((name, i) => {
+    const colorIdx = typeof tgcArr[i] === 'number' ? (tgcArr[i] as number) : 0;
+    const color = TAG_COLORS[colorIdx] ?? 'gray';
+    return { name, color };
+  });
   const out: DecodedSettingsPatch = {
     // td は常に送る (設定全体) ので tags を常に適用 = 空配列ならタグ消去も反映。
     tags: decodedTags,
@@ -99,8 +97,12 @@ export function decodeSettingsPayload(payload: string): DecodedSettingsPatch {
 
   if (rec.ct && typeof rec.ct === 'object') {
     // 適用先 (applySettingsPatch) は normalizeSettings を通さないため、ここで
-    // 正規キー (S/O/A/P + statusXxx) 以外を落とす (旧版 QR の遺残キー混入防止)。
-    const allowed = new Set<string>([...FORMAT_PANELS, 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue']);
+    // 正規キー (S/O/A/P + statusXxx + tagXxx) 以外を落とす (旧版 QR の遺残キー混入防止)。
+    const allowed = new Set<string>([
+      ...FORMAT_PANELS,
+      'statusYellow', 'statusGreen', 'statusGray', 'statusBlue',
+      ...TAG_COLORS.map(tagClearKey),
+    ]);
     out.clearTargets = {};
     for (const [k, val] of Object.entries(rec.ct as Record<string, unknown>)) {
       if (allowed.has(k) && typeof val === 'boolean') out.clearTargets[k] = val;

@@ -7,7 +7,7 @@
 // (f) normalizeSettings を2回通して安定 (冪等)
 
 import { describe, expect, it } from 'vitest';
-import { deriveLegacyDisplayMap, needsLegacyResave } from './legacyMigrate';
+import { deriveLegacyDisplayMap, migrateLegacyTagList, needsLegacyResave } from './legacyMigrate';
 import { normalizeSettings } from './normalize';
 
 // ── helpers ──
@@ -222,13 +222,18 @@ describe('needsLegacyResave', () => {
   });
 
   it('旧 string タグが混ざっていれば true', () => {
-    expect(needsLegacyResave({ tags: ['血液', { name: '主治医', clearOnStart: false }] })).toBe(true);
+    expect(needsLegacyResave({ tags: ['血液', { name: '主治医', color: 'gray' }] })).toBe(true);
   });
 
-  it('新形式 (TagDef タグ + display 付き formats + formatGroups なし) は false', () => {
+  it('clearOnStart フィールドを持つタグが混ざっていれば true', () => {
+    expect(needsLegacyResave({ tags: [{ name: '主治医', clearOnStart: false }] })).toBe(true);
+    expect(needsLegacyResave({ tags: [{ name: '重症', clearOnStart: true }] })).toBe(true);
+  });
+
+  it('新形式 (TagDef color + display 付き formats + formatGroups なし) は false', () => {
     const raw = {
       formats: [{ id: 'f1', name: 'S1', panel: 'S', joiner: ', ', items: [], display: 'expand' }],
-      tags: [{ name: '主治医', clearOnStart: false }],
+      tags: [{ name: '主治医', color: 'gray' }],
     };
     expect(needsLegacyResave(raw)).toBe(false);
   });
@@ -244,5 +249,55 @@ describe('needsLegacyResave', () => {
     expect(needsLegacyResave(old)).toBe(true);
     const normalized = normalizeSettings(old);
     expect(needsLegacyResave(normalized as unknown as Record<string, unknown>)).toBe(false);
+  });
+});
+
+describe('migrateLegacyTagList (色タグ移行)', () => {
+  it('string → { name, color: gray }', () => {
+    const result = migrateLegacyTagList(['血液', '外科']);
+    expect(result).toEqual([
+      { name: '血液', color: 'gray' },
+      { name: '外科', color: 'gray' },
+    ]);
+  });
+
+  it('clearOnStart:true → color:amber', () => {
+    const result = migrateLegacyTagList([{ name: '重症', clearOnStart: true }]);
+    expect(result).toEqual([{ name: '重症', color: 'amber' }]);
+  });
+
+  it('clearOnStart:false → color:gray', () => {
+    const result = migrateLegacyTagList([{ name: '内科', clearOnStart: false }]);
+    expect(result).toEqual([{ name: '内科', color: 'gray' }]);
+  });
+
+  it('color 付き素通し (TAG_COLORS に含まれる値)', () => {
+    const result = migrateLegacyTagList([
+      { name: '長期', color: 'gray' },
+      { name: '一時', color: 'amber' },
+    ]);
+    expect(result).toEqual([
+      { name: '長期', color: 'gray' },
+      { name: '一時', color: 'amber' },
+    ]);
+  });
+
+  it('未知 color は gray に倒す', () => {
+    const result = migrateLegacyTagList([{ name: '謎', color: 'purple' }]);
+    expect(result).toEqual([{ name: '謎', color: 'gray' }]);
+  });
+
+  it('重複 name は先勝ち', () => {
+    const result = migrateLegacyTagList([
+      { name: '血液', color: 'amber' },
+      { name: '血液', color: 'gray' },
+    ]);
+    expect(result).toEqual([{ name: '血液', color: 'amber' }]);
+  });
+
+  it('冪等: migrateLegacyTagList の出力を再度通しても同じ', () => {
+    const first = migrateLegacyTagList(['血液', { name: '重症', clearOnStart: true }]);
+    const second = migrateLegacyTagList(first);
+    expect(second).toEqual(first);
   });
 });

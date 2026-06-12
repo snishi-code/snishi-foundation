@@ -94,7 +94,9 @@
     "statusYellow": true,
     "statusGreen": true,
     "statusGray": true,
-    "statusBlue": false
+    "statusBlue": false,
+    "tagGray": false,
+    "tagAmber": true
   },
 
   "tags": [],

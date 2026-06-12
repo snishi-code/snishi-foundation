@@ -55,6 +55,14 @@
   --clear-selected-bd: #b91c1c;
   --clear-selected-bg: #fef2f2;
 
+  /* ── タグ色 palette ──
+     gray: 既存ニュートラル見た目 (残るタグ・デフォルト) → 変数なし (既定クラスのまま)
+     amber: 「診察開始で外れる」一時タグ。status-yellow より落ち着いたアンバー系。
+     ルール: ハードコード禁止。ここのみで値を定義し、全箇所を変数経由で参照する。 */
+  --tag-amber-bg: #faeeda;
+  --tag-amber-bd: #ba7517;
+  --tag-amber-fg: #854f0b;
+
   /* ── 文字・入力サイズの中枢管理 (v1 の「現場で読める 16px / 44px」基準) ──
      入力欄・値セル・ラベルはこの変数経由で参照する (個別に直値を書かない)。
      16px は iOS Safari の focus ズーム防止の下限でもある。 */
@@ -625,6 +633,18 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   font-size: 11px;
 }
 
+/* タグチップ color modifier (detailMetaTagChip に付与。既存 tag--neutral は gray 相当) */
+.tag--neutral,
+.tag--gray {
+  /* gray は既定のニュートラル見た目をそのまま使う。変数不要 */
+}
+
+.tag--amber {
+  background: var(--tag-amber-bg);
+  border-color: var(--tag-amber-bd);
+  color: var(--tag-amber-fg);
+}
+
 .detailMetaEditIcon {
   margin-left: auto;
   color: var(--muted);
@@ -1091,6 +1111,24 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   font-weight: 700;
 }
 
+/* タグ色 modifier。gray は既定の .tagChip 見た目 (変数不要)。 */
+.tagChip--amber,
+.tagSettingChip--amber {
+  background: var(--tag-amber-bg);
+  border-color: var(--tag-amber-bd);
+  color: var(--tag-amber-fg);
+}
+
+/* amber タグが選択中の場合はアンバー系のまま少し強調 */
+.tagChip--amber.on {
+  background: var(--tag-amber-bg);
+  border-color: var(--tag-amber-bd);
+  color: var(--tag-amber-fg);
+  font-weight: 700;
+  outline: 2px solid var(--tag-amber-bd);
+  outline-offset: 1px;
+}
+
 .tagAddBtn {
   border: 1px dashed var(--border);
   border-radius: 999px;
@@ -1359,6 +1397,40 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 .tagSettingInput {
   max-width: 140px;
   min-height: 32px;
+}
+
+/* タグ色スウォッチ (設定 TagManagerSection の色変更ボタン) */
+.tagColorSwatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tagColorSwatch--gray {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.tagColorSwatch--amber {
+  background: var(--tag-amber-bg);
+  border-color: var(--tag-amber-bd);
+}
+
+/* 選択中は外枠強調 */
+.tagColorSwatch--gray.selected {
+  outline: 2px solid var(--border);
+  outline-offset: 2px;
+}
+
+.tagColorSwatch--amber.selected {
+  outline: 2px solid var(--tag-amber-bd);
+  outline-offset: 2px;
 }
 
 .settingsFormatPanel {

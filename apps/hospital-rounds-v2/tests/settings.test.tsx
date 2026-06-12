@@ -173,7 +173,7 @@ describe('設定 QR (ST) roundtrip', () => {
     const sender = createAppRuntime();
     await sender.store.initStore();
     const senderSettings = sender.store.getSettings();
-    senderSettings.tags = [{ name: '内科', clearOnStart: false }, { name: '外科', clearOnStart: false }];
+    senderSettings.tags = [{ name: '内科', color: 'gray' }, { name: '外科', color: 'gray' }];
     senderSettings.formats[0]!.name = '送信側カスタム';
 
     const payload = encodeSettingsPayload(senderSettings);
@@ -185,7 +185,7 @@ describe('設定 QR (ST) roundtrip', () => {
     expect(res.ok).toBe(true);
 
     const applied = receiver.store.getSettings();
-    expect(applied.tags).toEqual([{ name: '内科', clearOnStart: false }, { name: '外科', clearOnStart: false }]);
+    expect(applied.tags).toEqual([{ name: '内科', color: 'gray' }, { name: '外科', color: 'gray' }]);
     expect(applied.formats.map((f) => f.name)).toContain('送信側カスタム');
     // ID は受信側で新発番 (送信側の上書きを避ける)
     expect(applied.formats[0]!.id).not.toBe(senderSettings.formats[0]!.id);
@@ -195,8 +195,8 @@ describe('設定 QR (ST) roundtrip', () => {
     // formatGroups は存在しない (P3: FormatGroup 全廃)
     expect((applied as Record<string, unknown>).formatGroups).toBeUndefined();
     // 保存も確認 (IDB へ書かれた settings を読み戻す)
-    const persisted = (await receiver.store.storage.loadGlobalSettings()) as { tags?: Array<{ name: string; clearOnStart: boolean }> };
-    expect(persisted?.tags).toEqual([{ name: '内科', clearOnStart: false }, { name: '外科', clearOnStart: false }]);
+    const persisted = (await receiver.store.storage.loadGlobalSettings()) as { tags?: Array<{ name: string; color: string }> };
+    expect(persisted?.tags).toEqual([{ name: '内科', color: 'gray' }, { name: '外科', color: 'gray' }]);
   });
 
   it('保存失敗時は in-memory をロールバックして中断する (fail-closed)', async () => {

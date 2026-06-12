@@ -23,9 +23,9 @@ import { decodeSettingsPayload, encodeSettingsPayload } from './settingsQr';
 // ============================
 
 const tagDict = ['内科', '外科', '要フォロー'];
-/** tagDict を TagDef[] に変換するヘルパ (wire テスト用。clearOnStart は false 固定) */
+/** tagDict を TagDef[] に変換するヘルパ (wire テスト用。color は gray 固定) */
 function tagDefsFrom(names: string[]): TagDef[] {
-  return names.map((name) => ({ name, clearOnStart: false }));
+  return names.map((name) => ({ name, color: 'gray' as const }));
 }
 
 const fmtVitals: Format = {
@@ -123,9 +123,9 @@ const EXPECTED_WIRE_FORMATS = [
   EXPECTED_FORMAT_TEXT,
 ];
 
-// ST v7 最終形: formats(q付き) + tags + clearTargets (fg なし)
+// ST v8 最終形: formats(q付き) + tags + clearTargets (fg なし・tgc なし=全gray)
 const EXPECTED_ST = {
-  v: 7,
+  v: 8,
   td: tagDict,
   f: EXPECTED_WIRE_FORMATS,
   ct: {
@@ -137,6 +137,8 @@ const EXPECTED_ST = {
     statusGreen: true,
     statusGray: true,
     statusBlue: false,
+    tagGray: false,
+    tagAmber: true,
   },
 };
 
@@ -151,7 +153,7 @@ describe('wire enum tables / WIRE_V (v2 自己一致)', () => {
   });
 
   it('kind 別 WIRE_V は v2 バンプ後の期待値と一致する', () => {
-    expect(WIRE_V).toEqual({ HM: 4, ST: 7 });
+    expect(WIRE_V).toEqual({ HM: 4, ST: 8 });
   });
 });
 
@@ -263,19 +265,22 @@ describe('encodePatientList / decodePatientList (HM v4)', () => {
 });
 
 // ============================
-// ST v7 (envelope の v2 自己一致 + round-trip)
+// ST v8 (envelope の v2 自己一致 + round-trip)
 // ============================
 
-describe('settingsQr (ST v7)', () => {
-  it('encodeSettingsPayload は v2 期待値と一致する (fg なし・q フラグ付き)', () => {
+describe('settingsQr (ST v8)', () => {
+  it('encodeSettingsPayload は v2 期待値と一致する (fg なし・q フラグ付き・tgc なし=全gray)', () => {
     const settings = settingsWith({
       tags: tagDefsFrom(tagDict),
       formats: [fmtVitals, fmtFindings],
     });
     const parsed = JSON.parse(encodeSettingsPayload(settings));
     expect(parsed).toEqual(EXPECTED_ST);
-    // fg が含まれないことを確認 (ST v7 最終形)
+    // fg / tc が含まれないことを確認 (ST v8 最終形)
     expect(parsed.fg).toBeUndefined();
+    expect(parsed.tc).toBeUndefined();
+    // 全 gray なので tgc も省略
+    expect(parsed.tgc).toBeUndefined();
   });
 
   it('decode round-trip: formats 新 ID 採番 + display が復元される', () => {
@@ -296,19 +301,38 @@ describe('settingsQr (ST v7)', () => {
     expect((out as unknown as Record<string, unknown>).formatGroups).toBeUndefined();
   });
 
-  it('tc encode/decode round-trip: clearOnStart=true のタグ索引が tc に載り、decode で復元される', () => {
+  it('tgc encode/decode round-trip: amber タグの color index が tgc に載り decode で復元される', () => {
     const tags: TagDef[] = [
-      { name: '内科', clearOnStart: false },
-      { name: '外科', clearOnStart: true },
-      { name: '要フォロー', clearOnStart: true },
+      { name: '内科', color: 'gray' },
+      { name: '外科', color: 'amber' },
+      { name: '要フォロー', color: 'amber' },
     ];
     const settings = settingsWith({ tags, formats: [fmtVitals] });
     const raw = JSON.parse(encodeSettingsPayload(settings)) as Record<string, unknown>;
-    // tc: 2-based (外科=2, 要フォロー=3)
-    expect(raw.tc).toEqual([2, 3]);
+    // tgc: [0, 1, 1] (gray=0, amber=1)
+    expect(raw.tgc).toEqual([0, 1, 1]);
     // decode で TagDef[] として復元
     const decoded = decodeSettingsPayload(JSON.stringify(raw));
     expect(decoded.tags).toEqual(tags);
+  });
+
+  it('tgc 全 gray は省略される', () => {
+    const tags: TagDef[] = [
+      { name: '内科', color: 'gray' },
+      { name: '外科', color: 'gray' },
+    ];
+    const settings = settingsWith({ tags, formats: [fmtVitals] });
+    const raw = JSON.parse(encodeSettingsPayload(settings)) as Record<string, unknown>;
+    expect(raw.tgc).toBeUndefined();
+    // decode でも全 gray として復元
+    const decoded = decodeSettingsPayload(JSON.stringify(raw));
+    expect(decoded.tags).toEqual(tags);
+  });
+
+  it('tgc 範囲外 index は gray に倒す (fail-safe decode)', () => {
+    const raw = { v: 8, td: ['血液'], tgc: [99], f: [], ct: {} };
+    const decoded = decodeSettingsPayload(JSON.stringify(raw));
+    expect(decoded.tags[0]?.color).toBe('gray');
   });
 
   it('td は空でも常に載る (タグ消去も伝わる「設定全体」の意味論)', () => {

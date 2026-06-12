@@ -14,8 +14,10 @@ import {
   DEFAULT_APP_TITLE,
   FORMAT_ITEM_KINDS,
   FORMAT_PANELS,
+  TAG_COLORS,
   STATUS,
   clone,
+  tagClearKey,
   type AppState,
   type DefaultFormatSeed,
   type Format,
@@ -239,6 +241,11 @@ export function normalizeSettings(raw: unknown): Settings {
         typeof ct[panel] === 'boolean' ? (ct[panel] as boolean) : !!DEFAULT_CLEAR_TARGETS[panel];
     }
     for (const k of ['statusYellow', 'statusGreen', 'statusGray', 'statusBlue']) {
+      out.clearTargets[k] =
+        typeof ct[k] === 'boolean' ? (ct[k] as boolean) : !!DEFAULT_CLEAR_TARGETS[k];
+    }
+    for (const color of TAG_COLORS) {
+      const k = tagClearKey(color);
       out.clearTargets[k] =
         typeof ct[k] === 'boolean' ? (ct[k] as boolean) : !!DEFAULT_CLEAR_TARGETS[k];
     }

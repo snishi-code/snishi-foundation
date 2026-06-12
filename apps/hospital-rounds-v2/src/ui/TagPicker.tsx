@@ -12,7 +12,7 @@ import { Popup } from '@snishi/foundation/ui/Popup';
 import { Icon } from '@snishi/foundation/ui/Icon';
 import { useToast } from '@snishi/foundation/ui/toast';
 import type { HrStore } from '../data/store';
-import { addNewTag, getAllTags, getHomeTagFilter, setHomeTagFilter } from './tags';
+import { addNewTag, getAllTags, getHomeTagFilter, setHomeTagFilter, tagColorOf } from './tags';
 import { useRegisterOverlay } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -91,17 +91,20 @@ export function TagSelection({
   allowAdd?: boolean;
 }) {
   const [, setTick] = useState(0); // タグ追加後の一覧更新
-  const all = getAllTags(store.getSettings());
+  const settings = store.getSettings();
+  const all = getAllTags(settings);
   const set = new Set(selected);
   return (
     <div className="tagSelection">
       {all.map((name) => {
         const on = set.has(name);
+        const color = tagColorOf(settings, name);
+        const colorMod = color !== 'gray' ? ` tagChip--${color}` : '';
         return (
           <button
             key={name}
             type="button"
-            className={`tagChip${on ? ' on' : ''}`}
+            className={`tagChip${colorMod}${on ? ' on' : ''}`}
             aria-pressed={on}
             data-ui={UI.tags.selectChip}
             onClick={() => {
@@ -148,24 +151,27 @@ export function TagFilterPicker({ store, onChange }: { store: HrStore; onChange:
         {selected.length ? <span className="tagFilterCount">{selected.length}</span> : null}
       </button>
       {open ? (
-        <TagFilterSheet tags={tags} selected={selected} onUpdate={update} onClose={() => setOpen(false)} />
+        <TagFilterSheet store={store} tags={tags} selected={selected} onUpdate={update} onClose={() => setOpen(false)} />
       ) : null}
     </>
   );
 }
 
 function TagFilterSheet({
+  store,
   tags,
   selected,
   onUpdate,
   onClose,
 }: {
+  store: HrStore;
   tags: string[];
   selected: string[];
   onUpdate: (next: string[]) => void;
   onClose: () => void;
 }) {
   useRegisterOverlay(onClose);
+  const settings = store.getSettings();
   return (
     <Popup ariaLabel={t('tag.sheet.filterTitle')} onClose={onClose} dataUi={UI.tags.filterSheet}>
       <div className="tagFilterSheet">
@@ -173,11 +179,13 @@ function TagFilterSheet({
           {tags.length === 0 ? <p className="muted">{t('tag.filter.empty')}</p> : null}
           {tags.map((name) => {
             const on = selected.includes(name);
+            const color = tagColorOf(settings, name);
+            const colorMod = color !== 'gray' ? ` tagChip--${color}` : '';
             return (
               <button
                 key={name}
                 type="button"
-                className={`tagChip${on ? ' on' : ''}`}
+                className={`tagChip${colorMod}${on ? ' on' : ''}`}
                 aria-pressed={on}
                 data-ui={UI.tags.filterOption}
                 onClick={() => onUpdate(on ? selected.filter((x) => x !== name) : [...selected, name])}

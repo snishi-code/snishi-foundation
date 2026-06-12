@@ -8,16 +8,26 @@
 // 背景 2 (Phase P3): Format.display (expand|quick) の追加に伴い、旧 formatGroups
 // の expandFormatIds からの一回限りの導出をここで行う。
 //
+// 背景 3 (色タグ): TagDef.clearOnStart → TagDef.color へのスキーマ変更。
+// 旧形式 { name, clearOnStart } を { name, color } に移行する。
+//   - clearOnStart === true → color = 'amber'
+//   - clearOnStart === false / 未定義 → color = 'gray'
+// color フィールドを既に持つ場合は素通し。
+//
 // 削除タイミング: 開発者端末・テスト端末のデータがすべて新スキーマで保存し直された後は、
 // このファイルごと削除し、normalize.ts の移行ロジックを素通しに戻すこと。
 // ============================================================
 
-import type { FormatDisplay, TagDef } from './types';
+import { TAG_COLORS, type FormatDisplay, type TagColor, type TagDef } from './types';
 
 /**
- * 旧 string[] 形式または新 TagDef[] 形式の raw tags を TagDef[] に正規化する。
- * - 旧形式 (string 要素): { name: trim済み, clearOnStart: false } に変換
- * - 新形式 (オブジェクト要素): name (string・trim非空) / clearOnStart (boolean・既定false) を validation
+ * 旧 string[] 形式または旧 TagDef(clearOnStart) 形式、または新 TagDef(color) 形式の raw tags を
+ * 新 TagDef[] (color 付き) に正規化する一回限り移行関数。
+ * - 旧形式 (string 要素): { name: trim済み, color: 'gray' } に変換
+ * - 旧 TagDef (clearOnStart フィールドあり・color なし):
+ *     clearOnStart === true → color = 'amber'、それ以外 → color = 'gray'
+ * - 新 TagDef (color フィールドあり):
+ *     color が TAG_COLORS に含まれればそれを使う。含まれなければ 'gray' に倒す
  * - 不正要素 (空文字列・型不正・name 非文字列 等) は捨てる
  * - 重複 name は先勝ち
  */
@@ -27,11 +37,12 @@ export function migrateLegacyTagList(raw: unknown): TagDef[] {
   const out: TagDef[] = [];
   for (const item of raw) {
     if (typeof item === 'string') {
+      // 旧 string 形式 → gray (ニュートラル)
       const name = item.trim();
       if (!name) continue;
       if (seen.has(name)) continue;
       seen.add(name);
-      out.push({ name, clearOnStart: false });
+      out.push({ name, color: 'gray' });
     } else if (item && typeof item === 'object' && !Array.isArray(item)) {
       const rec = item as Record<string, unknown>;
       if (typeof rec.name !== 'string') continue;
@@ -39,8 +50,18 @@ export function migrateLegacyTagList(raw: unknown): TagDef[] {
       if (!name) continue;
       if (seen.has(name)) continue;
       seen.add(name);
-      const clearOnStart = typeof rec.clearOnStart === 'boolean' ? rec.clearOnStart : false;
-      out.push({ name, clearOnStart });
+      let color: TagColor;
+      if (typeof rec.color === 'string' && (TAG_COLORS as readonly string[]).includes(rec.color)) {
+        // 新形式: color フィールドが正規値 → そのまま使う
+        color = rec.color as TagColor;
+      } else if (typeof rec.clearOnStart === 'boolean') {
+        // 旧形式: clearOnStart → amber/gray に変換
+        color = rec.clearOnStart ? 'amber' : 'gray';
+      } else {
+        // 未知形式 → gray に倒す (fail-safe)
+        color = 'gray';
+      }
+      out.push({ name, color });
     }
     // その他の型 (数値・null 等) は捨てる
   }
@@ -111,11 +132,21 @@ export function deriveLegacyDisplayMap(raw: unknown): Map<string, FormatDisplay>
  * 本ファイルを削除した瞬間に旧データの表示方式が失われるため、initStore /
  * switchUser / import の再保存トリガに必ず含める。
  *   - 旧 string タグが混ざっている
+ *   - clearOnStart フィールドを持つ (color を持たない) タグ混入
  *   - 旧 formatGroups からの display 導出が必要 (deriveLegacyDisplayMap が非 null)
  */
 export function needsLegacyResave(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false;
   const rec = raw as Record<string, unknown>;
-  if (Array.isArray(rec.tags) && rec.tags.some((t) => typeof t === 'string')) return true;
+  if (Array.isArray(rec.tags)) {
+    for (const t of rec.tags) {
+      if (typeof t === 'string') return true;
+      if (t && typeof t === 'object' && !Array.isArray(t)) {
+        const r = t as Record<string, unknown>;
+        // clearOnStart フィールドがある (旧形式) = resave が必要
+        if ('clearOnStart' in r) return true;
+      }
+    }
+  }
   return deriveLegacyDisplayMap(raw) !== null;
 }

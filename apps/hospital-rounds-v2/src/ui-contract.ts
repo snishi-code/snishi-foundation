@@ -75,7 +75,7 @@ export const UI = {
     tagList: 'settings.tags.list',
     tagRow: 'settings.tags.row',
     tagDelete: 'settings.tags.delete',
-    tagClearOnStart: 'settings.tagClearOnStart',
+    tagColor: 'settings.tagColor',
     formatList: 'settings.formats.list',
     formatAdd: 'settings.formats.add',
     formatRow: 'settings.formats.row',

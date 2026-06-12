@@ -82,17 +82,20 @@ describe('ステータス変更', () => {
   });
 });
 
-describe('診察開始: clearOnStart タグ除去', () => {
-  it('clearOnStart=true のタグだけ外れ、false のタグとステータス以外のデータは残る', async () => {
+describe('診察開始: タグ色ベースの除去', () => {
+  it('amber タグだけ外れ gray タグとステータス以外のデータは残る (clearTargets 既定)', async () => {
     const { runtime } = await renderApp();
     const user = userEvent.setup();
 
-    // 設定に TagDef を直接セット
+    // 設定に TagDef を直接セット (color ベース)
     runtime.store.getSettings().tags = [
-      { name: '重症', clearOnStart: true },
-      { name: '内科', clearOnStart: false },
-      { name: '要観察', clearOnStart: true },
+      { name: '重症', color: 'amber' },
+      { name: '内科', color: 'gray' },
+      { name: '要観察', color: 'amber' },
     ];
+    // clearTargets: tagAmber=true, tagGray=false (既定値)
+    runtime.store.getSettings().clearTargets.tagAmber = true;
+    runtime.store.getSettings().clearTargets.tagGray = false;
     runtime.store.getAppState().patients[0]!.name = '太郎';
     runtime.store.getAppState().patients[0]!.tags = ['重症', '内科'];
     runtime.store.getAppState().patients[1]!.name = '次郎';
@@ -110,10 +113,10 @@ describe('診察開始: clearOnStart タグ除去', () => {
 
     const p0 = runtime.store.getAppState().patients[0]!;
     const p1 = runtime.store.getAppState().patients[1]!;
-    // clearOnStart=true の「重症」「要観察」は除去
+    // amber の「重症」「要観察」は除去
     expect(p0.tags).not.toContain('重症');
     expect(p1.tags).not.toContain('要観察');
-    // clearOnStart=false の「内科」は残る
+    // gray の「内科」は残る
     expect(p0.tags).toContain('内科');
     expect(p1.tags).toContain('内科');
     // 名前はそのまま

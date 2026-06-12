@@ -74,6 +74,21 @@ describe('normalizeSettings', () => {
     expect(s.clearTargets.statusGray).toBe(true); // 未指定 → 既定
   });
 
+  it('clearTargets: tagGray と tagAmber が既定値で含まれる', () => {
+    const s = normalizeSettings({});
+    expect(typeof s.clearTargets.tagGray).toBe('boolean');
+    expect(typeof s.clearTargets.tagAmber).toBe('boolean');
+    // defaults.json の既定値
+    expect(s.clearTargets.tagGray).toBe(false);
+    expect(s.clearTargets.tagAmber).toBe(true);
+  });
+
+  it('clearTargets: tagGray/tagAmber の明示 boolean を尊重する', () => {
+    const s = normalizeSettings({ clearTargets: { tagGray: true, tagAmber: false } });
+    expect(s.clearTargets.tagGray).toBe(true);
+    expect(s.clearTargets.tagAmber).toBe(false);
+  });
+
   it('formats が空配列ならデフォルト formats を採用する', () => {
     const s = normalizeSettings({ formats: [] });
     expect(s.formats.length).toBeGreaterThan(0);
@@ -310,49 +325,55 @@ describe('isPatientEmpty', () => {
   });
 });
 
-describe('migrateLegacyTagList (旧 string[] → TagDef[] 移行)', () => {
-  it('旧形式 (string 要素) → { name, clearOnStart:false }', () => {
+describe('migrateLegacyTagList (旧 string[] → TagDef[] 移行・色タグ対応)', () => {
+  it('旧形式 (string 要素) → { name, color: gray }', () => {
     const result = migrateLegacyTagList(['内科', '外科', '要フォロー']);
     expect(result).toEqual([
-      { name: '内科', clearOnStart: false },
-      { name: '外科', clearOnStart: false },
-      { name: '要フォロー', clearOnStart: false },
+      { name: '内科', color: 'gray' },
+      { name: '外科', color: 'gray' },
+      { name: '要フォロー', color: 'gray' },
     ]);
   });
 
-  it('新形式 (オブジェクト要素) は素通しで validation', () => {
+  it('新形式 (TagDef color 付き) は素通しで validation', () => {
     const input: TagDef[] = [
-      { name: '内科', clearOnStart: true },
-      { name: '外科', clearOnStart: false },
+      { name: '内科', color: 'amber' },
+      { name: '外科', color: 'gray' },
     ];
     expect(migrateLegacyTagList(input)).toEqual(input);
   });
 
   it('空文字・trim 後空は捨てる', () => {
-    expect(migrateLegacyTagList(['', '  ', '内科'])).toEqual([{ name: '内科', clearOnStart: false }]);
+    expect(migrateLegacyTagList(['', '  ', '内科'])).toEqual([{ name: '内科', color: 'gray' }]);
   });
 
   it('不正要素 (数値・null・boolean・配列) は捨てる', () => {
     expect(migrateLegacyTagList([42, null, true, [], '内科'])).toEqual([
-      { name: '内科', clearOnStart: false },
+      { name: '内科', color: 'gray' },
     ]);
   });
 
   it('重複 name は先勝ち (string と object が混在しても)', () => {
-    const result = migrateLegacyTagList(['内科', '内科', { name: '内科', clearOnStart: true }]);
+    const result = migrateLegacyTagList(['内科', '内科', { name: '内科', color: 'amber' }]);
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ name: '内科', clearOnStart: false }); // 先勝ち = string 由来
+    expect(result[0]).toEqual({ name: '内科', color: 'gray' }); // 先勝ち = string 由来 → gray
   });
 
   it('name が非文字列のオブジェクトは捨てる', () => {
-    expect(migrateLegacyTagList([{ name: 123, clearOnStart: false }, { name: '内科', clearOnStart: false }])).toEqual([
-      { name: '内科', clearOnStart: false },
+    expect(migrateLegacyTagList([{ name: 123, color: 'gray' }, { name: '内科', color: 'gray' }])).toEqual([
+      { name: '内科', color: 'gray' },
     ]);
   });
 
-  it('clearOnStart が boolean でない場合は false に倒す', () => {
-    expect(migrateLegacyTagList([{ name: '内科', clearOnStart: 'yes' }])).toEqual([
-      { name: '内科', clearOnStart: false },
+  it('旧形式 clearOnStart: true → color: amber に変換される', () => {
+    expect(migrateLegacyTagList([{ name: '内科', clearOnStart: true }])).toEqual([
+      { name: '内科', color: 'amber' },
+    ]);
+  });
+
+  it('旧形式 clearOnStart: false → color: gray に変換される', () => {
+    expect(migrateLegacyTagList([{ name: '内科', clearOnStart: false }])).toEqual([
+      { name: '内科', color: 'gray' },
     ]);
   });
 
@@ -367,15 +388,15 @@ describe('normalizeSettings: tags の TagDef 移行 (旧 string[] / 新形式 / 
   it('旧 string[] → normalizeSettings が TagDef[] に変換する', () => {
     const s = normalizeSettings({ tags: ['内科', '外科'] });
     expect(s.tags).toEqual([
-      { name: '内科', clearOnStart: false },
-      { name: '外科', clearOnStart: false },
+      { name: '内科', color: 'gray' },
+      { name: '外科', color: 'gray' },
     ]);
   });
 
-  it('新形式 (TagDef[]) はそのまま素通し', () => {
+  it('新形式 (TagDef color 付き) はそのまま素通し', () => {
     const tags: TagDef[] = [
-      { name: '内科', clearOnStart: true },
-      { name: '外科', clearOnStart: false },
+      { name: '内科', color: 'amber' },
+      { name: '外科', color: 'gray' },
     ];
     const s = normalizeSettings({ tags });
     expect(s.tags).toEqual(tags);
@@ -387,8 +408,8 @@ describe('normalizeSettings: tags の TagDef 移行 (旧 string[] / 新形式 / 
     const s2 = normalizeSettings(JSON.parse(JSON.stringify(s1)));
     expect(s2.tags).toEqual(s1.tags);
     expect(s2.tags).toEqual([
-      { name: '内科', clearOnStart: false },
-      { name: '外科', clearOnStart: false },
+      { name: '内科', color: 'gray' },
+      { name: '外科', color: 'gray' },
     ]);
   });
 });

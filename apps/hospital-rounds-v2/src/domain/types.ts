@@ -42,6 +42,22 @@ export const DEFAULT_ITEM_KIND: FormatItemKind = 'text';
 export const DEFAULT_LABEL_SEP_TEXT = '：';
 export const DEFAULT_LABEL_SEP_OTHER = ' ';
 
+// タグの色。gray = ニュートラル (残るタグ・デフォルト) / amber = 診察開始で外れる一時タグ。
+// 将来色を増やす時はここに追加するだけで拡張できる構造にする。
+// wire の tgc 配列の index と対応するため、並びの変更は WIRE_V bump が必要。
+export const TAG_COLORS = Object.freeze(['gray', 'amber'] as const);
+export type TagColor = (typeof TAG_COLORS)[number];
+
+/**
+ * タグ色 → clearTargets のキー文字列変換。
+ *   gray  → 'tagGray'
+ *   amber → 'tagAmber'
+ * clearTargets に色ごとのキーを持つ方式 (statusYellow と同じ命名規則)。
+ */
+export function tagClearKey(color: TagColor): string {
+  return 'tag' + color.charAt(0).toUpperCase() + color.slice(1);
+}
+
 // QR 種別 (kind コード)。患者画面 QR (clinical text → 電子カルテ貼付) は電子カルテ端末の
 // 標準カメラで読む前提のため、常に平文・常に再配布可。
 export const QR_KINDS = Object.freeze(['HM', 'ST'] as const);
@@ -162,11 +178,12 @@ export interface Patient {
 
 /**
  * タグ定義オブジェクト。patient.tags は名前参照の string[] のまま。
- * clearOnStart: 「診察開始」ボタンで全患者からこのタグを外すかどうか。
+ * color: 'gray' = ニュートラル (残るタグ・デフォルト) / 'amber' = 診察開始で外れる一時タグ。
+ * 「診察開始でどの色のタグを外すか」は settings.clearTargets の tagGray / tagAmber で決める。
  */
 export interface TagDef {
   name: string;
-  clearOnStart: boolean;
+  color: TagColor;
 }
 
 /**

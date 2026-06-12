@@ -158,7 +158,8 @@ export const STRINGS_JA = {
   'settings.tag.delete.confirm':
     'タグ「{name}」を削除します。よろしいですか？\n（このタグが付いている患者のタグも一緒に外れます）',
   'settings.tag.delete.aria': 'タグ「{name}」を削除',
-  'settings.tag.clearOnStart.label': '診察開始で外す',
+  'settings.tag.color.gray': 'グレー（残る）',
+  'settings.tag.color.amber': 'アンバー（診察開始で外す）',
   'settings.tagGroup.name.empty': '(無名)',
 
   // 設定: クリア対象
@@ -169,6 +170,8 @@ export const STRINGS_JA = {
   'settings.clear.statusGreen': 'ステータス：緑（済）',
   'settings.clear.statusGray': 'ステータス：灰（完了）',
   'settings.clear.statusBlue': 'ステータス：青（追記）',
+  'settings.clear.tagAmber': 'タグ：色付き',
+  'settings.clear.tagGray': 'タグ：グレー',
 
   // 設定: フォーマット CRUD
   'format.editTitle.new': '{panel} のフォーマット 新規作成',
