@@ -36,6 +36,7 @@ import {
   normalizePatientArray,
   normalizeSettings,
 } from '../domain/normalize';
+import { needsLegacyResave } from '../domain/legacyMigrate';
 import { collectFormatItemIndicesWithData, remapPatientsFormatValues } from '../domain/formatValues';
 import { SECTION, getSection, parseBundle, projectBundle, type Bundle } from './bundle';
 import { createHrStorage, type HrStorage, type HrWorkspaceRecord } from './storage';
@@ -370,8 +371,9 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
         }
         if (gs) {
           settings = normalizeSettings(gs);
-          // backfill (既定フォーマットの補填) が起きたら disk へ収束させる
-          if (hasBackfilledDefaultFormats(gs, settings)) {
+          // backfill (既定フォーマットの補填) または旧スキーマ移行 (tags/display) が
+          // 起きたら disk へ収束させる
+          if (hasBackfilledDefaultFormats(gs, settings) || needsLegacyResave(gs)) {
             try {
               await storage.saveGlobalSettings(settings);
             } catch (e) {
@@ -517,7 +519,7 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       }
       if (gs) {
         settings = normalizeSettings(gs);
-        if (hasBackfilledDefaultFormats(gs, settings)) {
+        if (hasBackfilledDefaultFormats(gs, settings) || needsLegacyResave(gs)) {
           try {
             await storage.saveGlobalSettings(settings);
           } catch (e) {
@@ -775,7 +777,8 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
             }
           }
           us = existing ? normalizeSettings(existing) : defaultSettings();
-          needSettingsSave = !existing || hasBackfilledDefaultFormats(existing, us);
+          needSettingsSave =
+            !existing || hasBackfilledDefaultFormats(existing, us) || needsLegacyResave(existing);
         } else {
           us = defaultSettings();
           needSettingsSave = true;

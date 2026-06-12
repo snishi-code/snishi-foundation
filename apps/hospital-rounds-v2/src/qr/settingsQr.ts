@@ -18,7 +18,7 @@
 // 受信フローの apply (confirm ダイアログ・saveSettingsOrThrow + ロールバック) は UI 層の
 // 責務 (fail-closed: 保存が確認できてから閉じる/成功表示。失敗は in-memory を戻して中断)。
 
-import type { Format, Settings, TagDef } from '../domain/types';
+import { FORMAT_PANELS, type Format, type Settings, type TagDef } from '../domain/types';
 import { newFormatId } from '../domain/normalize';
 import {
   WIRE_V,
@@ -98,9 +98,12 @@ export function decodeSettingsPayload(payload: string): DecodedSettingsPatch {
   }
 
   if (rec.ct && typeof rec.ct === 'object') {
+    // 適用先 (applySettingsPatch) は normalizeSettings を通さないため、ここで
+    // 正規キー (S/O/A/P + statusXxx) 以外を落とす (旧版 QR の遺残キー混入防止)。
+    const allowed = new Set<string>([...FORMAT_PANELS, 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue']);
     out.clearTargets = {};
     for (const [k, val] of Object.entries(rec.ct as Record<string, unknown>)) {
-      if (typeof val === 'boolean') out.clearTargets[k] = val;
+      if (allowed.has(k) && typeof val === 'boolean') out.clearTargets[k] = val;
     }
   }
   // 未知フィールド (fg / tge / tgs / tga 等の v1 遺残) は無視する。

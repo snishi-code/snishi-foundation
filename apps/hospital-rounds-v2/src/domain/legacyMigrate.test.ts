@@ -7,7 +7,7 @@
 // (f) normalizeSettings を2回通して安定 (冪等)
 
 import { describe, expect, it } from 'vitest';
-import { deriveLegacyDisplayMap } from './legacyMigrate';
+import { deriveLegacyDisplayMap, needsLegacyResave } from './legacyMigrate';
 import { normalizeSettings } from './normalize';
 
 // ── helpers ──
@@ -206,5 +206,43 @@ describe('normalizeSettings 冪等性 (f)', () => {
     const f2b = second.formats.find((f) => f.name === 'バイタル');
     expect(f1b?.display).toBe('expand'); // 保持
     expect(f2b?.display).toBe('quick');  // 保持
+  });
+});
+
+describe('needsLegacyResave', () => {
+  it('旧 formatGroups (display なし formats) があれば true', () => {
+    const raw = {
+      formats: [{ id: 'f1', name: 'S1', panel: 'S', joiner: ', ', items: [] }],
+      formatGroups: [
+        { id: 'g1', name: '標準', isDefault: true, formatIds: ['f1'], defaultFormatIds: [], expandFormatIds: ['f1'] },
+      ],
+      tags: [],
+    };
+    expect(needsLegacyResave(raw)).toBe(true);
+  });
+
+  it('旧 string タグが混ざっていれば true', () => {
+    expect(needsLegacyResave({ tags: ['血液', { name: '主治医', clearOnStart: false }] })).toBe(true);
+  });
+
+  it('新形式 (TagDef タグ + display 付き formats + formatGroups なし) は false', () => {
+    const raw = {
+      formats: [{ id: 'f1', name: 'S1', panel: 'S', joiner: ', ', items: [], display: 'expand' }],
+      tags: [{ name: '主治医', clearOnStart: false }],
+    };
+    expect(needsLegacyResave(raw)).toBe(false);
+  });
+
+  it('normalizeSettings の出力を再判定すると false (再保存ループしない)', () => {
+    const old = {
+      formats: [{ id: 'f1', name: 'S1', panel: 'S', joiner: ', ', items: [] }],
+      formatGroups: [
+        { id: 'g1', name: '標準', isDefault: true, formatIds: ['f1'], defaultFormatIds: [], expandFormatIds: [] },
+      ],
+      tags: ['血液'],
+    };
+    expect(needsLegacyResave(old)).toBe(true);
+    const normalized = normalizeSettings(old);
+    expect(needsLegacyResave(normalized as unknown as Record<string, unknown>)).toBe(false);
   });
 });

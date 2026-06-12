@@ -104,3 +104,18 @@ export function deriveLegacyDisplayMap(raw: unknown): Map<string, FormatDisplay>
   }
   return map;
 }
+
+/**
+ * raw settings が旧スキーマで、normalize 結果をディスクへ保存し直すべきか。
+ * 「読むだけでは保存されない」と display/tags の移行が毎回再導出になり、
+ * 本ファイルを削除した瞬間に旧データの表示方式が失われるため、initStore /
+ * switchUser / import の再保存トリガに必ず含める。
+ *   - 旧 string タグが混ざっている
+ *   - 旧 formatGroups からの display 導出が必要 (deriveLegacyDisplayMap が非 null)
+ */
+export function needsLegacyResave(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false;
+  const rec = raw as Record<string, unknown>;
+  if (Array.isArray(rec.tags) && rec.tags.some((t) => typeof t === 'string')) return true;
+  return deriveLegacyDisplayMap(raw) !== null;
+}
