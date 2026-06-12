@@ -23,6 +23,7 @@ import {
   type AccountRole,
 } from '../domain/accountRoles';
 import { isAccountReferenced, type AccountRefCollections } from '../domain/accountRefs';
+import { findAccountNameConflicts, planArchiveRenames } from '../domain/accountNames';
 import { LedgerError } from '../domain/errors';
 import {
   cashflowScheduleSchema,
@@ -67,7 +68,11 @@ import { buildScheduleEntry } from '../domain/cashflow';
 import { reserveBalanceShortfall } from '../domain/entry';
 import { buildAdjustmentEntry, counterpartName, counterpartRole } from '../domain/adjustment';
 import { accountBalance, filterByDateRange } from '../domain/accounting';
-import { entriesWithContinuousCost } from '../domain/continuousCost';
+import {
+  continuousCostDisposalEndMonth,
+  continuousCostDisposalOutcome,
+  entriesWithContinuousCost,
+} from '../domain/continuousCost';
 import { isTagReferenced, tagAssignmentError } from '../domain/tags';
 import { nowIso, todayLocal } from '../util/time';
 
@@ -102,12 +107,20 @@ export async function ensureInitialized(): Promise<void> {
   const settings = defaultSettings();
   const meta0 = newMeta();
   await runWrite([STORE.kv, STORE.accounts, STORE.managementScopes], (t) => {
-    t.objectStore(STORE.kv).put(meta0, KV_META);
-    t.objectStore(STORE.kv).put(settings, KV_SETTINGS);
-    const store = t.objectStore(STORE.accounts);
-    for (const a of accounts) store.put(a);
-    const scopeStore = t.objectStore(STORE.managementScopes);
-    for (const s of scopes) scopeStore.put(s);
+    // 並行初期化（StrictMode の二重 effect・複数タブの同時初回起動）で seed が二重投入されない
+    // よう、同一トランザクション内で meta を再確認してから書く（IDB の同 store トランザクションは
+    // 直列化されるため、負けた側はここで何もしない）。
+    const kv = t.objectStore(STORE.kv);
+    const probe = kv.get(KV_META);
+    probe.onsuccess = () => {
+      if (probe.result) return;
+      kv.put(meta0, KV_META);
+      kv.put(settings, KV_SETTINGS);
+      const store = t.objectStore(STORE.accounts);
+      for (const a of accounts) store.put(a);
+      const scopeStore = t.objectStore(STORE.managementScopes);
+      for (const s of scopes) scopeStore.put(s);
+    };
   });
 }
 
@@ -296,13 +309,48 @@ async function loadReferencingCollections(): Promise<AccountRefCollections> {
   return { entries, schedules, reserves, allocations, monthlyCostItems };
 }
 
-export async function upsertAccount(account: Account): Promise<void> {
+export interface AccountSaveOptions {
+  /**
+   * 同名のアーカイブ済み科目があるとき、`（アーカイブ）` / `（アーカイブ2）` … を末尾に付けて
+   * 退避してから保存する（ユーザー承認済みの場合だけ true にする）。
+   */
+  renameArchivedConflicts?: boolean;
+}
+
+/**
+ * 名前の重複を保存境界で検証する（内訳名は箱をまたいでも重複不可）。
+ * 有効な同名 → nameConflict。アーカイブ済みの同名 → 承認済みなら退避リネーム計画を返し、
+ * 未承認なら nameConflictArchived（UI が確認ダイアログを出して再試行する）。
+ */
+function resolveAccountNameConflicts(
+  accounts: Account[],
+  name: string,
+  excludeId: string,
+  opts?: AccountSaveOptions,
+): Account[] {
+  const conflicts = findAccountNameConflicts(accounts, name, excludeId);
+  if (conflicts.active) throw new LedgerError('error.account.nameConflict');
+  if (conflicts.archived.length === 0) return [];
+  if (!opts?.renameArchivedConflicts) {
+    throw new LedgerError('error.account.nameConflictArchived');
+  }
+  const ts = nowIso();
+  return planArchiveRenames(accounts, name, excludeId).map((p) => ({
+    ...p.account,
+    name: p.newName,
+    updatedAt: ts,
+  }));
+}
+
+export async function upsertAccount(account: Account, opts?: AccountSaveOptions): Promise<void> {
+  if (account.name.trim() === '') throw new LedgerError('error.common.nameRequired');
   // role は type と整合する必要がある（import 検証と同じ不変条件を保存時にも守る）。
   if (!roleAllowsType(account.role, account.type)) {
     throw new LedgerError('error.account.roleTypeMismatch');
   }
-  // 使用中（仕訳/予定CF/目的別資金から参照中）の科目は区分(type)を変更できない。fail-closed。
-  // role 変更は会計残高を変えない（入力候補が変わるだけ）ので使用中でも許可する。
+  // 使用中（仕訳/予定CF/目的別資金から参照中）の科目は区分(type)も役割(role)も変更できない。
+  // role 変更は表示上の「大きな箱の移動」に相当するため fail-closed（新しい内訳を作って
+  // アーカイブする運用に寄せる）。
   const [accounts, refs] = await Promise.all([
     getAll<Account>(STORE.accounts),
     loadReferencingCollections(),
@@ -313,8 +361,17 @@ export async function upsertAccount(account: Account): Promise<void> {
       throw new LedgerError('error.account.typeLocked');
     }
   }
+  if (prev && prev.role !== account.role) {
+    if (isAccountReferenced(account.id, refs)) {
+      throw new LedgerError('error.account.roleLocked');
+    }
+  }
+  // 内訳名は箱をまたいでも重複不可。アーカイブ済みとの衝突は承認済みなら退避してから保存する。
+  const renamedArchived = resolveAccountNameConflicts(accounts, account.name, account.id, opts);
   await writeWithRevision([STORE.accounts], (t) => {
-    t.objectStore(STORE.accounts).put(account);
+    const store = t.objectStore(STORE.accounts);
+    for (const renamed of renamedArchived) store.put(renamed);
+    store.put(account);
   });
 }
 
@@ -820,10 +877,12 @@ export interface OpeningInput {
   /** 既存 BS 科目に初期残高をつける場合の科目 id（指定時はこちら優先）。 */
   accountId?: string;
   /** 新規 BS 科目を作って初期残高をつける場合（資産/負債）。 */
-  newAccount?: { name: string; type: AccountType; role: AccountRole };
+  newAccount?: { name: string; type: AccountType; role: AccountRole; note?: string };
   amount: number;
   date: string;
   managementScopeId?: string;
+  /** 同名のアーカイブ済み科目を退避してから作成する（ユーザー承認済みの場合だけ true）。 */
+  renameArchivedConflicts?: boolean;
 }
 
 /**
@@ -840,19 +899,27 @@ export async function createOpening(input: OpeningInput): Promise<JournalEntry> 
   // 対象 BS 科目を解決（既存 or 新規）。初期残高は資産・負債のみ。
   let target: Account | null;
   let createdTarget: Account | null = null;
+  let renamedArchived: Account[] = [];
   if (input.accountId) {
     target = accounts.find((a) => a.id === input.accountId) ?? null;
     if (!target) throw new LedgerError('error.adjust.targetNotFound');
   } else if (input.newAccount) {
-    const { name, type, role } = input.newAccount;
+    const { name, type, role, note } = input.newAccount;
     if (name.trim() === '') throw new LedgerError('error.common.nameRequired');
     if (!roleAllowsType(role, type)) throw new LedgerError('error.account.roleTypeMismatch');
+    // 新規科目も内訳名の重複ルールに従う（upsertAccount と同じ保存境界）。
+    renamedArchived = resolveAccountNameConflicts(accounts, name, '', {
+      ...(input.renameArchivedConflicts !== undefined
+        ? { renameArchivedConflicts: input.renameArchivedConflicts }
+        : {}),
+    });
     createdTarget = {
       id: newId(),
       name: name.trim(),
       type,
       role,
       archived: false,
+      ...(note !== undefined && note.trim() !== '' ? { note: note.trim() } : {}),
       createdAt: ts,
       updatedAt: ts,
     };
@@ -902,8 +969,10 @@ export async function createOpening(input: OpeningInput): Promise<JournalEntry> 
   };
 
   await writeWithRevision([STORE.accounts, STORE.journalEntries], (t) => {
-    if (createdTarget) t.objectStore(STORE.accounts).put(createdTarget);
-    if (createdEquity) t.objectStore(STORE.accounts).put(createdEquity);
+    const aStore = t.objectStore(STORE.accounts);
+    for (const renamed of renamedArchived) aStore.put(renamed);
+    if (createdTarget) aStore.put(createdTarget);
+    if (createdEquity) aStore.put(createdEquity);
     t.objectStore(STORE.journalEntries).put(entry);
   });
   return entry;
@@ -1885,6 +1954,154 @@ export async function disposeFixedAsset(input: DisposeFixedAssetInput): Promise<
     [STORE.assetDisposals, STORE.journalEntries, STORE.monthlyCostItems, STORE.accounts],
     (t) => {
       if (newAdjAccount) t.objectStore(STORE.accounts).put(newAdjAccount);
+      const eStore = t.objectStore(STORE.journalEntries);
+      for (const e of generated) eStore.put(e);
+      t.objectStore(STORE.monthlyCostItems).put(updatedItem);
+      t.objectStore(STORE.assetDisposals).put(disposal);
+    },
+  );
+  return disposal;
+}
+
+/* ── 継続コスト（資産経由モデル）の売却・解約終了 ── */
+
+/**
+ * 継続コスト（資産経由モデル）を「売却」で終了する。サブスク解約・返金なし終了は
+ * **0円で売却**として同じ導線で扱う（proceedsAmount=0）。
+ *
+ * 仮想モデルでは funding / recognition が終了月で止まるため、固定資産処分と違って
+ * 認識済み分の消し込み仕訳は不要。未消化残高（funded − recognized）だけを実仕訳で精算し、
+ * 継続コスト台帳口座のこの項目ぶんの残高を 0 へ消し込む:
+ *  - 売却入金: 借方 入金先 / 貸方 継続コスト台帳（min(proceeds, remaining)）。
+ *  - 売却損: 借方 その他支出 / 貸方 継続コスト台帳（remaining − proceeds）。生活コストに含める。
+ *  - 売却益: 借方 入金先 / 貸方 その他収入（proceeds − remaining）。
+ * remaining=0 かつ proceeds=0（月課金サブスクの解約など）は仕訳を作らず終了だけ記録する。
+ *
+ * 記録は固定資産処分と同じ AssetDisposal を使い（fixedAccountId=継続コスト台帳口座）、
+ * 生成仕訳は metadata.assetDisposalId で保護される（通常編集・削除不可。fail-closed）。
+ */
+export async function disposeContinuousCost(input: DisposeFixedAssetInput): Promise<AssetDisposal> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.disposalDate))
+    throw new LedgerError('error.disposal.dateRequired');
+  if (!Number.isInteger(input.proceedsAmount) || input.proceedsAmount < 0)
+    throw new LedgerError('error.disposal.proceedsInvalid');
+
+  const [items, accounts, disposals] = await Promise.all([
+    getAll<MonthlyCostItem>(STORE.monthlyCostItems),
+    getAll<Account>(STORE.accounts),
+    getAll<AssetDisposal>(STORE.assetDisposals),
+  ]);
+  const item = items.find((m) => m.id === input.monthlyCostId);
+  if (!item) throw new LedgerError('error.monthlyCost.notFound');
+
+  // 対象は資産経由モデル（recognitionCreditAccountId が継続コスト台帳口座）に限る。
+  const ledgerAccount = item.recognitionCreditAccountId
+    ? accounts.find((a) => a.id === item.recognitionCreditAccountId)
+    : undefined;
+  if (!ledgerAccount || ledgerAccount.role !== 'continuing-cost-asset')
+    throw new LedgerError('error.disposal.notContinuousCost');
+
+  if (item.status === 'ended') throw new LedgerError('error.disposal.alreadyEnded');
+  if (disposals.some((d) => d.monthlyCostId === item.id))
+    throw new LedgerError('error.disposal.duplicate');
+
+  // 売却額があるとき、入金先は必須 + role: daily-asset / reserve-asset（固定資産処分と同条件）。
+  let destination: Account | undefined;
+  if (input.proceedsAmount > 0) {
+    if (!input.destinationAccountId) throw new LedgerError('error.disposal.destinationRequired');
+    destination = accounts.find((a) => a.id === input.destinationAccountId);
+    if (
+      !destination ||
+      (destination.role !== 'daily-asset' && destination.role !== 'reserve-asset')
+    )
+      throw new LedgerError('error.disposal.destinationInvalid');
+  }
+
+  const disposalMonth = monthOf(input.disposalDate);
+  const accountsById = new Map(accounts.map((a) => [a.id, a] as const));
+  const { recognizedAmount, remainingAmount, gain, loss } = continuousCostDisposalOutcome(
+    item,
+    accountsById,
+    disposalMonth,
+    input.proceedsAmount,
+  );
+  const inflowToAsset = Math.min(input.proceedsAmount, remainingAmount);
+
+  const ts = nowIso();
+  const disposalId = newId();
+  const scopeId = item.managementScopeId;
+  const generated: JournalEntry[] = [];
+
+  const mkEntry = (debitId: string, creditId: string, amount: number): JournalEntry => ({
+    id: newId(),
+    date: input.disposalDate,
+    description: `${item.name} 売却・終了`,
+    kind: 'normal',
+    managementScopeId: scopeId,
+    lines: [
+      { accountId: debitId, side: 'debit', amount },
+      { accountId: creditId, side: 'credit', amount },
+    ],
+    metadata: { assetDisposalId: disposalId },
+    createdAt: ts,
+    updatedAt: ts,
+  });
+
+  // A: 売却入金（入金先 / 継続コスト台帳）。
+  if (inflowToAsset > 0 && destination)
+    generated.push(mkEntry(destination.id, ledgerAccount.id, inflowToAsset));
+
+  // B: 売却損（その他支出 / 継続コスト台帳）。解約・返金なし終了の未消化分はここに出る。
+  if (loss > 0) {
+    const lossAccount =
+      accounts.find(
+        (a) =>
+          a.role === 'expense-category' && a.name === DISPOSAL_LOSS_ACCOUNT_NAME && !a.archived,
+      ) ?? accounts.find((a) => a.role === 'expense-category' && !a.archived);
+    if (!lossAccount) throw new LedgerError('error.disposal.lossCategoryMissing');
+    generated.push(mkEntry(lossAccount.id, ledgerAccount.id, loss));
+  }
+
+  // C: 売却益（入金先 / その他収入）。
+  if (gain > 0 && destination) {
+    const gainAccount =
+      accounts.find(
+        (a) => a.role === 'income-category' && a.name === DISPOSAL_GAIN_ACCOUNT_NAME && !a.archived,
+      ) ?? accounts.find((a) => a.role === 'income-category' && !a.archived);
+    if (!gainAccount) throw new LedgerError('error.disposal.gainCategoryMissing');
+    generated.push(mkEntry(destination.id, gainAccount.id, gain));
+  }
+
+  // 生成仕訳を保存境界で再検証する。
+  const ctx = await loadSaveContext();
+  for (const e of generated) assertEntrySavable(e, ctx);
+
+  const disposal: AssetDisposal = {
+    id: disposalId,
+    monthlyCostId: item.id,
+    fixedAccountId: ledgerAccount.id,
+    managementScopeId: scopeId,
+    disposalDate: input.disposalDate,
+    proceedsAmount: input.proceedsAmount,
+    ...(input.proceedsAmount > 0 && destination ? { destinationAccountId: destination.id } : {}),
+    recognizedAmount,
+    remainingAmount,
+    generatedEntryIds: generated.map((e) => e.id),
+    createdAt: ts,
+    updatedAt: ts,
+  };
+
+  // 終了月から先の funding / recognition を止める（過去は保持）。
+  const updatedItem: MonthlyCostItem = {
+    ...item,
+    status: 'ended',
+    endMonth: continuousCostDisposalEndMonth(item, disposalMonth),
+    updatedAt: ts,
+  };
+
+  await writeWithRevision(
+    [STORE.assetDisposals, STORE.journalEntries, STORE.monthlyCostItems],
+    (t) => {
       const eStore = t.objectStore(STORE.journalEntries);
       for (const e of generated) eStore.put(e);
       t.objectStore(STORE.monthlyCostItems).put(updatedItem);

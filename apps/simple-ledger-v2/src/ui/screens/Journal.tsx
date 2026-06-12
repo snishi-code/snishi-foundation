@@ -1,11 +1,15 @@
 /*
  * 仕訳一覧。検索（摘要・メモ）・期間絞り込み・勘定科目絞り込み（PL/BS からの遷移）。
  * 行タップで編集、各行に取消/返金（逆仕訳）と削除。削除は明示確認。
+ * 初期残高(opening)・残高補正(adjustment)の履歴はこの画面に寄せ、行から専用の
+ * 編集・削除シートを開く（通常仕訳の編集・削除で壊さない。会計意味を混ぜない）。
  */
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@snishi/foundation/ui/Icon';
 import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { useLedger } from '../../state/store';
+import { AdjustmentEditSheet } from '../AdjustmentSheet';
+import { OpeningEditSheet } from '../OpeningSheet';
 import { Money } from '../money';
 import { t } from '../../i18n';
 import { UI } from '../../ui-contract';
@@ -42,13 +46,19 @@ export function Journal({
   period: ReportPeriod;
   onClearAccountFilter: () => void;
 }) {
-  const { ledger, removeEntry } = useLedger();
+  const { ledger, removeEntry, deleteOpening, deleteAdjustment } = useLedger();
   const [query, setQuery] = useState('');
   const [from, setFrom] = useState(filter?.from ?? '');
   const [to, setTo] = useState(filter?.to ?? '');
   const [showFuture, setShowFuture] = useState(false);
   const [tagFilter, setTagFilter] = useState('');
   const [pendingDelete, setPendingDelete] = useState<JournalEntry | null>(null);
+  const [editingOpening, setEditingOpening] = useState<JournalEntry | null>(null);
+  const [pendingOpeningDelete, setPendingOpeningDelete] = useState<JournalEntry | null>(null);
+  const [editingAdjustment, setEditingAdjustment] = useState<JournalEntry | null>(null);
+  const [pendingAdjustmentDelete, setPendingAdjustmentDelete] = useState<JournalEntry | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!filter) return;
@@ -279,9 +289,18 @@ export function Journal({
           {filtered.map((entry) => {
             const isAllocation = !!entry.metadata?.allocationId;
             const isMonthlyCost = !!entry.metadata?.monthlyCostId;
+            const isDisposal = !!entry.metadata?.assetDisposalId;
             const isAdjustment = !!entry.metadata?.adjustment;
-            const generated = isAllocation || isMonthlyCost;
-            const readOnly = generated || isAdjustment;
+            const isOpening = entry.kind === 'opening';
+            const generated = isAllocation || isMonthlyCost || isDisposal;
+            // opening / adjustment は通常編集ではなく専用シートを開く（会計意味を保つ）。
+            const onRowTap = generated
+              ? undefined
+              : isAdjustment
+                ? () => setEditingAdjustment(entry)
+                : isOpening
+                  ? () => setEditingOpening(entry)
+                  : () => onEditEntry(entry);
             const entryTagNames = tagNames(allTags, entry.tagIds);
             const title = (
               <>
@@ -319,20 +338,15 @@ export function Journal({
             );
             return (
               <li key={entry.id} className="list__item">
-                {readOnly ? (
-                  <div
-                    className="list__main"
-                    title={
-                      isAdjustment ? t('journal.adjustmentNotice') : t('journal.generatedNotice')
-                    }
-                  >
+                {onRowTap === undefined ? (
+                  <div className="list__main" title={t('journal.generatedNotice')}>
                     {title}
                   </div>
                 ) : (
                   <button
                     type="button"
                     className="list__main"
-                    onClick={() => onEditEntry(entry)}
+                    onClick={onRowTap}
                     style={{ background: 'transparent', border: 'none', textAlign: 'left' }}
                     aria-label={`${t('common.edit')}: ${entry.description}`}
                   >
@@ -345,7 +359,27 @@ export function Journal({
                     currency={currency}
                   />
                 </span>
-                {readOnly ? null : (
+                {generated ? null : isAdjustment ? (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => setPendingAdjustmentDelete(entry)}
+                    aria-label={`${t('common.delete')}: ${entry.description}`}
+                    data-ui={UI.adjustments.rowDelete}
+                  >
+                    <Icon name="delete" size={18} />
+                  </button>
+                ) : isOpening ? (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => setPendingOpeningDelete(entry)}
+                    aria-label={`${t('common.delete')}: ${entry.description}`}
+                    data-ui={UI.adjustments.openingRowDelete}
+                  >
+                    <Icon name="delete" size={18} />
+                  </button>
+                ) : (
                   <>
                     <button
                       type="button"
@@ -384,6 +418,47 @@ export function Journal({
             const target = pendingDelete;
             setPendingDelete(null);
             await removeEntry(target.id, target.description).catch(() => undefined);
+          }}
+        />
+      ) : null}
+
+      {editingOpening ? (
+        <OpeningEditSheet entry={editingOpening} onClose={() => setEditingOpening(null)} />
+      ) : null}
+      {pendingOpeningDelete ? (
+        <ConfirmDialog
+          title={t('opening.deleteConfirmTitle')}
+          body={t('opening.deleteConfirmBody')}
+          confirmLabel={t('common.delete')}
+          danger
+          dataUi={UI.adjustments.openingDeleteConfirm}
+          onCancel={() => setPendingOpeningDelete(null)}
+          onConfirm={async () => {
+            const target = pendingOpeningDelete;
+            setPendingOpeningDelete(null);
+            await deleteOpening(target.id).catch(() => undefined);
+          }}
+        />
+      ) : null}
+
+      {editingAdjustment ? (
+        <AdjustmentEditSheet
+          entry={editingAdjustment}
+          onClose={() => setEditingAdjustment(null)}
+        />
+      ) : null}
+      {pendingAdjustmentDelete ? (
+        <ConfirmDialog
+          title={t('adjust.deleteConfirmTitle')}
+          body={t('adjust.deleteConfirmBody')}
+          confirmLabel={t('common.delete')}
+          danger
+          dataUi={UI.adjustments.deleteConfirm}
+          onCancel={() => setPendingAdjustmentDelete(null)}
+          onConfirm={async () => {
+            const target = pendingAdjustmentDelete;
+            setPendingAdjustmentDelete(null);
+            await deleteAdjustment(target.id).catch(() => undefined);
           }}
         />
       ) : null}

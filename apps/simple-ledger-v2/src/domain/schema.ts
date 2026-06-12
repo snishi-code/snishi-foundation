@@ -805,14 +805,18 @@ export const ledgerExportPackageSchema = z
         issue(`固定資産処分の管理区分が存在しません`, at('managementScopeId'));
       if (!monthlyCostIdSet.has(d.monthlyCostId))
         issue(`固定資産処分の monthlyCostId が存在しません`, at('monthlyCostId'));
-      // 処分対象は fixed-asset 科目。
+      // 処分対象は継続コスト資産（fixed-asset、または継続コスト台帳口座=continuing-cost-asset。
+      // 後者はサブスク解約等の「0円で売却」を含む継続コストの売却終了で使う）。
       if (!accountType.has(d.fixedAccountId))
         issue(`固定資産処分の fixedAccountId が存在しません`, at('fixedAccountId'));
-      else if (accountRole.get(d.fixedAccountId) !== 'fixed-asset')
-        issue(
-          `固定資産処分の fixedAccountId は固定資産科目である必要があります`,
-          at('fixedAccountId'),
-        );
+      else {
+        const fixedRole = accountRole.get(d.fixedAccountId);
+        if (fixedRole !== 'fixed-asset' && fixedRole !== 'continuing-cost-asset')
+          issue(
+            `処分の fixedAccountId は固定資産または継続コスト台帳の科目である必要があります`,
+            at('fixedAccountId'),
+          );
+      }
       // 入金先は任意。あれば daily-asset または reserve-asset。
       if (d.destinationAccountId !== undefined) {
         const role = accountRole.get(d.destinationAccountId);

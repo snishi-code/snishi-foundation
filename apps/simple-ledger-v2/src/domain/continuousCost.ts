@@ -118,3 +118,54 @@ export function entriesWithContinuousCost(
 ): JournalEntry[] {
   return [...real, ...continuousCostEntries(items, accounts, upTo)];
 }
+
+/* ── 売却・解約による終了（0円売却 = 解約） ── */
+
+/** 処分時に項目へ立てる終了月。既に endMonth がそれより前ならそちらを保つ。 */
+export function continuousCostDisposalEndMonth(
+  item: MonthlyCostItem,
+  disposalMonth: string,
+): string {
+  const cut = addMonths(disposalMonth, -1);
+  return item.endMonth !== undefined && item.endMonth < cut ? item.endMonth : cut;
+}
+
+export interface ContinuousCostDisposalOutcome {
+  /** 処分までに資産化（funding）された総額。 */
+  fundedAmount: number;
+  /** 処分までに費用認識（recognition）された総額。 */
+  recognizedAmount: number;
+  /** 未消化残高 = funded − recognized（台帳口座に残るこの項目ぶんの残高）。 */
+  remainingAmount: number;
+  /** 売却益（proceeds > remaining のときのみ正）。 */
+  gain: number;
+  /** 売却損（proceeds < remaining のときのみ正）。解約・返金なし(proceeds=0)は remaining が損。 */
+  loss: number;
+}
+
+/**
+ * 継続コスト（資産経由モデル）の売却・解約時の精算額。仮想展開そのものを正本として、
+ * 終了月までの funding / recognition を合算する（repeat サイクル・端数配分もそのまま反映）。
+ * 月課金サブスク（costMonths=1）を解約すると remaining=0 になり、0円売却は単なる終了に退化する。
+ */
+export function continuousCostDisposalOutcome(
+  item: MonthlyCostItem,
+  accountsById: Map<string, Account>,
+  disposalMonth: string,
+  proceedsAmount: number,
+): ContinuousCostDisposalOutcome {
+  const endMonth = continuousCostDisposalEndMonth(item, disposalMonth);
+  const probe: MonthlyCostItem = { ...item, endMonth, status: 'active' };
+  const entries = continuousCostEntriesForItem(probe, accountsById, CONTINUOUS_COST_HARD_CAP);
+  let fundedAmount = 0;
+  let recognizedAmount = 0;
+  for (const e of entries) {
+    const amount = e.lines[0]?.amount ?? 0;
+    if (e.metadata?.ccKind === 'funding') fundedAmount += amount;
+    else if (e.metadata?.ccKind === 'recognition') recognizedAmount += amount;
+  }
+  const remainingAmount = Math.max(fundedAmount - recognizedAmount, 0);
+  const gain = Math.max(proceedsAmount - remainingAmount, 0);
+  const loss = Math.max(remainingAmount - proceedsAmount, 0);
+  return { fundedAmount, recognizedAmount, remainingAmount, gain, loss };
+}

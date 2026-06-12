@@ -89,6 +89,7 @@ interface LedgerContextValue {
   removeMonthlyCost: (id: string) => Promise<void>;
   createFixedAssetPurchaseMonthly: (input: FixedAssetPurchaseMonthlyInput) => Promise<void>;
   disposeFixedAsset: (input: DisposeFixedAssetInput) => Promise<void>;
+  disposeContinuousCost: (input: DisposeFixedAssetInput) => Promise<void>;
   saveSchedules: (schedules: CashflowSchedule[]) => Promise<void>;
   postSchedule: (id: string) => Promise<void>;
   removeSchedule: (id: string) => Promise<void>;
@@ -125,7 +126,7 @@ interface LedgerContextValue {
   createOpening: (input: repo.OpeningInput) => Promise<void>;
   updateOpening: (input: { id: string; amount: number; date: string }) => Promise<void>;
   deleteOpening: (id: string) => Promise<void>;
-  saveAccount: (account: Account) => Promise<void>;
+  saveAccount: (account: Account, opts?: repo.AccountSaveOptions) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
   saveSettings: (settings: Settings) => Promise<void>;
   exportJson: () => void;
@@ -325,6 +326,20 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     async (input) => {
       try {
         await repo.disposeFixedAsset(input);
+        await refresh();
+        toast.show(t('toast.saved'), 'success');
+      } catch (e) {
+        toast.show(errorText(e), 'error');
+        throw e;
+      }
+    },
+    [refresh, toast],
+  );
+
+  const disposeContinuousCost = useCallback<LedgerContextValue['disposeContinuousCost']>(
+    async (input) => {
+      try {
+        await repo.disposeContinuousCost(input);
         await refresh();
         toast.show(t('toast.saved'), 'success');
       } catch (e) {
@@ -607,9 +622,9 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   );
 
   const saveAccount = useCallback<LedgerContextValue['saveAccount']>(
-    async (account) => {
+    async (account, opts) => {
       try {
-        await repo.upsertAccount(account);
+        await repo.upsertAccount(account, opts);
         await refresh();
         toast.show(t('toast.saved'), 'success');
       } catch (e) {
@@ -736,6 +751,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       removeMonthlyCost,
       createFixedAssetPurchaseMonthly,
       disposeFixedAsset,
+      disposeContinuousCost,
       saveSchedules,
       postSchedule,
       removeSchedule,
@@ -781,6 +797,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       removeMonthlyCost,
       createFixedAssetPurchaseMonthly,
       disposeFixedAsset,
+      disposeContinuousCost,
       saveSchedules,
       postSchedule,
       removeSchedule,

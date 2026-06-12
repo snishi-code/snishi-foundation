@@ -16,7 +16,6 @@ export const ja = {
   'nav.cashflow': '資金繰り',
   'nav.tags': 'タグ',
   'nav.wallets': '管理区分・支払い手段',
-  'nav.adjustments': '補正・勘定科目',
   'nav.settings': '設定',
   'nav.help': 'ヘルプ',
 
@@ -95,8 +94,7 @@ export const ja = {
   'journal.monthlyRecognitionNote':
     '継続コストの当月分です（仕訳ではなく月割りの参考表示。支出に計上されます）。',
   'journal.generatedNotice':
-    '生成された仕訳（継続コスト）は各画面で管理します（直接の編集・削除はできません）。',
-  'journal.adjustmentNotice': '残高補正の仕訳は、残高補正画面で編集・削除します。',
+    '生成された仕訳（継続コスト・処分）は各画面で管理します（直接の編集・削除はできません）。',
 
   'allocations.title': '継続コスト台帳',
   'allocations.empty':
@@ -163,11 +161,14 @@ export const ja = {
   'monthlyCost.status.paused': '一時停止',
   'monthlyCost.status.ended': '終了',
 
-  // 固定資産の売却・故障処分
-  'disposal.action': '売却/故障',
-  'disposal.title': '固定資産を処分する',
+  // 継続コスト資産の売却・解約・故障処分
+  'disposal.action': '売却・終了',
+  'disposal.title': '継続コスト資産を処分する',
   'disposal.intro':
-    '売却または故障・廃棄で、この固定資産の継続コストを終了します。未消化の残りを売却損益として精算し、固定資産の残高を消し込みます。',
+    '売却または故障・廃棄で、この継続コスト資産を終了します。未消化の残りを売却損益として精算し、資産の残高を消し込みます。',
+  'disposal.ccTitle': '継続コストを終了（売却・解約）',
+  'disposal.ccIntro':
+    '売却・解約・返金なし終了で、この継続コストを終了します。未消化の残りは売却損として精算し、継続コスト台帳の残高を消し込みます。解約・返金なしの終了は、売却額 0 円のまま実行してください。',
   'disposal.date': '処分日',
   'disposal.proceeds': '売却額（故障・廃棄は 0）',
   'disposal.destination': '入金先',
@@ -365,11 +366,7 @@ export const ja = {
   'adjust.error.actual': '実残高を入力してください。',
   'adjust.noAccounts': '資産・負債の科目がありません。',
   'adjust.investmentNote': '投資評価損益は支出には含めません。',
-  // 登録済みの補正（現実アンカー）を一覧・編集・削除する。
-  'adjust.listTitle': '登録済みの残高補正',
-  'adjust.listIntro':
-    '残高補正は、ある日付の実残高に台帳をピン留めする「現実アンカー」です。後から編集・削除できます。',
-  'adjust.listEmpty': 'まだ残高補正はありません。',
+  // 登録済みの補正（現実アンカー）は仕訳一覧から編集・削除する。
   'adjust.editTitle': '残高補正を編集',
   'adjust.editIntro':
     '理論残高は、この補正自身を除いて計算し直します（補正の二重掛けを避けるため）。',
@@ -382,30 +379,17 @@ export const ja = {
   'adjust.rowKind.unknown-balance': '残高調整',
   'adjust.rowKind.investment-valuation': '投資評価',
 
-  // 補正・勘定科目（画面まとめ名）と初期残高（kind='opening'）。
-  'manage.title': '補正・勘定科目',
-  'opening.title': '初期残高',
-  'opening.intro':
-    '開始時点の資産・負債の残高を登録します。初回設定にも使えます。あとから編集・削除できます。',
-  'opening.mode': '対象',
-  'opening.modeNew': '新しい科目を作る',
-  'opening.modeExisting': '既存の科目',
+  // 初期残高（kind='opening'）。登録は科目追加シート、編集・削除は仕訳一覧から。
   'opening.account': '対象科目（資産・負債）',
-  'opening.name': '科目名',
-  'opening.role': '種類',
   'opening.amount': '初期残高',
   'opening.date': '基準日',
-  'opening.save': '初期残高を登録',
-  'opening.listTitle': '登録済みの初期残高',
-  'opening.listEmpty': 'まだ初期残高はありません。',
   'opening.editTitle': '初期残高を編集',
   'opening.update': '更新する',
   'opening.deleted': '初期残高を削除しました。',
   'opening.deleteConfirmTitle': '初期残高を削除しますか？',
-  'opening.deleteConfirmBody': 'この初期残高を削除します。対象科目の開始残高はなくなります。',
-  'opening.error.name': '科目名を入力してください。',
+  'opening.deleteConfirmBody':
+    'この初期残高を削除します。対象科目の開始残高はなくなり、資産・負債の残高の意味が変わります。',
   'opening.error.amount': '初期残高は 1 以上の整数で入力してください。',
-  'opening.error.account': '対象科目を選んでください。',
 
   'journal.adjustmentTag': '補正',
   'dashboard.investmentValuation': '投資評価損益',
@@ -622,27 +606,34 @@ export const ja = {
   'netAssets.trend': '純資産の推移',
 
   'accounts.title': '勘定科目',
-  'accounts.add': '科目を追加',
-  'accounts.edit': '科目を編集',
+  'accounts.intro':
+    '大きな箱はアプリが管理します。箱の中の内訳だけを追加・名前変更・アーカイブできます。登録済みの初期残高・補正は仕訳一覧で確認できます。',
+  'accounts.edit': '内訳を編集',
+  'accounts.addTitle': '{box}の内訳を追加',
+  'accounts.boxLabel': '大分類',
+  'accounts.boxLockedHint':
+    '大分類は変更できません。分類を変えたい場合は、新しい内訳を作って古い内訳をアーカイブしてください。',
+  'accounts.emptyBox': 'まだ内訳がありません。',
+  'accounts.openingAmount': '初期残高（任意）',
+  'accounts.openingDate': '基準日',
+  'accounts.openingHint':
+    '入力すると、内訳の作成と同時に初期残高（opening 仕訳）を登録します。空欄なら内訳だけを作成します。登録した初期残高は仕訳一覧で確認できます。',
+  'accounts.archiveRenameTitle': 'アーカイブ済みと名前が重複しています',
+  'accounts.archiveRenameBody':
+    '同じ名前「{name}」のアーカイブ済み内訳があります。アーカイブ側を「{renamed}」へ変更して続行しますか？',
+  'accounts.archiveRenameConfirm': '変更して続行',
   'accounts.name': '科目名',
-  'accounts.type': '区分',
   'accounts.note': 'メモ',
   'accounts.balance': '残高',
   'accounts.archived': 'アーカイブ済み',
   'accounts.archive': 'アーカイブ',
   'accounts.unarchive': 'アーカイブ解除',
   'accounts.showArchived': 'アーカイブ済みも表示',
-  'accounts.deleteConfirmTitle': '科目を削除しますか？',
-  'accounts.deleteConfirmBody': '「{name}」を削除します。仕訳で使われている場合は削除できません。',
-  'accounts.deleteReferenced':
-    'この科目は仕訳で使われているため削除できません。アーカイブしてください。',
   'accounts.type.asset': '資産',
   'accounts.type.liability': '負債',
   'accounts.type.equity': '純資産',
   'accounts.type.revenue': '収益',
   'accounts.type.expense': '費用',
-  'accounts.role': '役割',
-  'accounts.roleHint': '日常入力（収入/支出/振替）の候補は、この役割で絞り込まれます。',
   'accounts.role.daily-asset': '日常資産（現金・預金）',
   'accounts.role.reserve-asset': '取り置き資金',
   'accounts.role.deferred-asset': '継続コストの未消化分',
@@ -655,10 +646,23 @@ export const ja = {
   'accounts.role.income-category': '収入カテゴリ',
   'accounts.role.expense-category': '支出カテゴリ',
   'accounts.role.system-adjustment': '調整用（自動生成）',
-  'accounts.empty': '科目がありません。',
-  'accounts.typeLockedHint':
-    '使用中の科目は区分を変更できません（必要なら新しい科目を追加してください）。',
   'accounts.inUse': '使用中',
+
+  // ユーザー向けの「大きな箱」（大分類）。アプリ側が守り、ユーザーは内訳だけを編集する。
+  'box.cash': '現預金・決済資産',
+  'box.investment': '投資',
+  'box.continuingCost': '継続コスト資産',
+  'box.shortTermDebt': 'カード・未払',
+  'box.longTermDebt': 'ローン',
+  'box.income': '収入カテゴリ',
+  'box.expense': '支出カテゴリ',
+  'box.addSubdivision': '内訳を追加',
+  'box.addLoan': 'ローンを追加',
+  'box.addCategory': 'カテゴリを追加',
+  'box.continuingCostHint':
+    'PC・車・家財・サブスク・保険・定期券などをまとめて扱う箱です。追加は支出入力の「継続コスト化」から、終了は継続コスト台帳の「売却」で行います（解約・返金なしは 0 円で売却）。',
+  'box.longTermDebtHint':
+    '住宅ローン・分割返済など返済予定を持つ債務です。借入の実行や分割返済の予定は、振替（借入）や継続コスト化の導線から作れます。',
 
   'settings.title': '設定',
   'settings.manageSection': '管理',
@@ -732,6 +736,10 @@ export const ja = {
   // を投げ、表示は UI 層が errorText() で行う（保存境界の fail-closed なエラーも i18n に集約）。
   'error.account.roleTypeMismatch': '役割が区分と一致しません。',
   'error.account.typeLocked': '使用中の科目は区分を変更できません。',
+  'error.account.roleLocked':
+    '使用中の内訳は別の大分類へ移動できません。新しい内訳を作り、古い内訳をアーカイブしてください。',
+  'error.account.nameConflict': '同じ名前の内訳が既にあります（別の箱でも重複できません）。',
+  'error.account.nameConflictArchived': '同じ名前のアーカイブ済み内訳があります。',
   'error.account.deleteInUse': 'この科目は使用中のため削除できません。アーカイブしてください。',
   'error.entry.generated':
     '継続コストから生成された仕訳は編集・削除できません。継続コスト台帳で管理してください。',
@@ -741,7 +749,7 @@ export const ja = {
     '固定資産の処分で生成された仕訳は直接編集・削除できません。継続コスト台帳で管理してください。',
   'error.entry.scheduleLinked':
     '実績化済みの予定に紐づく仕訳は編集・削除できません。資金繰りの予定から操作してください。',
-  'error.entry.adjustment': '残高補正の仕訳は、残高補正画面で編集・削除してください。',
+  'error.entry.adjustment': '残高補正の仕訳は、仕訳一覧の補正行から編集・削除してください。',
   'error.entry.invalidStructure': '仕訳の形式が正しくないため保存できません。',
   'error.entry.unknownAccount': '仕訳が存在しない勘定科目を参照しています。',
   'error.entry.accountRoleMismatch': '仕訳の勘定科目の役割と区分が一致していません。',
@@ -805,6 +813,7 @@ export const ja = {
   'error.disposal.dateRequired': '処分日を YYYY-MM-DD で入力してください。',
   'error.disposal.proceedsInvalid': '売却額は 0 以上の整数で入力してください。',
   'error.disposal.notFixedAsset': 'この継続コストは固定資産由来ではないため処分できません。',
+  'error.disposal.notContinuousCost': 'この項目は継続コスト資産ではないため売却できません。',
   'error.disposal.alreadyEnded': 'この継続コストはすでに終了しています。',
   'error.disposal.duplicate': 'この固定資産はすでに処分済みです。',
   'error.disposal.destinationRequired': '売却額があるときは入金先を選んでください。',

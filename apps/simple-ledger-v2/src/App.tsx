@@ -16,7 +16,6 @@ import { Journal, type JournalFilter } from './ui/screens/Journal';
 import { Allocations } from './ui/screens/Allocations';
 import { Cashflow } from './ui/screens/Cashflow';
 import { Tags } from './ui/screens/Tags';
-import { Adjustments } from './ui/screens/Adjustments';
 import { Accounts } from './ui/screens/Accounts';
 import { Wallets } from './ui/screens/Wallets';
 import { Settings } from './ui/screens/Settings';
@@ -258,7 +257,6 @@ export function App() {
         {screen === 'allocations' ? <Allocations /> : null}
         {screen === 'cashflow' ? <Cashflow /> : null}
         {screen === 'tags' ? <Tags /> : null}
-        {screen === 'adjustments' ? <Adjustments /> : null}
         {screen === 'accounts' ? <Accounts /> : null}
         {screen === 'wallets' ? <Wallets /> : null}
         {screen === 'settings' ? <Settings onNavigate={setScreen} /> : null}

@@ -9,6 +9,11 @@ import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { useLedger } from '../../state/store';
 import { monthlyCostForMonth, representativeMonthlyAmount } from '../../domain/monthlyCost';
 import { disposalOutcome } from '../../domain/assetDisposal';
+import {
+  continuousCostDisposalEndMonth,
+  continuousCostDisposalOutcome,
+  isContinuingCostItem,
+} from '../../domain/continuousCost';
 import { addMonths, monthOf } from '../../domain/allocation';
 import { currentYearMonth, nowIso, todayLocal } from '../../util/time';
 import { Money } from '../money';
@@ -69,6 +74,10 @@ export function Allocations() {
     m.sourceEntryId !== undefined &&
     m.recognitionCreditAccountId !== undefined &&
     accountsMap.get(m.recognitionCreditAccountId)?.role === 'fixed-asset';
+  // 資産経由モデルの継続コスト対象。サブスク解約・返金なし終了も「0円で売却」で同じ導線から終了する。
+  const isContinuingItem = (m: MonthlyCostItem): boolean => isContinuingCostItem(m, accountsMap);
+  const canDispose = (m: MonthlyCostItem): boolean =>
+    m.status !== 'ended' && (isFixedAssetItem(m) || isContinuingItem(m));
 
   return (
     <section aria-labelledby="allocations-title" data-ui={UI.allocations.view}>
@@ -129,7 +138,7 @@ export function Allocations() {
                     </span>
                   </span>
                   <span className="row-actions">
-                    {isFixedAssetItem(m) && m.status !== 'ended' ? (
+                    {canDispose(m) ? (
                       <button
                         type="button"
                         className="icon-btn"
@@ -233,7 +242,11 @@ export function Allocations() {
       {editing ? <MonthlyCostEditSheet item={editing} onClose={() => setEditing(null)} /> : null}
 
       {disposing ? (
-        <MonthlyCostDisposeSheet item={disposing} onClose={() => setDisposing(null)} />
+        <MonthlyCostDisposeSheet
+          item={disposing}
+          continuous={isContinuingItem(disposing)}
+          onClose={() => setDisposing(null)}
+        />
       ) : null}
     </section>
   );
@@ -241,12 +254,15 @@ export function Allocations() {
 
 function MonthlyCostDisposeSheet({
   item,
+  continuous,
   onClose,
 }: {
   item: MonthlyCostItem;
+  /** 資産経由モデルの継続コスト対象（サブスク等）。false なら固定資産由来。 */
+  continuous: boolean;
   onClose: () => void;
 }) {
-  const { ledger, disposeFixedAsset } = useLedger();
+  const { ledger, disposeFixedAsset, disposeContinuousCost } = useLedger();
   const accounts = ledger?.accounts ?? [];
   const currency = ledger?.settings.currency ?? 'JPY';
 
@@ -263,19 +279,29 @@ function MonthlyCostDisposeSheet({
 
   const proceeds = proceedsText === '' ? 0 : Number.parseInt(proceedsText, 10);
   const disposalMonth = /^\d{4}-\d{2}-\d{2}$/.test(date) ? monthOf(date) : item.startMonth;
-  const outcome = disposalOutcome(item, disposalMonth, proceeds);
-  const endMonth = addMonths(disposalMonth, -1);
+  const accountsById = useMemo(
+    () => new Map((ledger?.accounts ?? []).map((a) => [a.id, a] as const)),
+    [ledger],
+  );
+  const outcome = continuous
+    ? continuousCostDisposalOutcome(item, accountsById, disposalMonth, proceeds)
+    : disposalOutcome(item, disposalMonth, proceeds);
+  const endMonth = continuous
+    ? continuousCostDisposalEndMonth(item, disposalMonth)
+    : addMonths(disposalMonth, -1);
 
   async function submit() {
     setSubmitting(true);
     setError(undefined);
     try {
-      await disposeFixedAsset({
+      const input = {
         monthlyCostId: item.id,
         disposalDate: date,
         proceedsAmount: proceeds,
         ...(proceeds > 0 ? { destinationAccountId } : {}),
-      });
+      };
+      if (continuous) await disposeContinuousCost(input);
+      else await disposeFixedAsset(input);
       onClose();
     } catch (e) {
       setError(errorText(e));
@@ -285,7 +311,7 @@ function MonthlyCostDisposeSheet({
 
   return (
     <Modal
-      title={t('disposal.title')}
+      title={continuous ? t('disposal.ccTitle') : t('disposal.title')}
       onClose={onClose}
       dismissMode="if-clean"
       footer={
@@ -306,7 +332,7 @@ function MonthlyCostDisposeSheet({
       }
     >
       <div className="stack" data-ui={UI.allocations.disposeDialog}>
-        <p className="field__hint">{t('disposal.intro')}</p>
+        <p className="field__hint">{continuous ? t('disposal.ccIntro') : t('disposal.intro')}</p>
         {error ? (
           <div className="field__error" role="alert">
             <Icon name="alert" size={14} />

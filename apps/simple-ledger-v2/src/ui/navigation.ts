@@ -13,7 +13,6 @@ export type Screen =
   | 'allocations'
   | 'cashflow'
   | 'tags'
-  | 'adjustments'
   | 'accounts'
   | 'wallets'
   | 'settings';
@@ -30,7 +29,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { screen: 'allocations', labelKey: 'nav.allocations', icon: 'calendar' },
   { screen: 'cashflow', labelKey: 'nav.cashflow', icon: 'trending' },
-  { screen: 'adjustments', labelKey: 'nav.adjustments', icon: 'wallet' },
+  { screen: 'accounts', labelKey: 'nav.accounts', icon: 'wallet' },
   { screen: 'settings', labelKey: 'nav.settings', icon: 'settings' },
 ];
 
