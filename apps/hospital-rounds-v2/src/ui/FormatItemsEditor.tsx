@@ -27,8 +27,9 @@ import {
 import type { AppRuntime } from './appRuntime';
 import { applyFormatTags, formatTagsToAdd, shownCardFormatsForPanel, writeFormatValue } from './formatLogic';
 import { hapticTick } from './feedback';
+import { NormalCheckButton } from './NormalCheckButton';
+import { NoteButton } from './NoteButton';
 import { t } from '../i18n/strings';
-import { UI } from '../ui-contract';
 
 interface EditSession {
   pid: string;
@@ -125,59 +126,60 @@ export function FormatItemsEditor({
                 if (kind === 'number' || kind === 'fraction') {
                   const { value, note } = readNumericEntry(stored[String(i)]);
                   const numeric = (
-                    <div className="formatCardEditValueRow">
-                      {kind === 'fraction' ? (
-                        <div className="formatInputFracGroup">
+                    <div className="formatCardEditCell">
+                      <div className="formatCardEditValueRow">
+                        {kind === 'fraction' ? (
+                          <div className="formatInputFracGroup">
+                            <input
+                              className="input formatCardEditInput formatInputFracNumer"
+                              type="text"
+                              inputMode={item.fracMode === 'numeric' ? 'numeric' : 'text'}
+                              autoComplete="off"
+                              value={value.includes('/') ? value.slice(0, value.indexOf('/')) : value}
+                              aria-label={`${item.label} 1`}
+                              onFocus={() => beginSession(format, i)}
+                              onChange={(e) => {
+                                const denom = value.includes('/') ? value.slice(value.indexOf('/') + 1) : '';
+                                write(format, i, { value: `${e.target.value}/${denom}`, note }, true);
+                              }}
+                            />
+                            <span className="formatInputFracSlash">/</span>
+                            <input
+                              className="input formatCardEditInput formatInputFracDenom"
+                              type="text"
+                              inputMode={item.fracMode === 'numeric' ? 'numeric' : 'text'}
+                              autoComplete="off"
+                              value={value.includes('/') ? value.slice(value.indexOf('/') + 1) : ''}
+                              aria-label={`${item.label} 2`}
+                              onFocus={() => beginSession(format, i)}
+                              onChange={(e) => {
+                                const numer = value.includes('/') ? value.slice(0, value.indexOf('/')) : value;
+                                write(format, i, { value: `${numer}/${e.target.value}`, note }, true);
+                              }}
+                            />
+                          </div>
+                        ) : (
                           <input
-                            className="input formatCardEditInput formatInputFracNumer"
+                            className="input formatCardEditInput formatCardEditNum"
                             type="text"
-                            inputMode={item.fracMode === 'numeric' ? 'numeric' : 'text'}
+                            inputMode="decimal"
                             autoComplete="off"
-                            value={value.includes('/') ? value.slice(0, value.indexOf('/')) : value}
-                            aria-label={`${item.label} 1`}
+                            value={value}
+                            aria-label={ariaLabel}
                             onFocus={() => beginSession(format, i)}
-                            onChange={(e) => {
-                              const denom = value.includes('/') ? value.slice(value.indexOf('/') + 1) : '';
-                              write(format, i, { value: `${e.target.value}/${denom}`, note }, true);
-                            }}
+                            onChange={(e) => write(format, i, { value: e.target.value, note }, true)}
                           />
-                          <span className="formatInputFracSlash">/</span>
-                          <input
-                            className="input formatCardEditInput formatInputFracDenom"
-                            type="text"
-                            inputMode={item.fracMode === 'numeric' ? 'numeric' : 'text'}
-                            autoComplete="off"
-                            value={value.includes('/') ? value.slice(value.indexOf('/') + 1) : ''}
-                            aria-label={`${item.label} 2`}
-                            onFocus={() => beginSession(format, i)}
-                            onChange={(e) => {
-                              const numer = value.includes('/') ? value.slice(0, value.indexOf('/')) : value;
-                              write(format, i, { value: `${numer}/${e.target.value}`, note }, true);
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <input
-                          className="input formatCardEditInput formatCardEditNum"
-                          type="text"
-                          inputMode="decimal"
-                          autoComplete="off"
-                          value={value}
-                          aria-label={ariaLabel}
-                          onFocus={() => beginSession(format, i)}
-                          onChange={(e) => write(format, i, { value: e.target.value, note }, true)}
+                        )}
+                        {/* 単位列は空でも出して縦の開始位置を揃える */}
+                        <span className="formatInputUnit">{item.unit || ''}</span>
+                        <NoteButton
+                          note={note}
+                          ariaLabel={t('format.note.aria', { label: labelText || format.name })}
+                          onFocusSession={() => beginSession(format, i)}
+                          onChange={(next) => write(format, i, { value, note: next }, true)}
                         />
-                      )}
-                      {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
-                      <textarea
-                        className="textarea formatInputMemo"
-                        rows={1}
-                        placeholder={t('format.placeholder.memo')}
-                        aria-label={t('format.placeholder.memo')}
-                        value={note}
-                        onFocus={() => beginSession(format, i)}
-                        onChange={(e) => write(format, i, { value, note: e.target.value }, true)}
-                      />
+                      </div>
+                      {note.trim() ? <div className="formatNoteText">{note}</div> : null}
                     </div>
                   );
                   return (
@@ -189,15 +191,14 @@ export function FormatItemsEditor({
                   );
                 }
 
-                // text: controlled textarea + 正常 ✓
+                // text: controlled textarea + 正常 ✓ (長押し — ミスタップ対策)
                 const entry = normalizeTextEntry(stored[String(i)], item.normal);
                 let normalBtn = null;
                 if (item.normal) {
                   const isPreset = entry.source === 'preset';
                   normalBtn = (
-                    <button
-                      type="button"
-                      className={`formatNormalBtn${isPreset ? ' on' : ''}`}
+                    <NormalCheckButton
+                      on={isPreset}
                       title={
                         entry.source === 'empty'
                           ? t('format.normal.tooltip.has', { value: item.normal })
@@ -205,13 +206,10 @@ export function FormatItemsEditor({
                             ? t('format.normal.tooltip.clear')
                             : t('format.normal.tooltip.edit')
                       }
-                      aria-label={t('common.normal')}
-                      aria-pressed={isPreset}
-                      data-ui={UI.format.normalBtn}
-                      onClick={() => onPresetToggle(format, item, i)}
-                    >
-                      ✓
-                    </button>
+                      ariaLabel={t('common.normal')}
+                      ariaPressed={isPreset}
+                      onTrigger={() => onPresetToggle(format, item, i)}
+                    />
                   );
                 } else if (hasNormalCol) {
                   normalBtn = <div className="formatCardNormalSpacer" aria-hidden />;
