@@ -3,25 +3,16 @@
 //
 // - TagSelection: タグ複数選択チップ列 (+ 新規タグ追加)。患者編集・フォーマット編集に
 //   inline で埋め込む (v1 renderTagSelectionInto 相当。複数選択 = 開いたまま)。
-// - TagFilterPicker: home/memo/shared のタグ絞り込み (ユーザータグ + 仮想ステータスタグ
-//   + AND/OR + クリア)。共有フィルタ状態 (ui/tags.ts) を更新し onChange で再描画させる。
+// - TagFilterPicker: home/memo/shared のタグ絞り込み (ユーザータグのみ・AND 固定 + クリア)。
+//   共有フィルタ状態 (ui/tags.ts) を更新し onChange で再描画させる。
+//   AND/OR 切替と仮想ステータスタグは v2 では撤去済み (仕様判断 2026-06)。
 
 import { useState } from 'react';
 import { Popup } from '@snishi/foundation/ui/Popup';
 import { Icon } from '@snishi/foundation/ui/Icon';
 import { useToast } from '@snishi/foundation/ui/toast';
-import { TAG_FILTER_MODE_AND, TAG_FILTER_MODE_OR } from '../domain/types';
 import type { HrStore } from '../data/store';
-import {
-  addNewTag,
-  getAllFilterEntries,
-  getAllTags,
-  getSharedFilterMode,
-  getSharedTagFilter,
-  isStatusTag,
-  setSharedFilterMode,
-  setSharedTagFilter,
-} from './tags';
+import { addNewTag, getAllTags, getSharedTagFilter, setSharedTagFilter } from './tags';
 import { useRegisterOverlay } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -135,8 +126,7 @@ export function TagFilterPicker({ store, onChange }: { store: HrStore; onChange:
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
   const selected = getSharedTagFilter();
-  const mode = getSharedFilterMode();
-  const entries = getAllFilterEntries(store.getSettings());
+  const tags = getAllTags(store.getSettings());
 
   function update(next: string[]): void {
     setSharedTagFilter(next);
@@ -158,35 +148,20 @@ export function TagFilterPicker({ store, onChange }: { store: HrStore; onChange:
         {selected.length ? <span className="tagFilterCount">{selected.length}</span> : null}
       </button>
       {open ? (
-        <TagFilterSheet
-          entries={entries}
-          selected={selected}
-          mode={mode}
-          onMode={(key) => {
-            setSharedFilterMode(key);
-            setTick((n) => n + 1);
-            onChange();
-          }}
-          onUpdate={update}
-          onClose={() => setOpen(false)}
-        />
+        <TagFilterSheet tags={tags} selected={selected} onUpdate={update} onClose={() => setOpen(false)} />
       ) : null}
     </>
   );
 }
 
 function TagFilterSheet({
-  entries,
+  tags,
   selected,
-  mode,
-  onMode,
   onUpdate,
   onClose,
 }: {
-  entries: ReturnType<typeof getAllFilterEntries>;
+  tags: string[];
   selected: string[];
-  mode: string;
-  onMode: (mode: string) => void;
   onUpdate: (next: string[]) => void;
   onClose: () => void;
 }) {
@@ -194,57 +169,35 @@ function TagFilterSheet({
   return (
     <Popup ariaLabel={t('tag.sheet.filterTitle')} onClose={onClose} dataUi={UI.tags.filterSheet}>
       <div className="tagFilterSheet">
-        <div className="tagFilterModeRow">
-          {(
-            [
-              [TAG_FILTER_MODE_AND, t('tag.filter.mode.and')],
-              [TAG_FILTER_MODE_OR, t('tag.filter.mode.or')],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className={`tagFilterModeBtn${mode === key ? ' on' : ''}`}
-              aria-pressed={mode === key}
-              onClick={() => onMode(key)}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="tagFilterModeBtn"
-            title={t('tag.filter.clear.label')}
-            aria-label={t('tag.filter.clear.aria')}
-            onClick={() => onUpdate([])}
-          >
-            <Icon name="close" size={14} />
-          </button>
-        </div>
         <div className="tagSelection">
-          {entries.map((entry) => {
-            const on = selected.includes(entry.value);
+          {tags.length === 0 ? <p className="muted">{t('tag.filter.empty')}</p> : null}
+          {tags.map((name) => {
+            const on = selected.includes(name);
             return (
               <button
-                key={entry.value}
+                key={name}
                 type="button"
-                className={`tagChip${on ? ' on' : ''}${isStatusTag(entry.value) ? ' statusTag' : ''}`}
+                className={`tagChip${on ? ' on' : ''}`}
                 aria-pressed={on}
                 data-ui={UI.tags.filterOption}
-                onClick={() =>
-                  onUpdate(on ? selected.filter((x) => x !== entry.value) : [...selected, entry.value])
-                }
+                onClick={() => onUpdate(on ? selected.filter((x) => x !== name) : [...selected, name])}
               >
-                {entry.mark ? (
-                  <span className="tagChipMark" aria-hidden="true">
-                    {entry.mark}
-                  </span>
-                ) : null}
-                {entry.label}
+                {name}
               </button>
             );
           })}
         </div>
+        {selected.length ? (
+          <button
+            type="button"
+            className="btn tagFilterClearBtn"
+            title={t('tag.filter.clear.label')}
+            aria-label={t('tag.filter.clear.aria')}
+            onClick={() => onUpdate([])}
+          >
+            {t('tag.filter.clear.label')}
+          </button>
+        ) : null}
       </div>
     </Popup>
   );

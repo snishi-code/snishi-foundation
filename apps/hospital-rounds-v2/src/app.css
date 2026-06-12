@@ -54,6 +54,20 @@
   /* クリア対象 (selected = 「診察開始で消える」印。v1 の danger 系) */
   --clear-selected-bd: #b91c1c;
   --clear-selected-bg: #fef2f2;
+
+  /* ── 文字・入力サイズの中枢管理 (v1 の「現場で読める 16px / 44px」基準) ──
+     入力欄・値セル・ラベルはこの変数経由で参照する (個別に直値を書かない)。
+     16px は iOS Safari の focus ズーム防止の下限でもある。 */
+  --hr-input-font: 16px;
+  --hr-label-font: 15px;
+  --hr-cell-h: 44px;
+}
+
+/* 入力欄の底上げ (アプリ全体。foundation 既定より大きく = 老眼・現場で読める) */
+.input,
+.textarea {
+  font-size: var(--hr-input-font);
+  min-height: var(--hr-cell-h);
 }
 
 .mono {
@@ -81,8 +95,10 @@ dialog.sheet .sheet__body .qrCardHead {
   padding-right: 44px;
 }
 
-/* 電子カルテ転記用 QR は広めに (v1 .detailQrMenu: min(94vw, 520px)) */
-dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
+/* QR ポップアップは広めに (v1 .detailQrMenu: min(94vw, 520px))。
+   HM/MM/SH/ST も患者詳細 QR と同じポップアップ表示に統一。 */
+dialog.sheet.dialog[data-ui='detail.qr.dialog'],
+dialog.sheet.dialog[data-ui='qr.dialog'] {
   max-width: min(94vw, 520px);
 }
 
@@ -356,9 +372,37 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   align-items: center;
 }
 
+/* 下部固定の操作バー (前/次・患者編集・Undo/Redo・QR)。
+   Ver1 の上部 sticky detailTop の代替: 片手操作で親指が届く下部に固定し、
+   safe-area (ホームインジケータ) を避ける。dialog (top-layer) より下に出る。 */
+.detailActionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 6px max(var(--space-3), env(safe-area-inset-right))
+    calc(6px + env(safe-area-inset-bottom)) max(var(--space-3), env(safe-area-inset-left));
+}
+
+.detailActionBar .icon-btn {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+/* 固定バーの高さぶん本文下部を空ける (患者管理ボタンが隠れない) */
+.detailView {
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
 .detailMetaBtn {
-  min-height: var(--tap);
-  font-size: 15px;
+  min-height: 52px;
+  font-size: 17px;
   flex: 1 1 auto;
   justify-content: flex-start;
   gap: var(--space-2);
@@ -410,9 +454,9 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
 }
 
 .panelLabel {
-  font-weight: 800;
-  font-size: 14px;
-  color: var(--muted);
+  font-weight: 900;
+  font-size: var(--hr-label-font);
+  color: var(--text);
   flex: 0 0 auto;
 }
 
@@ -429,9 +473,9 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   background: var(--primary-light);
   color: var(--primary-strong);
   border-radius: var(--radius-pill);
-  padding: 4px 12px;
-  min-height: 32px;
-  font-size: 13px;
+  padding: 6px 14px;
+  min-height: 36px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -451,23 +495,24 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   margin-bottom: 4px;
 }
 
-/* カード本文 grid: [ラベル] [正常] [値]。カード単位で列構成を決めて縦を揃える */
+/* カード本文 grid: [ラベル] [正常] [値]。カード単位で列構成を決めて縦を揃える。
+   列幅は Ver1 formats.css 準拠 (ラベル fit-content(min(8rem,30vw)) / 正常 44px)。 */
 .formatCardBody {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  row-gap: 2px;
+  row-gap: 4px;
 }
 
 .formatCardBody.hasNormal {
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: var(--hr-cell-h) minmax(0, 1fr);
 }
 
 .formatCardBody.hasLabel {
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(min(8rem, 30vw)) minmax(0, 1fr);
 }
 
 .formatCardBody.hasLabel.hasNormal {
-  grid-template-columns: max-content max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(min(8rem, 30vw)) var(--hr-cell-h) minmax(0, 1fr);
 }
 
 .formatCardItem {
@@ -475,28 +520,51 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
 }
 
 .formatCardItemLabel {
-  font-size: 13px;
+  font-size: var(--hr-label-font);
   font-weight: 700;
-  color: var(--muted);
-  padding: 8px 8px 8px 0;
-  white-space: nowrap;
+  color: var(--text);
+  padding: 10px 8px 0 0;
+  min-width: 0;
+  word-break: break-word;
 }
 
+/* ワンタップ正常チェック (Ver1 .formatCardNormalBtn: 44px・緑枠・押下済みは緑塗り) */
 .formatNormalBtn {
-  min-width: 38px;
-  min-height: 38px;
+  width: var(--hr-cell-h);
+  height: var(--hr-cell-h);
+  min-width: var(--hr-cell-h);
+  min-height: var(--hr-cell-h);
+  padding: 0;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--success-border);
   background: var(--surface);
-  color: var(--muted);
+  color: var(--success);
   font-weight: 800;
+  font-size: 18px;
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .formatNormalBtn.on {
   color: var(--success);
-  border-color: var(--success-border);
+  border-color: var(--success);
   background: var(--success-light);
+  animation: hrNormalPulse 0.25s ease-out;
+}
+
+/* 正常チェック成功の体感 (P0/P2 フィードバック強化): ON になった瞬間だけ軽く弾む */
+@keyframes hrNormalPulse {
+  0% {
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .formatNormalBtn:disabled {
@@ -504,62 +572,142 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
 }
 
 .formatCardNormalSpacer {
-  min-width: 38px;
+  min-width: var(--hr-cell-h);
 }
 
-/* 値セル: 大きいタップ領域。空欄は破線プレースホルダ (文言は出さない) */
+/* 値セル: 大きいタップ領域 (Ver1: 白地 + 実線枠 / 空欄は破線 + 薄地。文言は出さない) */
 .formatCardValue {
   display: block;
   width: 100%;
-  min-height: 38px;
+  min-height: var(--hr-cell-h);
   text-align: left;
-  border: 1px dashed transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: transparent;
-  padding: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+  font-size: var(--hr-input-font);
+  line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .formatCardValue.empty {
-  border-color: var(--border);
+  border-style: dashed;
+  background: var(--bg);
+  color: var(--muted);
 }
 
 .formatCardValue:hover {
   background: var(--primary-light);
 }
 
-/* inline 編集セル */
+/* inline 編集セル: number/fraction は [値][単位][備考] を 1 行に収める (2 行に崩さない) */
 .formatCardEditCell {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: 4px 0;
+  min-width: 0;
 }
 
 .formatCardEditCellRow {
   display: flex;
   align-items: flex-start;
   gap: var(--space-1);
-  padding: 4px 0;
+  min-width: 0;
 }
 
 .formatCardEditCellRow .formatCardEditText {
   flex: 1 1 auto;
-  min-height: 38px;
+  min-width: 0;
+  min-height: var(--hr-cell-h);
 }
 
 .formatCardEditValueRow {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .formatCardEditInput {
-  min-height: 38px;
+  min-height: var(--hr-cell-h);
+  font-size: var(--hr-input-font);
+  min-width: 0;
 }
 
-/* ── フォーマット入力シート (大入力面) ── */
+/* number の値入力: 1 行レイアウト内で備考と幅を分け合う */
+.formatCardEditNum {
+  flex: 1 1 56px;
+  width: auto;
+}
+
+/* 1 行レイアウト内の備考 (患者ごとの短文注記) */
+.formatCardEditValueRow .formatInputMemo {
+  flex: 1 1 72px;
+  min-width: 0;
+  min-height: var(--hr-cell-h);
+}
+
+/* ── プロブレムリスト (患者ごとの独立データ。#n は表示時の自動付番) ── */
+.problemList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.problemRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.problemRowNo {
+  flex: 0 0 auto;
+  min-width: 2.2em;
+  text-align: right;
+  font-weight: 800;
+  font-size: var(--hr-label-font);
+  color: var(--muted);
+  padding-top: 12px;
+}
+
+.problemRowInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--hr-cell-h);
+  font-size: var(--hr-input-font);
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+  /* 対応ブラウザは内容に応じて自動で縦に伸びる (非対応は JS autosize がフォールバック) */
+  field-sizing: content;
+}
+
+.problemRow .icon-btn {
+  align-self: center;
+}
+
+.problemAddBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: var(--hr-cell-h);
+  padding: 8px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── フォーマット入力シート (大入力面) ──
+   スマホ幅でも 1 行 ([ラベル][値][単位][備考]) が崩れないよう、各セルに
+   min-width:0 + flex 配分を与える (Ver1 formats.css の mixed 行に相当)。 */
 .formatInputBody {
   display: flex;
   flex-direction: column;
@@ -568,41 +716,44 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
 
 .formatInputRow {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .formatInputLabel {
-  flex: 0 0 5.5em;
-  font-size: 13px;
+  flex: 0 1 auto;
+  max-width: 5.5em;
+  font-size: var(--hr-label-font);
   font-weight: 700;
-  color: var(--muted);
-  padding-top: 10px;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .formatInputLabelEmpty {
-  flex-basis: 0;
+  display: none;
 }
 
 .formatInputValue {
-  flex: 1 1 auto;
+  flex: 1 1 64px;
+  width: auto;
   min-width: 0;
+  min-height: var(--hr-cell-h);
+  font-size: var(--hr-input-font);
 }
 
 .formatInputUnit {
   flex: 0 0 auto;
   color: var(--muted);
   font-size: 13px;
-  padding-top: 10px;
 }
 
 .formatInputMemo {
-  flex: 1 1 30%;
+  flex: 1 1 72px;
   min-width: 0;
-  min-height: 38px;
+  min-height: var(--hr-cell-h);
 }
 
 .formatInputFracGroup {
@@ -613,13 +764,20 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   min-width: 0;
 }
 
+.formatInputFracGroup .formatInputValue,
+.formatInputFracGroup .formatCardEditInput {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
 .formatInputFracSlash {
   color: var(--muted);
   font-weight: 700;
 }
 
 .formatInputText {
-  min-height: 38px;
+  min-height: var(--hr-cell-h);
 }
 
 /* ── 患者管理 (転棟) ── */
@@ -689,6 +847,8 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   cursor: pointer;
   border-radius: var(--radius-sm);
   padding: 4px;
+  font-size: var(--hr-label-font);
+  line-height: 1.5;
 }
 
 .memoRowBody:hover {
@@ -721,10 +881,10 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   margin-top: var(--space-2);
 }
 
-/* ── QR カード ── */
+/* ── QR 表示の中身 (Modal ポップアップ内に置くため余白は持たない) ── */
 .qrWrap {
-  padding: var(--space-3);
-  margin-bottom: var(--space-3);
+  padding: 0;
+  margin: 0;
 }
 
 .qrCardHead {
@@ -822,10 +982,6 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   font-weight: 700;
 }
 
-.tagChipMark {
-  margin-right: 4px;
-}
-
 .tagAddBtn {
   border: 1px dashed var(--border);
   border-radius: 999px;
@@ -875,24 +1031,8 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   padding: var(--space-2);
 }
 
-.tagFilterModeRow {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.tagFilterModeBtn {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.tagFilterModeBtn.on {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--on-primary);
+.tagFilterClearBtn {
+  align-self: flex-start;
 }
 
 /* --- ピッカー (ユーザー / 病棟) --- */
@@ -1199,7 +1339,7 @@ dialog.sheet.dialog[data-ui='detail.qr.dialog'] {
   display: inline-flex;
 }
 
-.formatEditItemMove .iconBtn {
+.formatEditItemMove .icon-btn {
   min-width: 28px;
   min-height: 28px;
 }

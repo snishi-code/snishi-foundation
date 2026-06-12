@@ -7,58 +7,21 @@
 //
 // 共有フィルタ (home / memo / shared 横断) は v1 同様モジュールレベル状態。
 // 変更後の再描画は呼び出し側が runtime.bump() で行う。
+// フィルタはユーザータグのみ・全タグ一致 (AND) 固定。AND/OR 切替と仮想ステータスタグは
+// v2 では撤去済み (仕様判断 2026-06)。
 
-import {
-  DEFAULT_TAG_FILTER_MODE,
-  STATUS,
-  STATUS_TAG_PREFIX,
-  TAG_FILTER_MODE_AND,
-  TAG_FILTER_MODE_OR,
-  type Patient,
-  type Settings,
-} from '../domain/types';
-import { t } from '../i18n/strings';
-import { STATUS_MARK } from './patientDisplay';
+import type { Patient, Settings } from '../domain/types';
 import type { HrStore } from '../data/store';
 
 // ============================
 // クエリ
 // ============================
 
-/** ユーザー定義タグのみ (仮想ステータスタグは含まない)。 */
+/** ユーザー定義タグ一覧。 */
 export function getAllTags(settings: Settings): string[] {
   return Array.isArray(settings.tags)
     ? settings.tags.filter((d) => typeof d === 'string' && d.trim()).map((d) => d.trim())
     : [];
-}
-
-export interface FilterEntry {
-  value: string;
-  label: string;
-  /** 仮想ステータスタグの形マーク ("" = ユーザータグ) */
-  mark: string;
-}
-
-export function isStatusTag(value: string): boolean {
-  return typeof value === 'string' && value.startsWith(STATUS_TAG_PREFIX);
-}
-
-/** フィルタピッカー用: ユーザータグ + 仮想ステータスタグ。 */
-export function getAllFilterEntries(settings: Settings): FilterEntry[] {
-  const userTags = getAllTags(settings).map((name) => ({ value: name, label: name, mark: '' }));
-  const statusLabels = {
-    [STATUS.NONE]: t('tagStatus.none'),
-    [STATUS.YELLOW]: t('tagStatus.yellow'),
-    [STATUS.GREEN]: t('tagStatus.green'),
-    [STATUS.GRAY]: t('tagStatus.gray'),
-    [STATUS.BLUE]: t('tagStatus.blue'),
-  } as const;
-  const statusTags = (Object.values(STATUS) as Array<keyof typeof statusLabels>).map((s) => ({
-    value: STATUS_TAG_PREFIX + s,
-    label: statusLabels[s],
-    mark: STATUS_MARK[s],
-  }));
-  return [...userTags, ...statusTags];
 }
 
 // ============================
@@ -116,7 +79,6 @@ export function deleteTagAt(store: HrStore, idx: number): void {
 // ============================
 
 let _sharedTagFilter: string[] = [];
-let _sharedFilterMode: string = DEFAULT_TAG_FILTER_MODE;
 
 export function getSharedTagFilter(): string[] {
   return _sharedTagFilter.slice();
@@ -124,29 +86,14 @@ export function getSharedTagFilter(): string[] {
 export function setSharedTagFilter(tags: string[]): void {
   _sharedTagFilter = tags.slice();
 }
-export function getSharedFilterMode(): string {
-  return _sharedFilterMode;
-}
-export function setSharedFilterMode(mode: string): void {
-  _sharedFilterMode = mode === TAG_FILTER_MODE_OR ? TAG_FILTER_MODE_OR : TAG_FILTER_MODE_AND;
-}
 /** テスト間の残留防止。 */
 export function _resetSharedFilterForTests(): void {
   _sharedTagFilter = [];
-  _sharedFilterMode = DEFAULT_TAG_FILTER_MODE;
 }
 
-function patientFilterValues(p: Patient): string[] {
-  const out = Array.isArray(p.tags) ? p.tags.slice() : [];
-  out.push(STATUS_TAG_PREFIX + (p.status || STATUS.NONE));
-  return out;
-}
-
+/** 選択タグをすべて持つ患者だけ表示する (AND 固定・ユーザータグのみ)。 */
 export function patientMatchesSharedFilter(p: Patient): boolean {
   if (!_sharedTagFilter.length) return true;
-  const have = new Set(patientFilterValues(p));
-  if (_sharedFilterMode === TAG_FILTER_MODE_OR) {
-    return _sharedTagFilter.some((tg) => have.has(tg));
-  }
+  const have = new Set(Array.isArray(p.tags) ? p.tags : []);
   return _sharedTagFilter.every((tg) => have.has(tg));
 }

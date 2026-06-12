@@ -68,7 +68,7 @@ test('フォーマット入力が反映され、undo で戻る', async ({ page }
   await boot(page);
   await addPatient(page, '患者B');
   await openPatient(page, '患者B');
-  // 最初の値セル（プロブレムリスト #: number）へ入力（write-through 自動保存）
+  // 最初の値セル（S パネルの text item）へ入力（write-through 自動保存）
   const firstCell = page.locator(ui('format.cell')).first();
   await firstCell.click();
   await page.locator(ui('format.cell.input')).first().fill('5');
@@ -82,14 +82,53 @@ test('フォーマット入力が反映され、undo で戻る', async ({ page }
   await expect(firstCell).not.toContainText('5');
 });
 
-test('home の HM QR: canvas が出てページ表記 (n/m) が表示される', async ({ page }) => {
+test('home の HM QR: ポップアップで canvas とページ表記 (n/m) が出て、Back で QR だけ閉じる', async ({
+  page,
+}) => {
   await boot(page);
   await addPatient(page, 'QR患者');
   await page.locator(ui('qr.show')).click();
+  // QR はポップアップ (qr.dialog) として開く
+  const dialog = page.locator(ui('qr.dialog'));
+  await expect(dialog).toBeVisible();
   const card = page.locator(ui('qr.card'));
   await expect(card).toBeVisible();
   await expect(card.locator(ui('qr.canvas'))).toBeVisible({ timeout: 10_000 });
   await expect(card.locator(ui('qr.pageMeta'))).toHaveText(/\(\d+\/\d+\)/, { timeout: 10_000 });
+  // Back → QR だけ閉じて home に留まる (終了確認に流れない)
+  await page.goBack();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator(ui('home.grid'))).toBeVisible();
+});
+
+test('患者詳細: 下までスクロールしても下部固定バーの前/次・QR が見えて操作できる', async ({
+  page,
+}) => {
+  await boot(page);
+  await addPatient(page, 'バー患者');
+  await openPatient(page, 'バー患者');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(page.locator(ui('detail.actionBar'))).toBeInViewport();
+  await expect(page.locator(ui('detail.qr.show'))).toBeInViewport();
+  await expect(page.locator(ui('undo.btn'))).toBeInViewport();
+  // バーの QR ボタンから患者 QR が開く
+  await page.locator(ui('detail.qr.show')).click();
+  await expect(page.locator(ui('detail.qr.dialog'))).toBeVisible();
+});
+
+test('プロブレムリスト: #1 へ入力し、QR プレビューの先頭に #1 が出る', async ({ page }) => {
+  await boot(page);
+  await addPatient(page, 'PL患者');
+  await openPatient(page, 'PL患者');
+  await page.locator(ui('problem.input')).first().fill('HF');
+  await page.locator(ui('problem.add')).click();
+  await expect(page.locator(ui('problem.input'))).toHaveCount(2);
+  // 患者 QR の本文プレビューにプロブレムが #1 付きで先頭に出る
+  await page.locator(ui('detail.qr.show')).click();
+  const dialog = page.locator(ui('detail.qr.dialog'));
+  await expect(dialog).toBeVisible();
+  await dialog.locator('summary').click();
+  await expect(dialog.locator('.qrTextPreview')).toContainText('#1 HF');
 });
 
 test('detail の電子カルテ転記 QR: 平文ペイロードのまま表示される（暗号化されない）', async ({

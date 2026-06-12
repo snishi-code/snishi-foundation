@@ -33,12 +33,22 @@ export const UI = {
     prev: 'detail.prev',
     next: 'detail.next',
     meta: 'detail.meta',
+    metaBottom: 'detail.meta.bottom',
+    actionBar: 'detail.actionBar',
     qrShow: 'detail.qr.show',
     qrDialog: 'detail.qr.dialog',
   },
   undo: {
     btn: 'undo.btn',
     redoBtn: 'redo.btn',
+  },
+  problem: {
+    card: 'problem.card',
+    list: 'problem.list',
+    row: 'problem.row',
+    input: 'problem.input',
+    add: 'problem.add',
+    delete: 'problem.delete',
   },
   format: {
     cell: 'format.cell',
@@ -54,6 +64,7 @@ export const UI = {
   qr: {
     show: 'qr.show',
     card: 'qr.card',
+    dialog: 'qr.dialog',
     canvas: 'qr.canvas',
     pageMeta: 'qr.pageMeta',
     prev: 'qr.prev',
@@ -127,6 +138,9 @@ export const UI = {
     userList: 'settings.users.list',
     userRow: 'settings.users.row',
     userDelete: 'settings.users.delete',
+    wardList: 'settings.wards.list',
+    wardRow: 'settings.wards.row',
+    wardManage: 'settings.wards.manage',
   },
   picker: {
     userDialog: 'picker.user.dialog',

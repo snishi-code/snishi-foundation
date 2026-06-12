@@ -7,10 +7,11 @@ import {
   collectFormatItemIndicesWithData,
   commitDraftTextEntry,
   decidePresetToggle,
-  formatItemDeleteBlocked,
   formatItemKindChangeBlocked,
-  formatItemReorderBlocked,
   formatValueHasInput,
+  remapEffectOnData,
+  remapFormatValuesSlot,
+  remapPatientsFormatValues,
   isLastExpandInPanel,
   formatRemovalBreaksAnyGroupExpand,
   mergeTagsAdd,
@@ -95,15 +96,45 @@ describe('破壊防止判定 (fail-closed)', () => {
     expect([...got].sort()).toEqual([0, 1]);
   });
 
-  it('delete/reorder/kind 変更: 不明 (null) は fail-closed で全ブロック', () => {
-    expect(formatItemDeleteBlocked(null, 0)).toBe('data');
-    expect(formatItemReorderBlocked(null)).toBe(true);
+  it('kind 変更: 不明 (null) は fail-closed でブロック / 入力済み index もブロック', () => {
     expect(formatItemKindChangeBlocked(null, 0)).toBe(true);
     const ds = new Set([2]);
-    expect(formatItemDeleteBlocked(ds, 2)).toBe('data');
-    expect(formatItemDeleteBlocked(ds, 1)).toBe('shift'); // 後方に入力 → ずれる
-    expect(formatItemDeleteBlocked(ds, 3)).toBeNull();
-    expect(formatItemReorderBlocked(new Set())).toBe(false);
+    expect(formatItemKindChangeBlocked(ds, 2)).toBe(true);
+    expect(formatItemKindChangeBlocked(ds, 1)).toBe(false);
+  });
+});
+
+describe('項目の並び替え/削除に伴う保存値の同時変換 (remap)', () => {
+  it('remapFormatValuesSlot: mapping[new]=old で値を移し、削除分は落とす', () => {
+    const slot = { 0: '肺音の値', 1: '心音の値', 2: { value: '120/80', note: '' } };
+    // 0↔1 入替 + 2 を削除 + 末尾に新規 (-1)
+    expect(remapFormatValuesSlot(slot, [1, 0, -1])).toEqual({
+      0: '心音の値',
+      1: '肺音の値',
+    });
+  });
+
+  it('remapEffectOnData: 移動と削除を入力済み index に対して判定する', () => {
+    const data = new Set([0, 2]);
+    // 並び替えのみ (0→1)
+    expect(remapEffectOnData([1, 0, 2], data)).toEqual({ moved: true, removed: [] });
+    // index 2 を削除
+    expect(remapEffectOnData([0, 1], data)).toEqual({ moved: false, removed: [2] });
+    // 無変換
+    expect(remapEffectOnData([0, 1, 2], data)).toEqual({ moved: false, removed: [] });
+  });
+
+  it('remapPatientsFormatValues: 全患者の該当 slot を同じ移動で組み替える', () => {
+    const p1 = makeDefaultPatient();
+    p1.formatValues = { f1: { 0: 'A', 1: 'B' } };
+    const p2 = makeDefaultPatient();
+    p2.formatValues = { f1: { 1: 'C' }, f2: { 0: 'keep' } };
+    const p3 = makeDefaultPatient(); // 値なし → 触らない
+    const changed = remapPatientsFormatValues([p1, p2, p3], 'f1', [1, 0]);
+    expect(changed).toBe(2);
+    expect(p1.formatValues.f1).toEqual({ 0: 'B', 1: 'A' });
+    expect(p2.formatValues.f1).toEqual({ 0: 'C' });
+    expect(p2.formatValues.f2).toEqual({ 0: 'keep' }); // 他フォーマットは不変
   });
 });
 

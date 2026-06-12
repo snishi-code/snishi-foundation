@@ -27,11 +27,13 @@ import { EVENT } from '../data/eventlog';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { formatPatientLabel, isPatientTransferred, statusClass, STATUS_MARK } from './patientDisplay';
 import { PanelCard, type InlineSession, type PanelCardCallbacks } from './PanelCard';
+import { ProblemListCard } from './ProblemListCard';
 import { FormatSheet } from './FormatSheet';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
 import { PatientLifecyclePanel } from './PatientLifecyclePanel';
 import { applyFormatTags, formatTagsToAdd, writeFormatValue } from './formatLogic';
+import { hapticTick } from './feedback';
 import { registerEditingSession } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -109,6 +111,22 @@ export function DetailView({
     };
   }, []);
 
+  // 入力欄の外をタップしたら inline 編集を終了し、フォーカス (キーボード) も解除する。
+  // endInline は安定参照 (ref / runtime) のみ触るため初回登録のままでよい。
+  useEffect(() => {
+    const onDownOutside = (e: PointerEvent) => {
+      if (!inlineRef.current) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (target && target.closest('.formatCardItem.editing')) return;
+      endInline();
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+    };
+    window.addEventListener('pointerdown', onDownOutside);
+    return () => window.removeEventListener('pointerdown', onDownOutside);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // write-through 本体 (v1 commitInlineDraft): input ごとに formatValues へ書き込む。
   // Undo 起点はセッション最初の実変更で 1 回だけ。fail-closed: 患者/フォーマット消失で中断。
   function commitInline(): void {
@@ -178,7 +196,9 @@ export function DetailView({
       commitInline();
     },
     onPresetToggle(format, item, i) {
-      if (!patient) return;
+      // detail 入場直後のゴーストタップで正常チェックを書き込まない
+      // (inline 編集・入力シートと同じ freshTapRef ガード — v1 から残っていたリスクの修正)
+      if (!freshTapRef.current || !patient) return;
       const slot = patient.formatValues?.[format.id];
       const stored: Record<string, unknown> = slot && typeof slot === 'object' ? slot : {};
       const decision = decidePresetToggle(stored[String(i)], item.normal);
@@ -192,6 +212,7 @@ export function DetailView({
       undo.capture(patient, 'format', { tagsAdded });
       writeFormatValue(store, patient, selectedNo, format, i, decision.value);
       if (decision.action === 'write') applyFormatTags(format, patient, liveSettings);
+      hapticTick(); // 成功体感の補助 (視覚は .formatNormalBtn.on のアニメ)
       runtime.bump();
     },
     onOpenSheet(format) {
@@ -230,30 +251,9 @@ export function DetailView({
   const inlineForRender = inline && inline.openPid === (patient.pid ?? null) ? inline : null;
 
   return (
-    <section aria-label={t('patientSheet.title')}>
+    <section aria-label={t('patientSheet.title')} className="detailView">
+      {/* 上部 = 患者名・病室の表示 (タップで患者情報編集)。操作系は下部固定バーへ。 */}
       <div className="viewToolbar detailToolbar">
-        <IconButton
-          label={t('detail.nav.prev')}
-          disabled={selectedNo <= 1}
-          dataUi={UI.detail.prev}
-          onClick={() => {
-            endInline({ silent: true });
-            onSelectNo(selectedNo - 1);
-          }}
-        >
-          <Icon name="chevronRight" size={18} className="iconFlipX" />
-        </IconButton>
-        <IconButton
-          label={t('detail.nav.next')}
-          disabled={selectedNo >= appState.patients.length}
-          dataUi={UI.detail.next}
-          onClick={() => {
-            endInline({ silent: true });
-            onSelectNo(selectedNo + 1);
-          }}
-        >
-          <Icon name="chevronRight" size={18} />
-        </IconButton>
         <button
           type="button"
           className={`patientBtn detailMetaBtn ${statusClass(patient.status)}`}
@@ -278,33 +278,6 @@ export function DetailView({
           ) : null}
           <Icon name="edit" size={15} className="detailMetaEditIcon" />
         </button>
-        <span className="viewToolbarSpacer" />
-        <IconButton
-          label={t('undo.aria')}
-          disabled={!undo.canUndo(patient)}
-          dataUi={UI.undo.btn}
-          onClick={() => void runUndo('undo')}
-        >
-          <Icon name="reverse" size={18} />
-        </IconButton>
-        <IconButton
-          label={t('redo.aria')}
-          disabled={!undo.canRedo(patient)}
-          dataUi={UI.undo.redoBtn}
-          onClick={() => void runUndo('redo')}
-        >
-          <Icon name="reverse" size={18} className="iconFlipX" />
-        </IconButton>
-        <IconButton
-          label={t('detail.qr.show')}
-          dataUi={UI.detail.qrShow}
-          onClick={() => {
-            runtime.eventlog.log(EVENT.QR_SHOW, { kind: 'TAB' });
-            setQrOpen(true);
-          }}
-        >
-          <Icon name="qr" size={18} />
-        </IconButton>
       </div>
 
       {isPatientTransferred(patient) ? (
@@ -316,7 +289,9 @@ export function DetailView({
         </div>
       ) : null}
 
-      {FORMAT_PANELS.map((panel) => (
+      {/* problem パネルはフォーマットではなく患者ごとの独立データ (ProblemListCard) */}
+      <ProblemListCard runtime={runtime} patient={patient} patientNo={selectedNo} />
+      {FORMAT_PANELS.filter((panel) => panel !== 'problem').map((panel) => (
         <PanelCard key={panel} panel={panel} patient={patient} settings={settings} inline={inlineForRender} cb={cb} />
       ))}
 
@@ -328,6 +303,67 @@ export function DetailView({
           if (onNavigateHome) onNavigateHome();
         }}
       />
+
+      {/* 下部固定の操作バー: スクロール中でも前/次・患者編集・Undo/Redo・QR に届く
+          (Ver1 の上部 sticky の代替。片手操作で親指が届く位置 + safe-area 対応)。 */}
+      <div className="detailActionBar" data-ui={UI.detail.actionBar}>
+        <IconButton
+          label={t('detail.nav.prev')}
+          disabled={selectedNo <= 1}
+          dataUi={UI.detail.prev}
+          onClick={() => {
+            endInline({ silent: true });
+            onSelectNo(selectedNo - 1);
+          }}
+        >
+          <Icon name="chevronRight" size={20} className="iconFlipX" />
+        </IconButton>
+        <IconButton
+          label={t('detail.nav.next')}
+          disabled={selectedNo >= appState.patients.length}
+          dataUi={UI.detail.next}
+          onClick={() => {
+            endInline({ silent: true });
+            onSelectNo(selectedNo + 1);
+          }}
+        >
+          <Icon name="chevronRight" size={20} />
+        </IconButton>
+        <IconButton
+          label={t('detail.edit.bottomAria')}
+          dataUi={UI.detail.metaBottom}
+          onClick={() => setMetaOpen(true)}
+        >
+          <Icon name="edit" size={20} />
+        </IconButton>
+        <span className="viewToolbarSpacer" />
+        <IconButton
+          label={t('undo.aria')}
+          disabled={!undo.canUndo(patient)}
+          dataUi={UI.undo.btn}
+          onClick={() => void runUndo('undo')}
+        >
+          <Icon name="reverse" size={20} />
+        </IconButton>
+        <IconButton
+          label={t('redo.aria')}
+          disabled={!undo.canRedo(patient)}
+          dataUi={UI.undo.redoBtn}
+          onClick={() => void runUndo('redo')}
+        >
+          <Icon name="reverse" size={20} className="iconFlipX" />
+        </IconButton>
+        <IconButton
+          label={t('detail.qr.show')}
+          dataUi={UI.detail.qrShow}
+          onClick={() => {
+            runtime.eventlog.log(EVENT.QR_SHOW, { kind: 'TAB' });
+            setQrOpen(true);
+          }}
+        >
+          <Icon name="qr" size={20} />
+        </IconButton>
+      </div>
 
       {sheetFormat ? (
         <FormatSheet

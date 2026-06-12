@@ -36,10 +36,11 @@ import { REASON, countActivePatients } from '../../data/snapshots';
 import { EVENT } from '../../data/eventlog';
 import { useRevision, type AppRuntime } from '../appRuntime';
 import { statusClass, STATUS_MARK } from '../patientDisplay';
-import { QrCard } from '../QrCard';
+import { QrDialog } from '../QrCard';
 import { AddTagWidget } from '../TagPicker';
 import { deleteTagAt, renameTagAt } from '../tags';
 import { OverlayBinding } from '../registries';
+import { WsPicker } from '../pickers/WsPicker';
 import { FormatEditDialog } from './FormatEditDialog';
 import { FormatGroupEditDialog } from './FormatGroupEditDialog';
 import { QrReceiveDialog } from './QrReceiveDialog';
@@ -277,6 +278,9 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
     <>
       {FORMAT_PANELS.map((panel) => {
         const list = all.filter((f) => f.panel === panel);
+        // プロブレムリストはフォーマットではなく患者ごとの独立データになったため、
+        // problem パネルは legacy フォーマットが残っている場合のみ (削除導線として) 出す。
+        if (panel === 'problem' && list.length === 0) return null;
         return (
           <div key={panel} className="card card--pad settingsSection settingsFormatPanel" data-ui={UI.settings.formatList}>
             <div className="settingsFormatPanelHead">
@@ -293,7 +297,9 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
             {list.map((f) => {
               // このフォーマットが、いずれかのセットのいずれかのパネルで「最後の展開
               // フォーマット」なら削除不可 (ワンタップ入力カードが欠ける)。
-              const soleExpand = formatRemovalBreaksAnyGroupExpand(f.id, all, settings.formatGroups);
+              // problem パネルは患者画面に出ない legacy のため、この制約から除外する。
+              const soleExpand =
+                f.panel !== 'problem' && formatRemovalBreaksAnyGroupExpand(f.id, all, settings.formatGroups);
               return (
                 <div key={f.id} className="formatListRow" data-ui={UI.settings.formatRow}>
                   <span className="formatListName">{f.name}</span>
@@ -343,8 +349,13 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
             const target = deleteTarget;
             setDeleteTarget(null);
             const live = store.getSettings();
-            // 防御的に再判定 (確認中に状態が変わった場合)
-            if (formatRemovalBreaksAnyGroupExpand(target.id, live.formats, live.formatGroups)) return;
+            // 防御的に再判定 (確認中に状態が変わった場合)。problem パネルは制約外 (legacy)。
+            if (
+              target.panel !== 'problem' &&
+              formatRemovalBreaksAnyGroupExpand(target.id, live.formats, live.formatGroups)
+            ) {
+              return;
+            }
             const idx = live.formats.findIndex((f) => f.id === target.id);
             if (idx >= 0) live.formats.splice(idx, 1);
             void store.saveSettings();
@@ -485,7 +496,7 @@ function QrSection({ runtime }: { runtime: AppRuntime }) {
       <p className="muted settingsHint">{t('qrReceive.hint')}</p>
 
       {flow.isActive ? (
-        <QrCard flow={flow} kindLabel={t('qr.kind.settings')} receivable={false} onClose={flow.close} />
+        <QrDialog flow={flow} kindLabel={t('qr.kind.settings')} receivable={false} onClose={flow.close} />
       ) : null}
 
       {receiveOpen ? <QrReceiveDialog runtime={runtime} onClose={() => setReceiveOpen(false)} /> : null}
@@ -957,6 +968,93 @@ function UserSection({ runtime }: { runtime: AppRuntime }) {
 }
 
 // ============================
+// 病棟 (P2: 設定画面でも現在の病棟を認識・切替・管理できる導線。Ver1 settings-view の
+// 病棟管理節を参考に、一覧 + 切替はここで、改名/削除/追加は WsPicker に集約したまま開く)
+// ============================
+
+function WardSection({ runtime }: { runtime: AppRuntime }) {
+  const toast = useToast();
+  const revision = useRevision(runtime);
+  const { store } = runtime;
+  const [wards, setWards] = useState<Array<{ id: string; label: string; updatedAt: number }> | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const activeId = store.storage.getActiveWorkspaceId();
+
+  useEffect(() => {
+    let alive = true;
+    void store.storage.listBundles().then((all) => {
+      if (!alive) return;
+      const sorted = all.slice().sort((a, b) => {
+        if (a.id === activeId) return -1;
+        if (b.id === activeId) return 1;
+        return (b.updatedAt || 0) - (a.updatedAt || 0);
+      });
+      setWards(
+        sorted.map((w) => ({
+          id: w.id,
+          label: w.label || w.title || '',
+          updatedAt: w.updatedAt || 0,
+        })),
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, [store, activeId, revision]);
+
+  async function switchTo(id: string): Promise<void> {
+    if (busy || id === activeId) return;
+    setBusy(true);
+    try {
+      await store.switchWorkspace(id); // fail-closed (保存できなければ切替しない)
+    } catch (e) {
+      console.error('ward switch failed:', e);
+      toast.show(t('io.ws.switch.failed'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card card--pad settingsSection">
+      <div className="section-label">{t('settings.title.workspaces')}</div>
+      <p className="muted settingsHint">{t('settings.ward.hint')}</p>
+      <div data-ui={UI.settings.wardList}>
+        {wards !== null && wards.length === 0 ? (
+          <p className="muted settingsListEmpty">{t('io.ws.list.empty')}</p>
+        ) : null}
+        {(wards ?? []).map((w) => {
+          const isCurrent = w.id === activeId;
+          return (
+            <div key={w.id} className={`formatListRow${isCurrent ? ' activeRow' : ''}`} data-ui={UI.settings.wardRow}>
+              <button
+                type="button"
+                className="pickerRowMain"
+                disabled={busy || isCurrent}
+                onClick={() => void switchTo(w.id)}
+              >
+                <span className="pickerRowLabel">{w.label || t('io.ws.untitled')}</span>
+                <span className="pickerRowMeta">
+                  {isCurrent ? t('settings.ward.current') : fmtTimestamp(w.updatedAt)}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="settingsRowActions">
+        <Button dataUi={UI.settings.wardManage} onClick={() => setPickerOpen(true)}>
+          {t('settings.ward.manage')}
+        </Button>
+      </div>
+      {pickerOpen ? <WsPicker runtime={runtime} onClose={() => setPickerOpen(false)} /> : null}
+    </div>
+  );
+}
+
+// ============================
 // 本体
 // ============================
 
@@ -973,6 +1071,7 @@ export function SettingsView({ runtime }: { runtime: AppRuntime }) {
       <ClearTargetsSection runtime={runtime} />
       <TagManagerSection runtime={runtime} />
       <UserSection runtime={runtime} />
+      <WardSection runtime={runtime} />
       <DataSection runtime={runtime} between={<RestoreSection runtime={runtime} />} />
       <div className="card card--pad settingsSection">
         <div className="section-label">{t('settings.guide.section')}</div>

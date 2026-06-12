@@ -29,9 +29,10 @@ export const PATIENT_UNDO_MAX = 50;
 
 // 種別ごとに「戻す対象フィールド」を定義する。ここに無いフィールド (name/room/status/
 // tags/activeFormatGroupId など患者識別情報) は Undo で一切触らない。
-// Phase 7 (v1): 臨床入力本文は全て formatValues に集約されたため format スコープ 1 本。
+// format = 展開フォーマット入力 (formatValues) / problem = プロブレムリスト (problems)。
 const LABEL_FIELDS: Record<string, readonly string[]> = {
   format: ['formatValues'],
+  problem: ['problems'],
 };
 const DEFAULT_LABEL = 'format';
 

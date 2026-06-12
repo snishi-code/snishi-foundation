@@ -1,8 +1,11 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-flow.js の表示/受信 UI 部
 //          (フロー制御は foundation qr/useQrFlow、描画は qr/render に分離済み)
 //
-// HM/MM/SH 共通の QR カード: canvas 描画 + ページナビ + カメラ scan + テキスト受信。
+// HM/MM/SH/ST 共通の QR 表示: canvas 描画 + ページナビ + カメラ scan + テキスト受信。
 // 受信ステータス文言 (progress/duplicate/wrongKind 等) はここで i18n に変換する。
+//
+// 表示は患者詳細 QR (DetailQrDialog) と同じく Modal ポップアップに統一する (QrDialog)。
+// overlay 登録により端末の「戻る」は QR だけを閉じる (画面遷移・終了確認に流れない)。
 
 import { useEffect, useRef, useState } from 'react';
 import type { QrFlow, ReceiveResult } from '@snishi/foundation/qr/useQrFlow';
@@ -83,11 +86,11 @@ export interface QrCardProps {
 }
 
 /**
- * QR 表示カード。flow.isActive のときだけ親がレンダリングする。
+ * QR 表示の中身。flow.isActive のときだけ親がレンダリングする。
  * 受信 (receivePage) の例外 = 復号/パース失敗は fail-closed (適用前に中断) として
  * toast で可視化する。consumed=false の入力はテキスト欄を消さない (v1 準拠)。
  */
-export function QrCard({ flow, kindLabel, receivable = true, showClose = true, onClose }: QrCardProps) {
+export function QrCardBody({ flow, kindLabel, receivable = true, showClose = true, onClose }: QrCardProps) {
   const toast = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawError, setDrawError] = useState('');
@@ -136,7 +139,7 @@ export function QrCard({ flow, kindLabel, receivable = true, showClose = true, o
   }
 
   return (
-    <div className="card qrWrap" data-ui={UI.qr.card}>
+    <div className="qrWrap" data-ui={UI.qr.card}>
       <div className="qrCardHead">
         <span className="mono qrPageMeta" data-ui={UI.qr.pageMeta}>
           {total > 0 ? `(${flow.pageIndex + 1}/${total})` : ''}
@@ -206,5 +209,26 @@ export function QrCard({ flow, kindLabel, receivable = true, showClose = true, o
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * QR 表示ポップアップ (HM/MM/SH/ST 共通)。患者詳細 QR と同じ Modal で表示し、
+ * overlay 登録により Back は QR だけを閉じる。ページ送り / カメラ読み取り /
+ * テキスト受信 / 閉じるは QrCardBody のまま維持する。
+ */
+export function QrDialog(props: QrCardProps) {
+  useRegisterOverlay(props.onClose);
+  return (
+    <Modal
+      title={props.kindLabel}
+      titleVariant="sr-only"
+      onClose={props.onClose}
+      variant="dialog"
+      dataUi={UI.qr.dialog}
+      closeLabel={t('common.close')}
+    >
+      <QrCardBody {...props} showClose={false} />
+    </Modal>
   );
 }

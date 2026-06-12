@@ -195,32 +195,72 @@ export function collectFormatItemIndicesWithData(
   return into;
 }
 
-/**
- * item i の削除可否: "data" = その index に入力あり / "shift" = それより後の index に入力が
- * あり削除すると並びがずれる / null = 削除可。不明 (null) は fail-closed。
- */
-export function formatItemDeleteBlocked(
-  dataIndices: Set<number> | null,
-  i: number,
-): 'data' | 'shift' | null {
-  if (!(dataIndices instanceof Set)) return 'data'; // 不明は fail-closed
-  if (dataIndices.has(i)) return 'data';
-  for (const idx of dataIndices) {
-    if (idx > i) return 'shift';
-  }
-  return null;
-}
-
-/** 並び替え可否: その format に 1 つでも入力があれば不可。 */
-export function formatItemReorderBlocked(dataIndices: Set<number> | null): boolean {
-  if (!(dataIndices instanceof Set)) return true; // 不明は fail-closed
-  return dataIndices.size > 0;
-}
-
 /** kind (種類) 変更可否: その index に入力があれば不可 (保存形が kind に依存するため)。 */
 export function formatItemKindChangeBlocked(dataIndices: Set<number> | null, i: number): boolean {
   if (!(dataIndices instanceof Set)) return true; // 不明は fail-closed
   return dataIndices.has(i);
+}
+
+// ============================
+// フォーマット item の並び替え/削除に伴う保存値の同時変換 (2026-06 指示書)
+//
+// 旧方針 (入力済みならブロック) から、「設定定義と全患者の formatValues[formatId] を
+// 同じ移動/削除で変換し、ラベルと保存値の対応を保つ」方針へ変更。
+// mapping[newIndex] = oldIndex (新規 item は -1)。kind 変更は保存形が変わるため
+// 引き続き formatItemKindChangeBlocked でブロックする。
+// ============================
+
+/** mapping に従って 1 患者分の slot ({ oldIndex: 値 }) を新 index 形へ組み替える。 */
+export function remapFormatValuesSlot(
+  slot: unknown,
+  mapping: readonly number[],
+): Record<string, unknown> {
+  const src: Record<string, unknown> = isPlainObject(slot) ? slot : {};
+  const out: Record<string, unknown> = {};
+  mapping.forEach((oldIdx, newIdx) => {
+    if (typeof oldIdx !== 'number' || oldIdx < 0) return; // 新規 item は値なし
+    const key = String(oldIdx);
+    if (key in src) out[String(newIdx)] = src[key];
+  });
+  return out;
+}
+
+/** mapping が「入力済み index」に与える影響 (移動の有無と、削除される index 一覧)。 */
+export function remapEffectOnData(
+  mapping: readonly number[],
+  dataIndices: ReadonlySet<number>,
+): { moved: boolean; removed: number[] } {
+  const newPosByOld = new Map<number, number>();
+  mapping.forEach((oldIdx, newIdx) => {
+    if (typeof oldIdx === 'number' && oldIdx >= 0) newPosByOld.set(oldIdx, newIdx);
+  });
+  let moved = false;
+  const removed: number[] = [];
+  for (const idx of dataIndices) {
+    const pos = newPosByOld.get(idx);
+    if (pos === undefined) removed.push(idx);
+    else if (pos !== idx) moved = true;
+  }
+  removed.sort((a, b) => a - b);
+  return { moved, removed };
+}
+
+/** patients それぞれの formatValues[formatId] を mapping で組み替える。変更患者数を返す。 */
+export function remapPatientsFormatValues(
+  patients: readonly Patient[] | null | undefined,
+  formatId: string,
+  mapping: readonly number[],
+): number {
+  let changed = 0;
+  for (const p of Array.isArray(patients) ? patients : []) {
+    const fv = p?.formatValues;
+    if (!fv || typeof fv !== 'object') continue;
+    const slot = fv[formatId];
+    if (!slot || typeof slot !== 'object' || !Object.keys(slot).length) continue;
+    fv[formatId] = remapFormatValuesSlot(slot, mapping);
+    changed++;
+  }
+  return changed;
 }
 
 /**
@@ -310,7 +350,8 @@ export function clearPanelFormatValues(
   }
 }
 
-/** panel に所属する展開フォーマット値を一括クリアする (診察開始)。6パネル共通の単一ソース。 */
+/** panel に所属する展開フォーマット値を一括クリアする (診察開始)。6パネル共通の単一ソース。
+ *  problem パネルは患者ごとの独立データ patient.problems も一緒にクリアする。 */
 export function clearPanelClinicalInput(
   patient: Patient,
   panel: FormatPanel,
@@ -318,6 +359,7 @@ export function clearPanelClinicalInput(
 ): void {
   if (!patient) return;
   clearPanelFormatValues(patient, panel, formats);
+  if (panel === 'problem') patient.problems = [];
 }
 
 // ============================

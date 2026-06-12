@@ -10,7 +10,7 @@
 //   - eventlog: APP_OPEN / APP_VISIBLE / APP_HIDDEN
 //   - 画面遷移直前の nav スナップショット (浅いアンドゥ・直近 2 枚リング)
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AppHeader } from '@snishi/foundation/ui/AppHeader';
 import { IconButton } from '@snishi/foundation/ui/IconButton';
 import { Icon } from '@snishi/foundation/ui/Icon';
@@ -108,6 +108,13 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
     return () => runtime.setSaveErrorHandler(null);
   }, [runtime, toast]);
 
+  // ── スクロール体験 (P1):
+  //   - ホーム一覧の位置は「患者詳細へ行って戻るだけ」なら保持する (openPatient で控え、
+  //     home へ戻った描画後に復元)。明示的なホーム遷移 (ヘッダー/メニュー) はトップから。
+  //   - 患者詳細は常に上部から開始 (前/次の切替も含む)。Ver1 の「全画面で同じ位置を共有」
+  //     は誤タップの一因だったため持ち越さない。
+  const homeScrollYRef = useRef(0);
+
   // ワークスペース切替時は患者 index を前 ws から引きずらない (v1 setOnWorkspaceChanged)
   const lastWsIdRef = useRef('');
   useEffect(() => {
@@ -115,6 +122,7 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
     const wsId = store.storage.getActiveWorkspaceId();
     if (lastWsIdRef.current && lastWsIdRef.current !== wsId) {
       setSelectedNo(1);
+      homeScrollYRef.current = 0; // 別病棟の一覧位置を持ち越さない
       runtime.undo.clearAll(); // 病棟/ユーザー切替で患者ごとの undo 履歴を破棄
       runtime.eventlog.log(EVENT.WS_SWITCH);
     }
@@ -151,6 +159,7 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
   const goto = useCallback(
     (next: ViewName) => {
       captureNavSnapshot();
+      if (next === 'home') homeScrollYRef.current = 0; // 明示遷移はトップから
       window.scrollTo(0, 0);
       navigate(next);
     },
@@ -159,13 +168,27 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
 
   const openPatient = useCallback(
     (no: number) => {
+      if (view === 'home') homeScrollYRef.current = window.scrollY; // 戻った時に復元
       setSelectedNo(no);
       captureNavSnapshot();
       window.scrollTo(0, 0);
       navigate('detail');
     },
-    [captureNavSnapshot, navigate],
+    [captureNavSnapshot, navigate, view],
   );
+
+  // 詳細内の前/次切替: 前患者のスクロール位置 (身体所見付近など) を次患者へ持ち越さない
+  const selectNo = useCallback((no: number) => {
+    setSelectedNo(no);
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Back (popstate) 等で home へ戻った時、控えた一覧位置を描画後に復元する
+  useLayoutEffect(() => {
+    if (view === 'home' && homeScrollYRef.current > 0) {
+      window.scrollTo(0, homeScrollYRef.current);
+    }
+  }, [view]);
 
   if (!ready) {
     // 起動画面 (initStore 完了まで)。データを読まずに描画しない (store の契約)。
@@ -229,7 +252,7 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
           <DetailView
             runtime={runtime}
             selectedNo={selectedNo}
-            onSelectNo={setSelectedNo}
+            onSelectNo={selectNo}
             onNavigateHome={() => goto('home')}
           />
         ) : null}

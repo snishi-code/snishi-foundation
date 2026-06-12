@@ -10,7 +10,7 @@ import { useQrFlow } from '@snishi/foundation/qr/useQrFlow';
 import { useToast } from '@snishi/foundation/ui/toast';
 import type { QrKind } from '../../domain/types';
 import { APP_KEY_BYTES } from '../../qr/appKey';
-import { QrCard } from '../QrCard';
+import { QrCardBody } from '../QrCard';
 import { useRegisterOverlay } from '../registries';
 import { t } from '../../i18n/strings';
 
@@ -60,7 +60,7 @@ export function QrShareDialog({
     // 可視タイトルは出さない (QR を見れば分かる)。aria 上の名前は sr-only title で維持。
     <Modal title={title} titleVariant="sr-only" onClose={onClose} variant="dialog" closeLabel={t('common.close')}>
       {flow.isActive ? (
-        <QrCard flow={flow} kindLabel={kindLabel} receivable={false} showClose={false} onClose={onClose} />
+        <QrCardBody flow={flow} kindLabel={kindLabel} receivable={false} showClose={false} onClose={onClose} />
       ) : null}
     </Modal>
   );

@@ -68,14 +68,6 @@ export const DEFAULT_QR_REDISTRIBUTION: Readonly<Record<QrKind, QrRedistribution
     FS: 'free',
   });
 
-// Tag filter modes (UI のタグフィルタ。データ層定数なので i18n 対象外)
-export const TAG_FILTER_MODE_AND = 'and';
-export const TAG_FILTER_MODE_OR = 'or';
-export const DEFAULT_TAG_FILTER_MODE = TAG_FILTER_MODE_AND;
-
-// フィルタピッカーに出す仮想ステータスタグの prefix (patient.tags には保存しない)
-export const STATUS_TAG_PREFIX = '__status:';
-
 // アプリ表示名の既定 (= v1 の t("app.title"))。ドメイン層は i18n に依存しないため
 // ここに定数で持ち、UI 層は必要なら呼び出し時に引数で上書きする。
 export const DEFAULT_APP_TITLE = '回診';
@@ -214,6 +206,12 @@ export interface Patient {
   /** この患者で active なフォーマットグループ ID。"" = デフォルトグループに解決 */
   activeFormatGroupId: string;
   formatValues: FormatValues;
+  /**
+   * プロブレムリスト (患者ごとの独立データ)。フォーマット/設定とは無関係で、
+   * `#1` 等の番号は保存せず配列順から表示時に自動付与する (domain/problems.ts)。
+   * 旧 problem パネルの formatValues とは別物 (legacy データは温存し出力時に併記)。
+   */
+  problems: string[];
   /**
    * 患者識別データの出所マーカー。"external" = 他端末から QR で受信 = 再配布制限対象。
    * "" = この端末で作成 = 再配布可。

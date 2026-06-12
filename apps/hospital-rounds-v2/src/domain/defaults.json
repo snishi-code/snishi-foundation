@@ -1,23 +1,7 @@
 {
-  "_comment": "アプリの初期値。ユーザーが何も触らずに保存ボタンを押した状態 = この JSON。プログラム内にベタ打ちせずここに集約してメンテナンスしやすくする。Phase 7: problem / S / O / A / P / shared の6パネルすべてをフォーマットで扱う。",
+  "_comment": "アプリの初期値。ユーザーが何も触らずに保存ボタンを押した状態 = この JSON。プログラム内にベタ打ちせずここに集約してメンテナンスしやすくする。プロブレムリストはフォーマットではなく患者ごとの独立データ (patient.problems) になったため、problem パネルの既定フォーマットは置かない (既存データの problem フォーマットは温存される)。",
 
   "formats": [
-    {
-      "name": "プロブレムリスト",
-      "panel": "problem",
-      "joiner": "\n",
-      "labelSep": "",
-      "titleWrap": "",
-      "tags": [],
-      "items": [
-        { "label": "#", "kind": "number", "unit": "" },
-        { "label": "#", "kind": "number", "unit": "" },
-        { "label": "#", "kind": "number", "unit": "" },
-        { "label": "#", "kind": "number", "unit": "" },
-        { "label": "#", "kind": "number", "unit": "" },
-        { "label": "", "kind": "text", "normal": "" }
-      ]
-    },
     {
       "name": "自覚症状",
       "panel": "S",
@@ -107,14 +91,14 @@
     }
   ],
 
-  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。Phase 7: 6パネル (problem/S/O/A/P/shared) の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。",
+  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。S/O/A/P/shared の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。",
   "formatGroups": [
     {
       "name": "標準",
       "isDefault": true,
-      "formatIndexes": [0, 1, 2, 3, 4, 5, 6, 7],
+      "formatIndexes": [0, 1, 2, 3, 4, 5, 6],
       "defaultFormatIndexes": [],
-      "expandFormatIndexes": [0, 1, 2, 3, 4, 5, 6, 7]
+      "expandFormatIndexes": [0, 1, 2, 3, 4, 5, 6]
     }
   ],
 

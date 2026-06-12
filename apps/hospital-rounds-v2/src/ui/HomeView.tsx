@@ -28,7 +28,7 @@ import { encodePatientList, decodePatientList, type DecodedPatientList } from '.
 import { APP_KEY_BYTES } from '../qr/appKey';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, statusClass, STATUS_MARK } from './patientDisplay';
-import { QrCard } from './QrCard';
+import { QrDialog } from './QrCard';
 import { PatientEditPopup } from './PatientEditPopup';
 import { TagFilterPicker } from './TagPicker';
 import { patientMatchesSharedFilter } from './tags';
@@ -206,7 +206,7 @@ export function HomeView({
         </IconButton>
       </div>
 
-      {flow.isActive ? <QrCard flow={flow} kindLabel={t('qr.kind.home')} onClose={flow.close} /> : null}
+      {flow.isActive ? <QrDialog flow={flow} kindLabel={t('qr.kind.home')} onClose={flow.close} /> : null}
 
       {trash ? <div className="banner trashBanner">{t('trash.banner')}</div> : null}
 

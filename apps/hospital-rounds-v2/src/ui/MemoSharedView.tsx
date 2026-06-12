@@ -18,14 +18,14 @@ import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { useToast } from '@snishi/foundation/ui/toast';
 import { useQrFlow } from '@snishi/foundation/qr/useQrFlow';
 import type { Patient } from '../domain/types';
-import { composeExpandedForPanel } from '../domain/payload';
+import { composeExpandedForPanel, composeProblemAreaText } from '../domain/payload';
 import { EVENT } from '../data/eventlog';
 import { encodePatientList, decodePatientList, type DecodedPatientList } from '../qr/patientList';
 import { APP_KEY_BYTES } from '../qr/appKey';
 import { Popup } from '@snishi/foundation/ui/Popup';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, sanitizeRoomInput, statusClass, STATUS_MARK } from './patientDisplay';
-import { QrCard } from './QrCard';
+import { QrDialog } from './QrCard';
 import { TagFilterPicker, TagSelection } from './TagPicker';
 import { patientMatchesSharedFilter } from './tags';
 import { OverlayBinding, useRegisterEditing, useRegisterOverlay } from './registries';
@@ -130,7 +130,12 @@ export function MemoSharedView({
   // 編集中はインライン部屋入力があるので並べ替えない (患者取り違え防止)
   if (!editMode) ensureRoomOrder(appState.patients);
 
-  const contentOf = (p: Patient) => composeExpandedForPanel(conf.panel, p.formatValues, store.getSettings());
+  // memo (プロブレムリスト) は患者ごとの独立データ problems が正本 (legacy problem パネル併記)。
+  // shared は従来どおり shared パネルのフォーマット合成。
+  const contentOf = (p: Patient) =>
+    kind === 'memo'
+      ? composeProblemAreaText(p, store.getSettings())
+      : composeExpandedForPanel(conf.panel, p.formatValues, store.getSettings());
 
   const flow = useQrFlow<DecodedPatientList>({
     kind: conf.qrKind,
@@ -212,7 +217,7 @@ export function MemoSharedView({
         </IconButton>
       </div>
 
-      {flow.isActive ? <QrCard flow={flow} kindLabel={t(conf.kindLabelKey)} onClose={flow.close} /> : null}
+      {flow.isActive ? <QrDialog flow={flow} kindLabel={t(conf.kindLabelKey)} onClose={flow.close} /> : null}
 
       {recvOpen ? (
         <div className="card recvCard" data-ui={UI.recv.box}>
@@ -245,7 +250,10 @@ export function MemoSharedView({
           if (!patientMatchesSharedFilter(p)) return null;
           const no = idx + 1;
           const label = formatPatientLabel(p, String(no));
-          const composed = composeExpandedForPanel(conf.panel, p.formatValues, settings);
+          const composed =
+            kind === 'memo'
+              ? composeProblemAreaText(p, settings)
+              : composeExpandedForPanel(conf.panel, p.formatValues, settings);
           return (
             <div key={p.pid} className={`memoRow ${editMode ? 'edit' : 'read'}`} data-ui={UI.list.row}>
               {editMode ? (

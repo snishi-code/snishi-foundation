@@ -9,11 +9,7 @@ import { createAppRuntime } from '../src/ui/appRuntime';
 import { encodeSettingsPayload, decodeSettingsPayload } from '../src/qr/settingsQr';
 import { applySettingsPatch } from '../src/ui/settings/qrApply';
 import { FormatGroupEditDialog } from '../src/ui/settings/FormatGroupEditDialog';
-import {
-  formatItemDeleteBlocked,
-  formatItemKindChangeBlocked,
-  formatItemReorderBlocked,
-} from '../src/domain/formatValues';
+import { formatItemKindChangeBlocked } from '../src/domain/formatValues';
 
 async function openSettings(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(screen.getByRole('button', { name: 'メニュー' }));
@@ -27,21 +23,21 @@ describe('設定: フォーマット CRUD', () => {
     const user = userEvent.setup();
     await openSettings(user);
 
-    // S 欄など各パネルに追加ボタンがある。先頭 (problem 欄) で新規作成。
+    // S 欄など各パネルに追加ボタンがある。先頭 (S 欄。problem はフォーマット対象外) で新規作成。
     const addButtons = screen.getAllByRole('button', { name: 'フォーマット追加' });
     await user.click(addButtons[0] as HTMLElement);
 
-    const dialog = await screen.findByText('プロブレムリスト のフォーマット 新規作成');
+    const dialog = await screen.findByText('S のフォーマット 新規作成');
     expect(dialog).toBeInTheDocument();
     await user.type(screen.getByLabelText('名前'), 'テスト書式');
     await user.click(screen.getByRole('button', { name: '＋ 項目追加' }));
     await user.click(screen.getByRole('button', { name: '保存' }));
 
-    // 一覧 + settings.formats に反映 (panel=problem)
+    // 一覧 + settings.formats に反映 (panel=S)
     expect(await screen.findByText('テスト書式')).toBeInTheDocument();
     const saved = runtime.store.getSettings().formats.find((f) => f.name === 'テスト書式');
     expect(saved).toBeTruthy();
-    expect(saved?.panel).toBe('problem');
+    expect(saved?.panel).toBe('S');
   });
 
   it('同名フォーマットは保存を拒否する', async () => {
@@ -62,8 +58,8 @@ describe('設定: フォーマット CRUD', () => {
   });
 });
 
-describe('設定: フォーマット破壊変更ガード (患者データの index ずれ防止)', () => {
-  it('患者で使用中の item index を全病棟横断で収集し、削除/並び替え/種類変更をブロックする', async () => {
+describe('設定: フォーマット項目の並び替え/削除 (全患者の保存値を同時変換)', () => {
+  it('使用中 item index を収集し、kind 変更は引き続きブロックする', async () => {
     const runtime = createAppRuntime();
     await runtime.store.initStore({ bundle: seedBundle([{ name: '患者A' }]) });
     const { store } = runtime;
@@ -77,18 +73,58 @@ describe('設定: フォーマット破壊変更ガード (患者データの in
     expect(indices).toBeInstanceOf(Set);
     expect([...(indices as Set<number>)]).toEqual([1]);
 
-    // index 1 に入力あり → 削除 'data'。index 0 は後ろに入力あり → 'shift'。index 2 は可。
-    expect(formatItemDeleteBlocked(indices, 1)).toBe('data');
-    expect(formatItemDeleteBlocked(indices, 0)).toBe('shift');
-    expect(formatItemDeleteBlocked(indices, 2)).toBeNull();
-    // 入力が 1 つでもある format は並び替え不可 / 当該 index の kind 変更不可
-    expect(formatItemReorderBlocked(indices)).toBe(true);
+    // kind (種類) 変更は保存形が変わるため当該 index ではブロック (不明 null も fail-closed)
     expect(formatItemKindChangeBlocked(indices, 1)).toBe(true);
     expect(formatItemKindChangeBlocked(indices, 0)).toBe(false);
+    expect(formatItemKindChangeBlocked(null, 0)).toBe(true);
+  });
 
-    // 不明 (収集失敗 = null) は fail-closed で全ブロック
-    expect(formatItemDeleteBlocked(null, 0)).toBe('data');
-    expect(formatItemReorderBlocked(null)).toBe(true);
+  it('applyFormatEditWithRemap: 項目の入替/削除と同じ変換を全患者の保存値へ適用する', async () => {
+    const runtime = createAppRuntime();
+    await runtime.store.initStore({ bundle: seedBundle([{ name: '患者A' }]) });
+    const { store } = runtime;
+
+    // 身体所見 (text 複数項目) を対象に、item0 ↔ item1 を入替えて item2 を削除する
+    const fmt = store.getSettings().formats.find((f) => f.items.length >= 3)!;
+    expect(fmt).toBeTruthy();
+    const p = store.getAppState().patients[0]!;
+    p.formatValues = {
+      [fmt.id]: { '0': '値ゼロ', '1': '値イチ', '2': '値ニ' },
+    };
+
+    const items = fmt.items.map((it) => ({ ...it }));
+    const finalItems = [items[1]!, items[0]!, ...items.slice(3)];
+    const mapping = [1, 0, ...items.slice(3).map((_, k) => k + 3)];
+    await store.applyFormatEditWithRemap({ ...fmt, items: finalItems }, mapping);
+
+    // 設定定義と患者の保存値が同じ移動/削除で変換されている (ラベルと値の対応を保つ)
+    const savedFmt = store.getSettings().formats.find((f) => f.id === fmt.id)!;
+    expect(savedFmt.items[0]!.label).toBe(items[1]!.label);
+    expect(savedFmt.items[1]!.label).toBe(items[0]!.label);
+    const slot = store.getAppState().patients[0]!.formatValues[fmt.id]!;
+    expect(slot['0']).toBe('値イチ');
+    expect(slot['1']).toBe('値ゼロ');
+    expect(slot['2']).not.toBe('値ニ'); // index 2 (旧値ニ) は削除済み
+  });
+
+  it('applyFormatEditWithRemap: 保存不可なら live をロールバックして throw (fail-closed)', async () => {
+    const runtime = createAppRuntime();
+    await runtime.store.initStore({ bundle: seedBundle([{ name: '患者A' }]) });
+    const { store } = runtime;
+    const fmt = store.getSettings().formats.find((f) => f.items.length >= 2)!;
+    const p = store.getAppState().patients[0]!;
+    p.formatValues = { [fmt.id]: { '0': 'A', '1': 'B' } };
+    const prevItems = fmt.items.map((it) => ({ ...it }));
+
+    vi.spyOn(store.storage, 'isStorageAvailable').mockResolvedValue(false);
+    await expect(
+      store.applyFormatEditWithRemap({ ...fmt, items: [prevItems[1]!, prevItems[0]!] }, [1, 0]),
+    ).rejects.toThrow();
+    // live は無傷 (値も定義も変換されていない)
+    expect(store.getAppState().patients[0]!.formatValues[fmt.id]).toEqual({ '0': 'A', '1': 'B' });
+    expect(store.getSettings().formats.find((f) => f.id === fmt.id)!.items[0]!.label).toBe(
+      prevItems[0]!.label,
+    );
   });
 });
 

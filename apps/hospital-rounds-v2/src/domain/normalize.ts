@@ -379,6 +379,7 @@ export function makeDefaultPatient(): Patient {
     deletedFromWorkspaceLabel: '',
     activeFormatGroupId: '',
     formatValues: {},
+    problems: [],
     origin: '',
   };
 }
@@ -406,6 +407,8 @@ export function isPatientEmpty(p: Patient | null | undefined): boolean {
       }
     }
   }
+  // プロブレムリスト (患者ごとの独立データ) に入力があれば空ではない
+  if (Array.isArray(p.problems) && p.problems.some((x) => String(x ?? '').trim())) return false;
   // 「移動済」マーカーが立っているスロットは履歴として残してあるので空ではない
   if (p.transferredAt) return false;
   // 「削除済み退避」マーカーが立っているスロット (Trash 内) も空ではない
@@ -459,6 +462,10 @@ export function normalizePatientArray(arr: readonly unknown[] | null | undefined
         r && typeof r.activeFormatGroupId === 'string' ? r.activeFormatGroupId : '',
       formatValues:
         r && isRecord(r.formatValues) ? (r.formatValues as Patient['formatValues']) : {},
+      problems:
+        r && Array.isArray(r.problems)
+          ? r.problems.filter((x): x is string => typeof x === 'string').map((x) => String(x))
+          : [],
       origin: r && r.origin === 'external' ? 'external' : '',
     };
   }

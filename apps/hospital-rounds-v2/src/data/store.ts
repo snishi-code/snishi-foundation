@@ -19,7 +19,15 @@
 //     必ず throw して呼び出し側に中断させる。
 //   - IDB 不可 (open 失敗) の no-op 保存も「保存できていない事実」として失敗扱いにする。
 
-import { DEFAULT_APP_TITLE, type AppState, type Patient, type Settings, type User } from '../domain/types';
+import {
+  DEFAULT_APP_TITLE,
+  clone,
+  type AppState,
+  type Format,
+  type Patient,
+  type Settings,
+  type User,
+} from '../domain/types';
 import {
   defaultSettings,
   hasBackfilledDefaultFormats,
@@ -28,7 +36,7 @@ import {
   normalizePatientArray,
   normalizeSettings,
 } from '../domain/normalize';
-import { collectFormatItemIndicesWithData } from '../domain/formatValues';
+import { collectFormatItemIndicesWithData, remapPatientsFormatValues } from '../domain/formatValues';
 import { SECTION, getSection, parseBundle, projectBundle, type Bundle } from './bundle';
 import { createHrStorage, type HrStorage, type HrWorkspaceRecord } from './storage';
 
@@ -186,6 +194,16 @@ export interface HrStore {
    * (呼び出し側が全ブロック扱いにする)。
    */
   collectFormatDataIndices(formatId: string): Promise<Set<number> | null>;
+
+  /**
+   * フォーマット定義の保存 (置換/追加) と、全病棟・全患者の formatValues[formatId] の
+   * 同時変換 (項目の並び替え/削除。mapping[newIndex]=oldIndex、新規 item は -1) を
+   * まとめて行う。fail-closed + 補償:
+   *   - アクティブ病棟 + 設定の保存に失敗 → live をロールバックして throw。
+   *   - 非アクティブ病棟の保存に失敗 → 書込済みの他病棟を原本へ戻し、live/設定も戻して
+   *     throw (部分適用を黙って残さない)。
+   */
+  applyFormatEditWithRemap(finalFormat: Format, mapping: readonly number[]): Promise<void>;
 
   /** iOS Safari 等の eviction 抑制 (best-effort) */
   requestStoragePersistence(): void;
@@ -866,6 +884,98 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       } catch (e) {
         console.warn('collectFormatDataIndices failed:', e);
         return null;
+      }
+    },
+
+    // ============================
+    // フォーマット項目の並び替え/削除: 設定定義と全患者の保存値を同時変換する
+    // (2026-06 指示書。旧「入力済みならブロック」からの方針変更)。
+    // ============================
+    async applyFormatEditWithRemap(finalFormat, mapping) {
+      // fail-closed: IDB 不可 (no-op 保存) は「保存できていない事実」として最初に弾く。
+      if (!(await storage.isStorageAvailable())) {
+        throw new Error('applyFormatEditWithRemap: storage unavailable (IDB not usable)');
+      }
+      const formatId = finalFormat.id;
+
+      // 1) 非アクティブ病棟の bundle を読み、remap 済み bundle と原本を控える (まだ書かない)。
+      //    1 病棟でも読めなければ中断 (有無を確認できないデータをずらさない)。
+      const activeId = storage.getActiveWorkspaceId();
+      const staged: Array<{ id: string; bundle: Bundle; original: Bundle }> = [];
+      for (const w of await storage.listBundles()) {
+        if (w.id === activeId) continue;
+        const bundle = await storage.loadBundle(w.id);
+        if (!bundle) {
+          throw new Error(`applyFormatEditWithRemap: load failed: ${w.id}`);
+        }
+        const original = clone(bundle);
+        const patients = (getSection(bundle, SECTION.PATIENTS) as Patient[]) || [];
+        const changed = remapPatientsFormatValues(patients, formatId, mapping);
+        if (changed > 0) staged.push({ id: w.id, bundle, original });
+      }
+
+      // 2) live (アクティブ病棟) の患者と settings.formats を変換 (ロールバック用に控える)
+      const liveBackup = appState.patients.map((p) => {
+        const slot = p.formatValues && typeof p.formatValues === 'object' ? p.formatValues[formatId] : undefined;
+        return slot === undefined ? undefined : clone(slot);
+      });
+      remapPatientsFormatValues(appState.patients, formatId, mapping);
+      if (!Array.isArray(settings.formats)) settings.formats = [];
+      const formats = settings.formats;
+      const fmtIdx = formats.findIndex((f) => f.id === formatId);
+      const fmtBackup = fmtIdx >= 0 ? formats[fmtIdx] : null;
+      if (fmtIdx >= 0) formats[fmtIdx] = finalFormat;
+      else formats.push(finalFormat);
+
+      const rollbackLive = (): void => {
+        appState.patients.forEach((p, i) => {
+          const orig = liveBackup[i];
+          if (!p.formatValues || typeof p.formatValues !== 'object') p.formatValues = {};
+          if (orig === undefined) delete p.formatValues[formatId];
+          else p.formatValues[formatId] = orig as Record<string, unknown>;
+        });
+        if (fmtBackup) {
+          const i = formats.findIndex((f) => f.id === formatId);
+          if (i >= 0) formats[i] = fmtBackup;
+        } else {
+          const i = formats.findIndex((f) => f.id === formatId);
+          if (i >= 0) formats.splice(i, 1);
+        }
+      };
+
+      // 3) アクティブ病棟 + 設定を保存 (失敗したら live をロールバックして throw)
+      clearPendingTimer();
+      try {
+        await persistActive();
+      } catch (e) {
+        rollbackLive();
+        throw e;
+      }
+
+      // 4) 非アクティブ病棟を順に保存。失敗したら補償 (書込済み → 原本へ / live・設定 → 戻す)。
+      const written: Array<{ id: string; original: Bundle }> = [];
+      for (const s of staged) {
+        try {
+          await storage.saveBundle(s.bundle, s.id);
+          written.push({ id: s.id, original: s.original });
+        } catch (e) {
+          console.error('applyFormatEditWithRemap: ws save failed, compensating:', s.id, e);
+          for (const w of written) {
+            try {
+              await storage.saveBundle(w.original, w.id);
+            } catch (e2) {
+              // 補償も失敗 = 部分適用が残る。黙らず throw 側のエラーで可視化する。
+              console.error('applyFormatEditWithRemap: compensation failed:', w.id, e2);
+            }
+          }
+          rollbackLive();
+          try {
+            await persistActive();
+          } catch (e3) {
+            console.error('applyFormatEditWithRemap: live rollback persist failed:', e3);
+          }
+          throw e;
+        }
       }
     },
 

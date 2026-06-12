@@ -105,6 +105,7 @@ function InlineEditCell({
   if (kind === 'number') {
     const { value, note } = readNumericEntry(session.draft);
     const emit = () => onDraft({ value: valRef.current?.value ?? '', note: noteRef.current?.value ?? '' });
+    // 1 行に [値][単位][備考] を収める (スマホ幅で 2 行に崩さない — P1 入力UI)
     return (
       <div className="formatCardEditCell">
         <div className="formatCardEditValueRow">
@@ -113,7 +114,7 @@ function InlineEditCell({
               valRef.current = el;
               primaryRef.current = el;
             }}
-            className="input formatCardEditInput"
+            className="input formatCardEditInput formatCardEditNum"
             type="text"
             inputMode="decimal"
             autoComplete="off"
@@ -123,16 +124,16 @@ function InlineEditCell({
             onInput={emit}
           />
           {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
+          <textarea
+            ref={noteRef}
+            className="textarea formatInputMemo"
+            rows={1}
+            placeholder={t('format.placeholder.memo')}
+            aria-label={t('format.placeholder.memo')}
+            defaultValue={note}
+            onInput={emit}
+          />
         </div>
-        <textarea
-          ref={noteRef}
-          className="textarea formatInputMemo"
-          rows={1}
-          placeholder={t('format.placeholder.memo')}
-          aria-label={t('format.placeholder.memo')}
-          defaultValue={note}
-          onInput={emit}
-        />
       </div>
     );
   }
@@ -148,6 +149,7 @@ function InlineEditCell({
         value: `${numerRef.current?.value ?? ''}/${denomRef.current?.value ?? ''}`,
         note: noteRef.current?.value ?? '',
       });
+    // 血圧などは最初から [上]/[下] 単位 が 1 行で見えたまま、該当箇所へ直接入力する
     return (
       <div className="formatCardEditCell">
         <div className="formatCardEditValueRow">
@@ -179,16 +181,16 @@ function InlineEditCell({
             />
           </div>
           {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
+          <textarea
+            ref={noteRef}
+            className="textarea formatInputMemo"
+            rows={1}
+            placeholder={t('format.placeholder.memo')}
+            aria-label={t('format.placeholder.memo')}
+            defaultValue={note}
+            onInput={emit}
+          />
         </div>
-        <textarea
-          ref={noteRef}
-          className="textarea formatInputMemo"
-          rows={1}
-          placeholder={t('format.placeholder.memo')}
-          aria-label={t('format.placeholder.memo')}
-          defaultValue={note}
-          onInput={emit}
-        />
       </div>
     );
   }
@@ -275,6 +277,8 @@ function CardItemRow({
   }
 
   const disp = cardItemDisplay(item, stored[String(i)]);
+  // fraction (血圧など) は空でも "/ 単位" を見せて、何をどこへ入れるか見たまま分かるようにする
+  const emptyHint = disp.empty && kind === 'fraction' ? `/${item.unit ? ` ${item.unit}` : ''}` : '';
   let normalBtn = null;
   if (kind === 'text' && item.normal) {
     // 緑/aria/tooltip は provenance (source) 基準。手入力が偶然 normal と同一でも
@@ -318,7 +322,7 @@ function CardItemRow({
         data-ui={UI.format.cell}
         onClick={() => cb.onEnterInline(format, item, i)}
       >
-        {disp.text}
+        {disp.empty ? emptyHint : disp.text}
       </button>
     </div>
   );

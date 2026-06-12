@@ -16,11 +16,16 @@ import {
 import { FORMAT_PANELS, STATUS } from './types';
 import type { FormatGroup } from './types';
 
+// プロブレムリストは患者ごとの独立データ (patient.problems) になったため、
+// problem パネルには既定フォーマットを置かない (既存データの problem フォーマットは温存)。
+const PANELS_WITH_DEFAULT_FORMATS = FORMAT_PANELS.filter((p) => p !== 'problem');
+
 describe('defaultSettings (cold boot)', () => {
-  it('6 パネル (problem/S/O/A/P/shared) すべてに既定フォーマットを持つ', () => {
+  it('S/O/A/P/shared に既定フォーマットを持つ (problem は対象外)', () => {
     const s = defaultSettings();
     const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
+    for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
+    expect(panels.has('problem')).toBe(false);
   });
 
   it('デフォルトグループがちょうど 1 つ存在し、全 format を展開に持つ', () => {
@@ -101,9 +106,9 @@ describe('normalizeSettings', () => {
     };
     const s = normalizeSettings(custom);
     expect(s.formats.some((f) => f.panel === 'O' && f.name === '所見')).toBe(true);
-    // 各パネルが埋まる
+    // 各パネル (problem 以外) が埋まる
     const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
+    for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
   });
 
   it('formatGroups: malformed を除外し「ちょうど 1 つ default」を担保。df/xf は部分集合に正規化', () => {
@@ -131,7 +136,7 @@ describe('normalizeSettings', () => {
     // 修正1 が「含む全パネルに expand あり」を担保する (f1 = S パネルも expand に昇格)
     expect(g1.expandFormatIds).toContain('f1');
     const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
+    for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
     expect(
       g1.expandFormatIds.every((id) => g1.formatIds.includes(id)),
     ).toBe(true);

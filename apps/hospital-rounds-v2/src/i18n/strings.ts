@@ -64,6 +64,7 @@ export const STRINGS_JA = {
   'formatGroup.option.none.label': '(セットなし)',
   'detail.nav.prev': '前の患者',
   'detail.nav.next': '次の患者',
+  'detail.edit.bottomAria': '患者情報を編集',
 
   // 患者管理 (転棟)
   'patient.lifecycle.actions.title': '患者管理',
@@ -100,6 +101,13 @@ export const STRINGS_JA = {
   'format.placeholder.memo': '備考',
   'format.launcher.aria': 'フォーマットを選ぶ',
   'format.launcher.empty': '追加で開けるフォーマットはありません',
+
+  // プロブレムリスト (患者ごとの独立データ)
+  'problem.placeholder': '病名・問題名',
+  'problem.add': 'プロブレム追加',
+  'problem.input.aria': 'プロブレム #{n}',
+  'problem.delete.aria': 'プロブレム #{n} を削除',
+  'problem.delete.confirm': 'プロブレム「{text}」を削除します。よろしいですか？',
 
   // メモ / 共有一覧
   'memo.edit.tooltip': '編集',
@@ -188,8 +196,7 @@ export const STRINGS_JA = {
   'tag.sheet.title': 'タグを選ぶ',
   'tag.sheet.filterTitle': 'タグで絞り込む',
   'tag.placeholder': 'タグ名',
-  'tag.filter.mode.and': 'AND（すべて満たす）',
-  'tag.filter.mode.or': 'OR（いずれか満たす）',
+  'tag.filter.empty': 'タグが登録されていません',
   'tag.filter.clear.label': 'タグ選択をクリア',
   'tag.filter.clear.aria': '選択をすべて解除',
   'settings.title.tags': 'タグ',
@@ -230,10 +237,13 @@ export const STRINGS_JA = {
   'format.addItem': '＋ 項目追加',
   'format.deleteItem.title': 'この項目を削除',
   'format.deleteItem.aria': 'この項目を削除',
-  'format.itemDelete.blocked': 'この項目には入力済みデータがあるため削除できません',
-  'format.itemDelete.blockedShift':
-    'これより後の項目に入力済みデータがあるため削除できません（並び順がずれます）',
-  'format.itemReorder.blocked': '入力済みデータがあるフォーマットでは項目の並び替えはできません',
+  'format.itemDelete.blocked':
+    'この項目には入力済みデータがあります。削除する場合は項目の × から削除してください',
+  'format.itemDelete.withData.confirm':
+    '項目「{label}」には入力済みの患者がいます。保存すると、全患者のこの項目の入力値も一緒に削除されます。よろしいですか？',
+  'format.itemGuard.unknown':
+    '入力済みデータを確認できないため、項目の削除・並び替えはできません',
+  'format.remap.failed': '保存に失敗したため、フォーマットの変更を適用しませんでした',
   'format.itemKind.blocked': 'この項目には入力済みデータがあるため種類を変更できません',
   'format.reorderItem.up': '上へ移動',
   'format.reorderItem.down': '下へ移動',
@@ -382,6 +392,12 @@ export const STRINGS_JA = {
   'io.user.name.duplicate': '同じ名前のユーザーが既にあります',
   'io.snapshot.purge.deferred':
     '巻き戻し履歴の一部を今すぐ消せませんでした（他のタブが開いている可能性があります）。次回の起動時に自動で消去を再試行します。',
+
+  // 設定: 病棟 (一覧 + 切替。改名/削除/追加は WsPicker)
+  'settings.ward.hint':
+    '現在の病棟と切替の一覧です。タップで切り替えます。名前変更・追加・削除は「病棟を管理」から行えます。',
+  'settings.ward.current': '現在の病棟',
+  'settings.ward.manage': '病棟を管理',
 
   // 病棟ピッカー (rename/delete を含む)
   'wsPicker.title': '病棟',
