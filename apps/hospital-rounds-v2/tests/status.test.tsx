@@ -10,6 +10,30 @@ import { STATUS } from '../src/domain/types';
 import { renderApp, seedBundle } from './helpers';
 
 describe('ステータス変更', () => {
+  it('患者画面下部のステータスボタン → ポップアップ → 色選択で status 反映 + scheduleSave', async () => {
+    const { runtime } = await renderApp({ bundle: seedBundle([{ name: '太郎', room: '101' }]) });
+    const user = userEvent.setup();
+    const scheduleSpy = vi.spyOn(runtime.store, 'scheduleSave');
+
+    // 患者タップ → detail
+    await user.click(screen.getByRole('button', { name: '101 太郎' }));
+    // 下部バーのステータスボタン
+    const statusBtn = await screen.findByRole('button', { name: 'ステータスを変更' });
+    await user.click(statusBtn);
+
+    // ポップアップ内の「黄」をクリック
+    const popup = await screen.findByRole('dialog', { name: 'ステータスを選択' });
+    await user.click(within(popup).getByRole('button', { name: '黄' }));
+
+    // ポップアップが閉じる
+    expect(screen.queryByRole('dialog', { name: 'ステータスを選択' })).toBeNull();
+
+    // status が反映される
+    const patient = runtime.store.getAppState().patients.find((p) => p.name === '太郎')!;
+    expect(patient.status).toBe(STATUS.YELLOW);
+    expect(scheduleSpy).toHaveBeenCalled();
+  });
+
   it('患者カード → 患者シート → 色ボックスで status 反映 + scheduleSave', async () => {
     const { runtime } = await renderApp({ bundle: seedBundle([{ name: 'テスト太郎', room: '203' }]) });
     const user = userEvent.setup();

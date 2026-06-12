@@ -58,7 +58,9 @@ export const STRINGS_JA = {
   'patientSheet.name': '氏名',
   'detail.nav.prev': '前の患者',
   'detail.nav.next': '次の患者',
-  'detail.edit.bottomAria': '患者情報を編集',
+  'detail.home.aria': 'ホームへ戻る',
+  'detail.status.aria': 'ステータスを変更',
+  'detail.tags.aria': 'タグを編集',
 
   // 患者管理 (転棟)
   'patient.lifecycle.actions.title': '患者管理',

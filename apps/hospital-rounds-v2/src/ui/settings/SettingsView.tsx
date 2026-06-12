@@ -1177,13 +1177,13 @@ function WardSection({ runtime }: { runtime: AppRuntime }) {
 // 本体
 // ============================
 
-export function SettingsView({ runtime }: { runtime: AppRuntime }) {
+export function SettingsView({ runtime, onNavigateHome }: { runtime: AppRuntime; onNavigateHome?: () => void }) {
   useRevision(runtime);
   // 並びは v1 settings-view.js 準拠: QR → フォーマット (パネル別) → セット → クリア対象 →
   // タグ → ユーザー → 病棟 (JSON) → 巻き戻し → 研究ログ → 端末まるごと → 操作ガイド。
   // 画面タイトルの見出しは出さない (v1 同様、内容を見れば分かる)。
   return (
-    <section aria-label={t('header.settings')} data-ui={UI.settings.view}>
+    <section aria-label={t('header.settings')} className="settingsView" data-ui={UI.settings.view}>
       <QrSection runtime={runtime} />
       <FormatsSection runtime={runtime} />
       <ClearTargetsSection runtime={runtime} />
@@ -1196,6 +1196,19 @@ export function SettingsView({ runtime }: { runtime: AppRuntime }) {
         {/* v1 の操作ガイド (docs-bundle) は配信前に人間判断 → 移植保留 */}
         <p className="muted">{t('settings.guide.pending')}</p>
       </div>
+
+      {/* 下部固定バー: ホームへ戻る (左端 1 ボタン) */}
+      {onNavigateHome ? (
+        <div className="bottomActionBar" data-ui={UI.settings.homeBottom}>
+          <IconButton
+            label={t('header.home')}
+            dataUi={UI.settings.homeBottom}
+            onClick={onNavigateHome}
+          >
+            <Icon name="home" size={20} />
+          </IconButton>
+        </div>
+      ) : null}
     </section>
   );
 }

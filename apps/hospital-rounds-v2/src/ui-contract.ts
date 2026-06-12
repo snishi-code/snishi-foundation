@@ -32,7 +32,9 @@ export const UI = {
     prev: 'detail.prev',
     next: 'detail.next',
     meta: 'detail.meta',
-    metaBottom: 'detail.meta.bottom',
+    home: 'detail.home',
+    status: 'detail.status',
+    tags: 'detail.tags',
     actionBar: 'detail.actionBar',
     qrShow: 'detail.qr.show',
     qrDialog: 'detail.qr.dialog',
@@ -68,6 +70,7 @@ export const UI = {
   },
   settings: {
     view: 'settings.view',
+    homeBottom: 'settings.home.bottom',
     clearTarget: 'settings.clearTarget',
     tagList: 'settings.tags.list',
     tagRow: 'settings.tags.row',

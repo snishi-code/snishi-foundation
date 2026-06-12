@@ -271,7 +271,7 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
             onNavigateHome={() => goto('home')}
           />
         ) : null}
-        {view === 'settings' ? <SettingsView runtime={runtime} /> : null}
+        {view === 'settings' ? <SettingsView runtime={runtime} onNavigateHome={() => goto('home')} /> : null}
       </main>
 
       {userPickerOpen ? <UserPicker runtime={runtime} onClose={() => setUserPickerOpen(false)} /> : null}

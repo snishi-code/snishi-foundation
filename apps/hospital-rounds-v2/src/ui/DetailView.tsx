@@ -15,8 +15,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconButton } from '@snishi/foundation/ui/IconButton';
 import { Icon } from '@snishi/foundation/ui/Icon';
+import { Popup } from '@snishi/foundation/ui/Popup';
 import { useToast } from '@snishi/foundation/ui/toast';
-import { DEFAULT_ITEM_KIND, FORMAT_PANELS, STATUS, type Format } from '../domain/types';
+import { DEFAULT_ITEM_KIND, FORMAT_PANELS, STATUS, type Format, type PatientStatus } from '../domain/types';
 import {
   commitDraftTextEntry,
   decidePresetToggle,
@@ -31,11 +32,65 @@ import { FormatSheet } from './FormatSheet';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
 import { PatientLifecyclePanel } from './PatientLifecyclePanel';
+import { StatusPickerPopup } from './StatusPicker';
+import { TagSelection } from './TagPicker';
 import { applyFormatTags, writeFormatValue } from './formatLogic';
 import { hapticTick } from './feedback';
-import { registerEditingSession } from './registries';
+import { registerEditingSession, useRegisterOverlay } from './registries';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
+
+// ── TagEditPopup: DetailView 下部バーのタグボタンから開く軽量ポップアップ ──────────────────
+// write-through: TagSelection の onChange で直接 patient.tags を書き換える。
+// 患者取り違えガード: openPid で開いた時の患者を保持し、不一致なら即閉じる。
+function TagEditPopup({
+  runtime,
+  patientNo,
+  openPid,
+  onClose,
+}: {
+  runtime: AppRuntime;
+  patientNo: number;
+  openPid: string | null;
+  onClose: () => void;
+}) {
+  useRegisterOverlay(onClose);
+  const { store } = runtime;
+
+  const patient = store.getAppState().patients[patientNo - 1] ?? null;
+
+  // 患者取り違えガード: pid が変わっていたら閉じる
+  if (!patient || (openPid != null && patient.pid !== openPid)) {
+    onClose();
+    return null;
+  }
+
+  const selected = patient.tags ?? [];
+
+  function handleChange(next: string[]): void {
+    const p = store.getAppState().patients[patientNo - 1];
+    if (!p || (openPid != null && p.pid !== openPid)) {
+      onClose();
+      return;
+    }
+    p.tags = next;
+    store.markUpdated(patientNo - 1);
+    store.scheduleSave();
+    runtime.bump();
+  }
+
+  return (
+    <Popup ariaLabel={t('detail.tags.aria')} onClose={onClose} dataUi={UI.detail.tags}>
+      <div className="tagEditPopupBody">
+        <TagSelection
+          store={store}
+          selected={selected}
+          onChange={handleChange}
+        />
+      </div>
+    </Popup>
+  );
+}
 
 // kind 別に「保存値が同じか」(実変更の検出。text は値文字列、number/fraction は value+note)
 function inlineValueUnchanged(kind: string, next: unknown, orig: unknown): boolean {
@@ -68,6 +123,8 @@ export function DetailView({
   const [sheetFormat, setSheetFormat] = useState<Format | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
+  const [statusPopupOpen, setStatusPopupOpen] = useState(false);
+  const [tagPopupOpen, setTagPopupOpen] = useState(false);
 
   // inline 編集セッション (v1 _inlineEdit)。実体は ref (1 文字ごとに再描画しない)。
   // 描画用ミラー inline は state (開始/終了時のみ setState)。同一オブジェクト参照。
@@ -337,9 +394,20 @@ export function DetailView({
         }}
       />
 
-      {/* 下部固定の操作バー: スクロール中でも前/次・患者編集・QR に届く
-          (Ver1 の上部 sticky の代替。片手操作で親指が届く位置 + safe-area 対応)。 */}
-      <div className="detailActionBar" data-ui={UI.detail.actionBar}>
+      {/* 下部固定の操作バー: [ホーム][前][次] ─spacer─ [ステータス][タグ][QR]
+          片手操作で親指が届く下部に固定。safe-area 対応。390px 幅 (6×48px+gap ≈ 330px) に収まる。 */}
+      <div className="bottomActionBar detailActionBar" data-ui={UI.detail.actionBar}>
+        {/* 左クラスタ: ホーム・前・次 */}
+        <IconButton
+          label={t('detail.home.aria')}
+          dataUi={UI.detail.home}
+          onClick={() => {
+            endInline({ silent: true });
+            onNavigateHome?.();
+          }}
+        >
+          <Icon name="home" size={20} />
+        </IconButton>
         <IconButton
           label={t('detail.nav.prev')}
           disabled={selectedNo <= 1}
@@ -362,14 +430,24 @@ export function DetailView({
         >
           <Icon name="chevronRight" size={20} />
         </IconButton>
-        <IconButton
-          label={t('detail.edit.bottomAria')}
-          dataUi={UI.detail.metaBottom}
-          onClick={() => setMetaOpen(true)}
-        >
-          <Icon name="edit" size={20} />
-        </IconButton>
         <span className="viewToolbarSpacer" />
+        {/* 右クラスタ: ステータス・タグ・QR */}
+        <button
+          type="button"
+          className={`icon-btn detailStatusBtn ${statusClass(patient.status) || 'status-none'}`}
+          aria-label={t('detail.status.aria')}
+          data-ui={UI.detail.status}
+          onClick={() => setStatusPopupOpen(true)}
+        >
+          <span aria-hidden="true">{STATUS_MARK[patient.status]}</span>
+        </button>
+        <IconButton
+          label={t('detail.tags.aria')}
+          dataUi={UI.detail.tags}
+          onClick={() => setTagPopupOpen(true)}
+        >
+          <Icon name="tag" size={20} />
+        </IconButton>
         <IconButton
           label={t('detail.qr.show')}
           dataUi={UI.detail.qrShow}
@@ -392,6 +470,29 @@ export function DetailView({
       ) : null}
       {qrOpen ? <DetailQrDialog patient={patient} settings={settings} onClose={() => setQrOpen(false)} /> : null}
       {metaOpen ? <PatientEditPopup patientNo={selectedNo} runtime={runtime} onClose={() => setMetaOpen(false)} /> : null}
+      {statusPopupOpen ? (
+        <StatusPickerPopup
+          value={patient.status}
+          onSelect={(status: PatientStatus) => {
+            const p = store.getAppState().patients[selectedNo - 1];
+            if (!p || p.pid !== (patient.pid ?? null)) return;
+            p.status = status;
+            store.markUpdated(selectedNo - 1);
+            store.scheduleSave();
+            runtime.bump();
+          }}
+          onClose={() => setStatusPopupOpen(false)}
+          dataUi={UI.detail.status}
+        />
+      ) : null}
+      {tagPopupOpen ? (
+        <TagEditPopup
+          runtime={runtime}
+          patientNo={selectedNo}
+          openPid={patient.pid ?? null}
+          onClose={() => setTagPopupOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }

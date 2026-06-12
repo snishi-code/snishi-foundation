@@ -1,7 +1,7 @@
 // (a) 起動 → home 描画 → 患者タップ → detail 遷移 (App シェル + ナビゲーション)
 import './setup';
 import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp, seedBundle } from './helpers';
 
@@ -29,5 +29,37 @@ describe('App シェル', () => {
     // ヘッダーの家ボタンで home へ戻れる
     await user.click(screen.getByRole('button', { name: 'ホーム' }));
     expect(await screen.findByRole('button', { name: '203 テスト太郎' })).toBeInTheDocument();
+  });
+
+  it('患者画面の下部バー・ホームボタンで home へ戻れる', async () => {
+    const user = userEvent.setup();
+    await renderApp({
+      bundle: seedBundle([{ name: '花子', room: '101' }]),
+    });
+
+    // 患者タップ → detail
+    await user.click(await screen.findByRole('button', { name: '101 花子' }));
+    expect(await screen.findByRole('region', { name: '患者' })).toBeInTheDocument();
+
+    // 下部バーのホームボタン (aria-label: 'ホームへ戻る')
+    await user.click(screen.getByRole('button', { name: 'ホームへ戻る' }));
+    expect(await screen.findByRole('button', { name: '101 花子' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '患者' })).toBeNull();
+  });
+
+  it('設定画面の下部バー・ホームボタンで home へ戻れる', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    // 設定へ
+    await user.click(screen.getByRole('button', { name: '設定' }));
+    expect(await screen.findByRole('region', { name: '設定' })).toBeInTheDocument();
+
+    // 設定画面下部の固定バー内のホームボタン (data-ui="settings.home.bottom" のバー内)
+    const settingsSection = await screen.findByRole('region', { name: '設定' });
+    const homeBtn = within(settingsSection).getAllByRole('button', { name: 'ホーム' })[0]!;
+    await user.click(homeBtn);
+    expect(await screen.findByText('診察開始')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '設定' })).toBeNull();
   });
 });

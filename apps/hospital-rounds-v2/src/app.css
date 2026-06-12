@@ -512,10 +512,10 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   align-items: center;
 }
 
-/* 下部固定の操作バー (前/次・患者編集・Undo/Redo・QR)。
+/* 共通の下部固定操作バー (患者詳細・設定)。
    Ver1 の上部 sticky detailTop の代替: 片手操作で親指が届く下部に固定し、
    safe-area (ホームインジケータ) を避ける。dialog (top-layer) より下に出る。 */
-.detailActionBar {
+.bottomActionBar {
   position: fixed;
   left: 0;
   right: 0;
@@ -530,7 +530,7 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
     calc(6px + env(safe-area-inset-bottom)) max(var(--space-3), env(safe-area-inset-left));
 }
 
-.detailActionBar .icon-btn {
+.bottomActionBar .icon-btn {
   min-width: 48px;
   min-height: 48px;
 }
@@ -538,6 +538,61 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 /* 固定バーの高さぶん本文下部を空ける (患者管理ボタンが隠れない) */
 .detailView {
   padding-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+/* 設定画面: 固定バーに隠れないように本文下部を空ける */
+.settingsView {
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+/* 患者詳細のステータスボタン (正方・ステータス色で塗る inline icon-btn 変種) */
+.detailStatusBtn {
+  min-width: 48px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.detailStatusBtn.status-none {
+  background: var(--status-none-bg);
+  border-color: var(--status-none-bd);
+}
+
+.detailStatusBtn.status-yellow {
+  background: var(--status-yellow-bg);
+  border-color: var(--status-yellow-bd);
+  color: var(--status-yellow-fg);
+}
+
+.detailStatusBtn.status-green {
+  background: var(--status-green-bg);
+  border-color: var(--status-green-bd);
+  color: var(--status-green-fg);
+}
+
+.detailStatusBtn.status-gray {
+  background: var(--status-gray-bg);
+  border-color: var(--status-gray-bd);
+  color: var(--status-gray-fg);
+}
+
+.detailStatusBtn.status-blue {
+  background: var(--status-blue-bg);
+  border-color: var(--status-blue-bd);
+  color: var(--status-blue-fg);
+}
+
+/* タグ編集ポップアップの本文余白 */
+.tagEditPopupBody {
+  padding: var(--space-2) var(--space-3);
 }
 
 .detailMetaBtn {
