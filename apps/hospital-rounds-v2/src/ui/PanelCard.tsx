@@ -3,14 +3,15 @@
 //           buildCardItemRow / buildInlineEditCell / buildInlineNormalFillBtn)
 //
 // 1 パネル分のカード: ヘッダ (ラベル + クイック chip + ☰ ランチャー) + 展開フォーマット
-// カード群。値セルはタップで inline 編集 (write-through 自動保存)。inline セッションの
-// 状態管理 (draft/orig/captured/dirty) は DetailView 側 (InlineSession) が持ち、ここは描画。
+// カード群。
 //
-// inline 編集の設計 (v1 から不変):
-//   - 入力欄は非制御 (defaultValue)。1 文字ごとの全体再描画でカーソルを飛ばさない。
-//     描画はドラフトを正本に組み直すので、途中再描画でも入力中の値は失われない。
-//   - 値セルへの明示タップで入った項目なので、編集に入った入力欄へ focus してよい
-//     (focusPopupInput の中央ルール「明示タップした時だけ focus」)。
+// 入力方式 (2026-06 フィードバック反映):
+//   - number / fraction は **常時表示の入力欄** (単位・備考も最初から見えたまま、
+//     見た場所にそのまま入力できる。タップで UI が変形しない)。write-through 保存。
+//     値は controlled (undo/redo の外部変更も即反映)。Undo 起点はフォーカスセッション
+//     ごとに 1 回 (DetailView 側 onNumericFocus / onNumericWrite)。
+//   - text は v1 同様タップで inline 編集 (正常チェックの provenance と Back=編集解除のみ
+//     の挙動を保つ)。編集中もグリッド列 ([ラベル][正常][値]) を崩さない。
 
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@snishi/foundation/ui/Icon';
@@ -59,6 +60,10 @@ export interface PanelCardCallbacks {
   onInlineDraft(draft: unknown): void;
   onPresetToggle(format: Format, item: FormatItem, i: number): void;
   onOpenSheet(format: Format): void;
+  /** number/fraction 常時入力欄: フォーカスで Undo セッション開始 (DetailView) */
+  onNumericFocus(format: Format, i: number): void;
+  /** number/fraction 常時入力欄: write-through 保存 (DetailView) */
+  onNumericWrite(format: Format, item: FormatItem, i: number, value: { value: string; note: string }): void;
 }
 
 const PANEL_LABEL_KEY = {
@@ -74,131 +79,36 @@ function isRowEditing(inline: InlineSession | null, format: Format, i: number): 
   return !!(inline && inline.formatId === format.id && inline.panel === format.panel && inline.i === i);
 }
 
-// ── inline 編集セル (非制御入力 + write-through) ──
+// ── text の inline 編集セル (非制御入力 + write-through) ──
+//
+// グリッド整合: CardItemRow (display:contents) の直下に [正常ボタン/スペーサ][textarea] を
+// fragment で返し、表示モードと同じ列位置を保つ (編集に入っても列がずれない)。
 
-function InlineEditCell({
+function InlineEditTextCell({
   item,
   session,
+  hasNormalCol,
   ariaLabel,
   onDraft,
 }: {
   item: FormatItem;
   session: InlineSession;
-  /** 主入力欄のアクセシブルネーム (ラベルが空なら format 名で補う) */
+  hasNormalCol: boolean;
+  /** 入力欄のアクセシブルネーム (ラベルが空なら format 名で補う) */
   ariaLabel: string;
   onDraft: (draft: unknown) => void;
 }) {
-  const kind = item.kind || DEFAULT_ITEM_KIND;
-  const primaryRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const valRef = useRef<HTMLInputElement>(null);
-  const numerRef = useRef<HTMLInputElement>(null);
-  const denomRef = useRef<HTMLInputElement>(null);
-  const noteRef = useRef<HTMLTextAreaElement>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
+  const textRef = useRef<HTMLTextAreaElement | null>(null);
 
   // この編集セルは値セルへの明示タップで mount される = 中央ルールの「明示タップした
-  // 時だけ focus」経路。mount 時に 1 回だけ主入力欄へ focus する。
+  // 時だけ focus」経路。mount 時に 1 回だけ入力欄へ focus する。
   useEffect(() => {
-    focusPopupInput(primaryRef.current);
+    focusPopupInput(textRef.current);
   }, []);
 
-  if (kind === 'number') {
-    const { value, note } = readNumericEntry(session.draft);
-    const emit = () => onDraft({ value: valRef.current?.value ?? '', note: noteRef.current?.value ?? '' });
-    // 1 行に [値][単位][備考] を収める (スマホ幅で 2 行に崩さない — P1 入力UI)
-    return (
-      <div className="formatCardEditCell">
-        <div className="formatCardEditValueRow">
-          <input
-            ref={(el) => {
-              valRef.current = el;
-              primaryRef.current = el;
-            }}
-            className="input formatCardEditInput formatCardEditNum"
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            defaultValue={value}
-            aria-label={ariaLabel}
-            data-ui={UI.format.cellInput}
-            onInput={emit}
-          />
-          {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
-          <textarea
-            ref={noteRef}
-            className="textarea formatInputMemo"
-            rows={1}
-            placeholder={t('format.placeholder.memo')}
-            aria-label={t('format.placeholder.memo')}
-            defaultValue={note}
-            onInput={emit}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (kind === 'fraction') {
-    const { value, note } = readNumericEntry(session.draft);
-    const si = value.indexOf('/');
-    const numer = si >= 0 ? value.slice(0, si) : value;
-    const denom = si >= 0 ? value.slice(si + 1) : '';
-    const inputMode = item.fracMode === 'numeric' ? 'numeric' : 'text';
-    const emit = () =>
-      onDraft({
-        value: `${numerRef.current?.value ?? ''}/${denomRef.current?.value ?? ''}`,
-        note: noteRef.current?.value ?? '',
-      });
-    // 血圧などは最初から [上]/[下] 単位 が 1 行で見えたまま、該当箇所へ直接入力する
-    return (
-      <div className="formatCardEditCell">
-        <div className="formatCardEditValueRow">
-          <div className="formatInputFracGroup">
-            <input
-              ref={(el) => {
-                numerRef.current = el;
-                primaryRef.current = el;
-              }}
-              className="input formatCardEditInput formatInputFracNumer"
-              type="text"
-              inputMode={inputMode}
-              autoComplete="off"
-              defaultValue={numer}
-              aria-label={`${item.label} 1`}
-              data-ui={UI.format.cellInput}
-              onInput={emit}
-            />
-            <span className="formatInputFracSlash">/</span>
-            <input
-              ref={denomRef}
-              className="input formatCardEditInput formatInputFracDenom"
-              type="text"
-              inputMode={inputMode}
-              autoComplete="off"
-              defaultValue={denom}
-              aria-label={`${item.label} 2`}
-              onInput={emit}
-            />
-          </div>
-          {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
-          <textarea
-            ref={noteRef}
-            className="textarea formatInputMemo"
-            rows={1}
-            placeholder={t('format.placeholder.memo')}
-            aria-label={t('format.placeholder.memo')}
-            defaultValue={note}
-            onInput={emit}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // text
   const normal = item.normal || '';
   return (
-    <div className="formatCardEditCellRow">
+    <>
       {normal ? (
         // 編集中の正常列: タップで編集中テキスト欄へ正常文を流し込む (再タップで空に)。
         <button
@@ -217,18 +127,113 @@ function InlineEditCell({
         >
           ✓
         </button>
+      ) : hasNormalCol ? (
+        <div className="formatCardNormalSpacer" aria-hidden />
       ) : null}
       <textarea
-        ref={(el) => {
-          textRef.current = el;
-          primaryRef.current = el;
-        }}
+        ref={textRef}
         className="textarea formatCardEditInput formatCardEditText"
         rows={1}
         defaultValue={readTextValue(session.draft)}
         aria-label={ariaLabel}
         data-ui={UI.format.cellInput}
         onInput={(e) => onDraft((e.target as HTMLTextAreaElement).value)}
+      />
+    </>
+  );
+}
+
+// ── number/fraction の常時入力欄 (controlled + write-through) ──
+//
+// 見た場所にそのまま入力できる: 単位・備考も最初から見えていて、タップしても UI が
+// 変形しない。controlled なので undo/redo の外部変更も即反映される。
+
+function NumericCellRow({
+  format,
+  item,
+  i,
+  stored,
+  cb,
+}: {
+  format: Format;
+  item: FormatItem;
+  i: number;
+  stored: Record<string, unknown>;
+  cb: PanelCardCallbacks;
+}) {
+  const kind = item.kind || DEFAULT_ITEM_KIND;
+  const { value, note } = readNumericEntry(stored[String(i)]);
+  const labelText = String(item.label ?? '').trim();
+  const ariaLabel = t('format.cell.edit.aria', { label: labelText || format.name });
+  const onFocus = () => cb.onNumericFocus(format, i);
+
+  if (kind === 'fraction') {
+    const si = value.indexOf('/');
+    const numer = si >= 0 ? value.slice(0, si) : value;
+    const denom = si >= 0 ? value.slice(si + 1) : '';
+    const inputMode = item.fracMode === 'numeric' ? 'numeric' : 'text';
+    return (
+      <div className="formatCardEditValueRow">
+        <div className="formatInputFracGroup">
+          <input
+            className="input formatCardEditInput formatInputFracNumer"
+            type="text"
+            inputMode={inputMode}
+            autoComplete="off"
+            value={numer}
+            aria-label={`${item.label} 1`}
+            data-ui={UI.format.cellInput}
+            onFocus={onFocus}
+            onChange={(e) => cb.onNumericWrite(format, item, i, { value: `${e.target.value}/${denom}`, note })}
+          />
+          <span className="formatInputFracSlash">/</span>
+          <input
+            className="input formatCardEditInput formatInputFracDenom"
+            type="text"
+            inputMode={inputMode}
+            autoComplete="off"
+            value={denom}
+            aria-label={`${item.label} 2`}
+            onFocus={onFocus}
+            onChange={(e) => cb.onNumericWrite(format, item, i, { value: `${numer}/${e.target.value}`, note })}
+          />
+        </div>
+        {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
+        <textarea
+          className="textarea formatInputMemo"
+          rows={1}
+          placeholder={t('format.placeholder.memo')}
+          aria-label={t('format.placeholder.memo')}
+          value={note}
+          onFocus={onFocus}
+          onChange={(e) => cb.onNumericWrite(format, item, i, { value, note: e.target.value })}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="formatCardEditValueRow">
+      <input
+        className="input formatCardEditInput formatCardEditNum"
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
+        value={value}
+        aria-label={ariaLabel}
+        data-ui={UI.format.cellInput}
+        onFocus={onFocus}
+        onChange={(e) => cb.onNumericWrite(format, item, i, { value: e.target.value, note })}
+      />
+      {item.unit ? <span className="formatInputUnit">{item.unit}</span> : null}
+      <textarea
+        className="textarea formatInputMemo"
+        rows={1}
+        placeholder={t('format.placeholder.memo')}
+        aria-label={t('format.placeholder.memo')}
+        value={note}
+        onFocus={onFocus}
+        onChange={(e) => cb.onNumericWrite(format, item, i, { value, note: e.target.value })}
       />
     </div>
   );
@@ -261,14 +266,25 @@ function CardItemRow({
 
   const label = hasLabelCol ? <div className="formatCardItemLabel">{labelText}</div> : null;
 
+  // number / fraction は常時入力欄 (タップで UI が変形しない)
+  if (kind === 'number' || kind === 'fraction') {
+    return (
+      <div className="formatCardItem">
+        {label}
+        {hasNormalCol ? <div className="formatCardNormalSpacer" aria-hidden /> : null}
+        <NumericCellRow format={format} item={item} i={i} stored={stored} cb={cb} />
+      </div>
+    );
+  }
+
   if (editing && inline) {
     return (
       <div className="formatCardItem editing">
         {label}
-        {hasNormalCol && !(kind === 'text' && item.normal) ? <div className="formatCardNormalSpacer" aria-hidden /> : null}
-        <InlineEditCell
+        <InlineEditTextCell
           item={item}
           session={inline}
+          hasNormalCol={hasNormalCol}
           ariaLabel={t('format.cell.edit.aria', { label: labelText || format.name })}
           onDraft={cb.onInlineDraft}
         />
@@ -277,8 +293,6 @@ function CardItemRow({
   }
 
   const disp = cardItemDisplay(item, stored[String(i)]);
-  // fraction (血圧など) は空でも "/ 単位" を見せて、何をどこへ入れるか見たまま分かるようにする
-  const emptyHint = disp.empty && kind === 'fraction' ? `/${item.unit ? ` ${item.unit}` : ''}` : '';
   let normalBtn = null;
   if (kind === 'text' && item.normal) {
     // 緑/aria/tooltip は provenance (source) 基準。手入力が偶然 normal と同一でも
@@ -322,7 +336,7 @@ function CardItemRow({
         data-ui={UI.format.cell}
         onClick={() => cb.onEnterInline(format, item, i)}
       >
-        {disp.empty ? emptyHint : disp.text}
+        {disp.text}
       </button>
     </div>
   );

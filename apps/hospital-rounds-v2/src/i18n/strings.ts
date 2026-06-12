@@ -44,6 +44,8 @@ export const STRINGS_JA = {
     '新しい診察を開始します。前回の記録をクリアしてよろしいですか？\n（クリアする項目は設定画面で選べます）',
   'home.qr.show': 'ホームQR表示',
   'home.empty': '患者がいません',
+  'home.patientQr.title': 'この患者の電子カルテ転記用QRを表示',
+  'home.patientQr.aria': '{label} の電子カルテ転記用QRを表示',
 
   // ステータス
   'status.picker.title': 'ステータスを選択',
@@ -112,12 +114,8 @@ export const STRINGS_JA = {
   // メモ / 共有一覧
   'memo.edit.tooltip': '編集',
   'memo.qr.show': 'プロブレムリストQR表示',
-  'memo.row.empty': '（タップして入力）',
-  'memo.row.openAria': 'プロブレムリストを編集（患者画面を開く）',
   'shared.edit.tooltip': '編集',
   'shared.qr.show': 'QR表示',
-  'shared.row.empty': '（タップして入力）',
-  'shared.row.openAria': '共有を編集（患者画面を開く）',
 
   // 受信ボックス
   'recv.label': '受信ボックス',
@@ -134,9 +132,6 @@ export const STRINGS_JA = {
   'qr.scan.head': 'QR スキャン',
   'qr.scan.hint.stream': 'QR を順に読み取ってください',
   'qr.scanner.unsupported': 'このブラウザはカメラ非対応',
-  'qr.recv.text.placeholder': 'RND_… で始まる QR の中身',
-  'qr.recv.text.read': 'QR として読む',
-  'qr.recv.text.empty': 'QR の中身を貼り付けてください',
   'qr.recv.unknownFormat': 'QR 形式が認識できません',
   'qr.recv.wrongKind': 'これは {label} ではありません（kind={got}）',
   'qr.recv.duplicate': '重複: {got}/{total} 受信済',
@@ -320,7 +315,7 @@ export const STRINGS_JA = {
     '他の端末で共有された QR（設定全体 / セット / フォーマット）を読み取って追加します。',
   'qrReceive.title': 'QR から追加',
   'qrReceive.overlayHint':
-    'カメラで読み取るか、コピーした QR の中身を下に貼り付けて「QR として読む」を押してください。設定全体 / セット / フォーマット を自動で見分けます。複数ページのときは 1 つずつ読み込みます。',
+    'カメラで QR を読み取ります。設定全体 / セット / フォーマット を自動で見分けます。複数ページのときは 1 つずつ読み込みます。',
   'qr.recv.router.notAllowed':
     'この入口では 設定 / セット / フォーマット の QR のみ読めます（kind={got}）',
   'qr.recv.save.failed':
@@ -393,11 +388,10 @@ export const STRINGS_JA = {
   'io.snapshot.purge.deferred':
     '巻き戻し履歴の一部を今すぐ消せませんでした（他のタブが開いている可能性があります）。次回の起動時に自動で消去を再試行します。',
 
-  // 設定: 病棟 (一覧 + 切替。改名/削除/追加は WsPicker)
+  // 設定: 病棟 (一覧・切替・改名・削除・追加をこの場で直接行う)
   'settings.ward.hint':
-    '現在の病棟と切替の一覧です。タップで切り替えます。名前変更・追加・削除は「病棟を管理」から行えます。',
+    '病棟の一覧です。タップで切り替え、鉛筆で名前を変更、ゴミ箱で削除（現在の病棟は削除不可）、下のボタンで追加できます。',
   'settings.ward.current': '現在の病棟',
-  'settings.ward.manage': '病棟を管理',
 
   // 病棟ピッカー (rename/delete を含む)
   'wsPicker.title': '病棟',

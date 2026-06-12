@@ -152,13 +152,20 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   color: var(--muted);
 }
 
-/* ── view 共通ツールバー ── */
+/* ── view 共通ツールバー ──
+   Ver1 .detailTop 同様、ヘッダー直下へ sticky で貼り付く (全画面共通)。
+   --hr-header-h は App.tsx がヘッダー実測高からセットする。 */
 .viewToolbar {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-3);
+  position: sticky;
+  top: var(--hr-header-h, 56px);
+  z-index: 9;
+  background: var(--bg);
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-2);
 }
 
 .viewToolbarSpacer {
@@ -191,7 +198,8 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 21px;
+  /* 老眼対策: ボタンの大きさに見合う文字サイズ (Ver1 21px から底上げ) */
+  font-size: 25px;
   font-weight: 800;
   color: var(--text);
   touch-action: pan-y;
@@ -199,6 +207,39 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   word-break: break-word;
   text-align: center;
   padding: var(--space-2) var(--space-3);
+}
+
+/* ── ホーム患者カード行: 大ボタン + 右端に埋め込み QR ボタン ──
+   (simple-ledger-v2 の行内アクション方式: 行全体タップ = 詳細、右端ボタン = QR) */
+.patientCardRow {
+  position: relative;
+  display: flex;
+}
+
+.patientCardRow .patientBtn {
+  width: 100%;
+  padding-right: 76px; /* 右端の QR ボタン領域を空ける */
+}
+
+.patientQrBtn {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.patientQrBtn:active {
+  transform: translateY(-50%) scale(0.96);
 }
 
 .patientBtn:active {
@@ -812,12 +853,12 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 .memoNoBtn {
   position: relative;
   align-self: flex-start;
-  min-height: 38px;
+  min-height: var(--hr-cell-h);
   border-radius: var(--radius-sm);
   border: 1px solid var(--status-none-bd);
   background: var(--status-none-bg);
   font-weight: 800;
-  font-size: 14px;
+  font-size: 16px;
   padding: 4px 12px 4px 24px;
 }
 
@@ -841,22 +882,10 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   min-width: 0;
 }
 
+/* 行本文 = その場で編集できるエディタ (ProblemListEditor / FormatItemsEditor) */
 .memoRowBody {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  cursor: pointer;
   border-radius: var(--radius-sm);
-  padding: 4px;
-  font-size: var(--hr-label-font);
-  line-height: 1.5;
-}
-
-.memoRowBody:hover {
-  background: var(--primary-light);
-}
-
-.memoRowBody.empty {
-  color: var(--muted);
+  padding: 4px 0;
 }
 
 /* ── 受信ボックス ── */
@@ -912,20 +941,12 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   image-rendering: pixelated;
 }
 
-.qrTextRecv {
-  margin-top: var(--space-2);
-}
-
-.qrTextRecvArea {
-  width: 100%;
-}
-
-.qrTextRecvActions {
+/* 設定「QR から追加」(カメラ受信のみ。貼り付け受信は撤去済み) */
+.qrReceiveActions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  justify-content: flex-end;
-  margin-top: var(--space-1);
+  margin: var(--space-2) 0;
 }
 
 .qrRecvStatus {
@@ -1076,6 +1097,7 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 
 .pickerRowLabel {
   font-weight: 600;
+  font-size: 16px;
 }
 
 .pickerRowMeta {
@@ -1285,7 +1307,7 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 
 .formatListName {
   flex: 1;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -1469,5 +1491,5 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
 }
 
 .addPatientBtnLabel {
-  font-size: 13px;
+  font-size: 15px;
 }

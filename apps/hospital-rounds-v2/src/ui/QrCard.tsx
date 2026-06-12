@@ -1,8 +1,9 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-flow.js の表示/受信 UI 部
 //          (フロー制御は foundation qr/useQrFlow、描画は qr/render に分離済み)
 //
-// HM/MM/SH/ST 共通の QR 表示: canvas 描画 + ページナビ + カメラ scan + テキスト受信。
+// HM/MM/SH/ST 共通の QR 表示: canvas 描画 + ページナビ + カメラ scan。
 // 受信ステータス文言 (progress/duplicate/wrongKind 等) はここで i18n に変換する。
+// テキスト貼り付け受信 (RND_… 貼付) は PWA 以前の遺残として撤去済み (2026-06)。
 //
 // 表示は患者詳細 QR (DetailQrDialog) と同じく Modal ポップアップに統一する (QrDialog)。
 // overlay 登録により端末の「戻る」は QR だけを閉じる (画面遷移・終了確認に流れない)。
@@ -14,7 +15,6 @@ import { isScannerSupported, scanQrStream } from '@snishi/foundation/qr/scan';
 import { Modal } from '@snishi/foundation/ui/Modal';
 import { IconButton } from '@snishi/foundation/ui/IconButton';
 import { Icon } from '@snishi/foundation/ui/Icon';
-import { Button } from '@snishi/foundation/ui/Button';
 import { useToast } from '@snishi/foundation/ui/toast';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -96,7 +96,6 @@ export function QrCardBody({ flow, kindLabel, receivable = true, showClose = tru
   const [drawError, setDrawError] = useState('');
   const [recvStatus, setRecvStatus] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
-  const [pasteText, setPasteText] = useState('');
 
   const page = flow.pages[flow.pageIndex] ?? '';
   const total = flow.pages.length;
@@ -118,17 +117,12 @@ export function QrCardBody({ flow, kindLabel, receivable = true, showClose = tru
     return () => clearTimeout(timer);
   }, [page]);
 
-  async function receive(text: string, opts: { fromPaste: boolean }): Promise<void> {
+  async function receive(text: string): Promise<void> {
     const raw = String(text || '').trim();
-    if (!raw) {
-      setRecvStatus(t('qr.recv.text.empty'));
-      return;
-    }
+    if (!raw) return;
     try {
       const res = await flow.receivePage(raw);
       setRecvStatus(receiveStatusText(res, kindLabel));
-      // consumed=false (形式不一致・kind 違い) は入力欄を消さない (v1 準拠)
-      if (opts.fromPaste && res.consumed) setPasteText('');
       if (res.done) setScanOpen(false);
     } catch (e) {
       // 復号失敗・パース失敗: onApply に到達させず中断 (fail-closed)。ユーザーへ可視化。
@@ -180,31 +174,15 @@ export function QrCardBody({ flow, kindLabel, receivable = true, showClose = tru
       </div>
       <canvas ref={canvasRef} className="qrCanvas" data-ui={UI.qr.canvas} />
       {drawError ? <p className="dangerText">{drawError}</p> : null}
-      {receivable ? (
-        <div className="qrTextRecv">
-          <textarea
-            className="textarea qrTextRecvArea"
-            rows={2}
-            placeholder={t('qr.recv.text.placeholder')}
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            data-ui={UI.qr.recvText}
-            aria-label={t('qr.recv.text.read')}
-          />
-          <div className="qrTextRecvActions">
-            <span className="qrRecvStatus" aria-live="polite" data-ui={UI.qr.recvStatus}>
-              {recvStatus}
-            </span>
-            <Button onClick={() => void receive(pasteText, { fromPaste: true })} dataUi={UI.qr.recvRead}>
-              {t('qr.recv.text.read')}
-            </Button>
-          </div>
-        </div>
+      {receivable && recvStatus ? (
+        <p className="qrRecvStatus" aria-live="polite" data-ui={UI.qr.recvStatus}>
+          {recvStatus}
+        </p>
       ) : null}
       {scanOpen ? (
         <ScanDialog
           status={recvStatus}
-          onText={(text) => void receive(text, { fromPaste: false })}
+          onText={(text) => void receive(text)}
           onClose={() => setScanOpen(false)}
         />
       ) : null}

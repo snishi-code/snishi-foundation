@@ -1,13 +1,15 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/views/memo.js + shared-list.js
 //          + features/qr-shared.js (MM/SH フロー) + 受信ボックス (index.html #memoPasteCard 等)
 //
-// プロブレムリスト (panel=problem / MM) と共有 (panel=shared / SH) の一覧。構造は同一なので
+// プロブレムリスト (MM) と共有 (panel=shared / SH) の一覧。構造は同一なので
 // 1 コンポーネントに集約する:
-//   - 行 = 患者見出しボタン (タップで詳細へ) + 該当パネルの合成本文 (タップで詳細へ)
+//   - 行 = 患者見出しボタン (タップで詳細へ) + **その場で編集できる本文**
+//     (2026-06 フィードバック: 患者画面へ飛ばずこの画面で操作する。
+//      memo = ProblemListEditor / shared = FormatItemsEditor — 患者画面の該当領域の抜き出し)
 //   - 鉛筆編集モード: 部屋/氏名のインライン編集。編集中は自動部屋順ソートを止め、
 //     Back 1 回 = 編集解除のみ (useRegisterEditing → useAppHistory.isEditing)
 //   - 受信ボックス (recvMemo / recvShared。病棟単位で永続化)
-//   - MM/SH QR カード: 送信 = content がある患者のみ / 受信 = 受信ボックスへ整形 dump のみ
+//   - MM/SH QR: 送信 = content がある患者のみ / 受信 = 受信ボックスへ整形 dump のみ
 //     (患者欄への自動マッチング反映はしない — 上書き事故ゼロ)
 
 import { useEffect, useState } from 'react';
@@ -26,6 +28,8 @@ import { Popup } from '@snishi/foundation/ui/Popup';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, sanitizeRoomInput, statusClass, STATUS_MARK } from './patientDisplay';
 import { QrDialog } from './QrCard';
+import { ProblemListEditor } from './ProblemListCard';
+import { FormatItemsEditor } from './FormatItemsEditor';
 import { TagFilterPicker, TagSelection } from './TagPicker';
 import { patientMatchesSharedFilter } from './tags';
 import { OverlayBinding, useRegisterEditing, useRegisterOverlay } from './registries';
@@ -90,8 +94,6 @@ const CONF = {
     recvKey: 'recvMemo',
     kindLabelKey: 'qr.kind.memo',
     qrShowKey: 'memo.qr.show',
-    rowEmptyKey: 'memo.row.empty',
-    rowOpenAriaKey: 'memo.row.openAria',
   },
   shared: {
     panel: 'shared',
@@ -99,8 +101,6 @@ const CONF = {
     recvKey: 'recvShared',
     kindLabelKey: 'qr.kind.shared',
     qrShowKey: 'shared.qr.show',
-    rowEmptyKey: 'shared.row.empty',
-    rowOpenAriaKey: 'shared.row.openAria',
   },
 } as const;
 
@@ -118,7 +118,6 @@ export function MemoSharedView({
   const revision = useRevision(runtime);
   const { store } = runtime;
   const appState = store.getAppState();
-  const settings = store.getSettings();
 
   const [editMode, setEditMode] = useState(false);
   const [recvOpen, setRecvOpen] = useState(false);
@@ -250,10 +249,6 @@ export function MemoSharedView({
           if (!patientMatchesSharedFilter(p)) return null;
           const no = idx + 1;
           const label = formatPatientLabel(p, String(no));
-          const composed =
-            kind === 'memo'
-              ? composeProblemAreaText(p, settings)
-              : composeExpandedForPanel(conf.panel, p.formatValues, settings);
           return (
             <div key={p.pid} className={`memoRow ${editMode ? 'edit' : 'read'}`} data-ui={UI.list.row}>
               {editMode ? (
@@ -317,19 +312,13 @@ export function MemoSharedView({
                   {label}
                 </button>
               )}
-              <div
-                className={`memoRowBody${composed ? '' : ' empty'}`}
-                role="button"
-                tabIndex={0}
-                title={t(conf.rowOpenAriaKey)}
-                aria-label={t(conf.rowOpenAriaKey)}
-                data-ui={UI.list.rowBody}
-                onClick={() => onOpenPatient(no)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') onOpenPatient(no);
-                }}
-              >
-                {composed || t(conf.rowEmptyKey)}
+              {/* その場で編集 (患者画面の該当領域の抜き出し)。患者は pid で捕捉 */}
+              <div className="memoRowBody" data-ui={UI.list.rowBody}>
+                {kind === 'memo' ? (
+                  <ProblemListEditor runtime={runtime} pid={p.pid} />
+                ) : (
+                  <FormatItemsEditor runtime={runtime} pid={p.pid} panel="shared" />
+                )}
               </div>
             </div>
           );

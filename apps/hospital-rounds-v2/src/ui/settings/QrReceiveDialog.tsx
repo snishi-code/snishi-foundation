@@ -10,8 +10,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '@snishi/foundation/ui/Modal';
 import { Button } from '@snishi/foundation/ui/Button';
-import { IconButton } from '@snishi/foundation/ui/IconButton';
-import { Icon } from '@snishi/foundation/ui/Icon';
 import { ConfirmDialog } from '@snishi/foundation/ui/ConfirmDialog';
 import { useToast } from '@snishi/foundation/ui/toast';
 import { useQrFlow, type QrFlow, type ReceiveResult } from '@snishi/foundation/qr/useQrFlow';
@@ -100,7 +98,6 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
   const toast = useToast();
   const { store } = runtime;
   const [status, setStatus] = useState('');
-  const [pasteText, setPasteText] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
@@ -145,12 +142,9 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
   const flowByKind: Record<string, QrFlow> = { ST: stFlow, FMT: fmtFlow, FS: fsFlow };
 
   // 生 QR テキスト 1 ページを kind 判定して該当フローへ (v1 routePage)。
-  async function route(text: string, opts: { fromPaste: boolean }): Promise<void> {
+  async function route(text: string): Promise<void> {
     const raw = String(text || '').trim();
-    if (!raw) {
-      setStatus(t('qr.recv.text.empty'));
-      return;
-    }
+    if (!raw) return;
     const decoded = decodePage(raw);
     if (!decoded) {
       setStatus(t('qr.recv.unknownFormat'));
@@ -171,7 +165,6 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
             ? t('qr.kind.format')
             : t('qr.kind.set');
       setStatus(receiveStatusText(res, label));
-      if (opts.fromPaste && res.consumed) setPasteText('');
       if (res.done) setScanOpen(false); // 全ページ受信 → 確認ダイアログへ (onApply 済)
     } catch (e) {
       // 復号失敗・パース失敗: fail-closed で中断 + 可視化
@@ -213,40 +206,22 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
       closeLabel={t('common.close')}
     >
       <p className="muted">{t('qrReceive.overlayHint')}</p>
-      <div className="qrTextRecv">
-        <textarea
-          className="textarea qrTextRecvArea"
-          rows={3}
-          placeholder={t('qr.recv.text.placeholder')}
-          value={pasteText}
-          onChange={(e) => setPasteText(e.target.value)}
-          data-ui={UI.settings.qrReceiveArea}
-          aria-label={t('qr.recv.text.read')}
-        />
-        <div className="qrTextRecvActions">
-          <span className="qrRecvStatus" aria-live="polite">
-            {status}
-          </span>
-          <IconButton
-            label={t('qr.scan.tooltip')}
-            onClick={() => setScanOpen(true)}
-            disabled={!isScannerSupported()}
-            title={isScannerSupported() ? undefined : t('qr.scanner.unsupported')}
-          >
-            <Icon name="scan" size={18} />
-          </IconButton>
-          <Button onClick={() => void route(pasteText, { fromPaste: true })} dataUi={UI.settings.qrReceiveRead}>
-            {t('qr.recv.text.read')}
-          </Button>
-        </div>
+      <div className="qrReceiveActions">
+        <Button
+          onClick={() => setScanOpen(true)}
+          disabled={!isScannerSupported()}
+          title={isScannerSupported() ? undefined : t('qr.scanner.unsupported')}
+          dataUi={UI.settings.qrReceiveScan}
+        >
+          {t('qr.scan.tooltip')}
+        </Button>
+        <span className="qrRecvStatus" aria-live="polite">
+          {status}
+        </span>
       </div>
 
       {scanOpen ? (
-        <ScanDialog
-          status={status}
-          onText={(text) => void route(text, { fromPaste: false })}
-          onClose={() => setScanOpen(false)}
-        />
+        <ScanDialog status={status} onText={(text) => void route(text)} onClose={() => setScanOpen(false)} />
       ) : null}
 
       {pending ? <OverlayBinding onClose={() => setPending(null)} /> : null}

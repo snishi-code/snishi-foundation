@@ -25,8 +25,10 @@ import {
   type Format,
   type FormatGroup,
   type FormatPanel,
+  type Patient,
   type PatientStatus,
 } from '../../domain/types';
+import { SECTION, getSection } from '../../data/bundle';
 import { normalizePatientArray } from '../../domain/normalize';
 import { formatRemovalBreaksAnyGroupExpand } from '../../domain/formatValues';
 import { encodeSettingsPayload } from '../../qr/settingsQr';
@@ -40,7 +42,6 @@ import { QrDialog } from '../QrCard';
 import { AddTagWidget } from '../TagPicker';
 import { deleteTagAt, renameTagAt } from '../tags';
 import { OverlayBinding } from '../registries';
-import { WsPicker } from '../pickers/WsPicker';
 import { FormatEditDialog } from './FormatEditDialog';
 import { FormatGroupEditDialog } from './FormatGroupEditDialog';
 import { QrReceiveDialog } from './QrReceiveDialog';
@@ -968,16 +969,28 @@ function UserSection({ runtime }: { runtime: AppRuntime }) {
 }
 
 // ============================
-// 病棟 (P2: 設定画面でも現在の病棟を認識・切替・管理できる導線。Ver1 settings-view の
-// 病棟管理節を参考に、一覧 + 切替はここで、改名/削除/追加は WsPicker に集約したまま開く)
+// 病棟 (設定画面内で一覧・切替・改名・削除・追加まで直接行う — 2026-06 フィードバック:
+// ポップアップへの二度手間をやめる。Ver1 settings-view の病棟管理節準拠。
+// 削除前にその病棟の REASON.DELETE スナップショット (14日 TTL) を控える = WsPicker と同じ)
 // ============================
+
+interface WardRow {
+  id: string;
+  label: string;
+  title: string;
+  updatedAt: number;
+}
 
 function WardSection({ runtime }: { runtime: AppRuntime }) {
   const toast = useToast();
   const revision = useRevision(runtime);
   const { store } = runtime;
-  const [wards, setWards] = useState<Array<{ id: string; label: string; updatedAt: number }> | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [wards, setWards] = useState<WardRow[] | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addDraft, setAddDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<WardRow | null>(null);
   const [busy, setBusy] = useState(false);
 
   const activeId = store.storage.getActiveWorkspaceId();
@@ -994,7 +1007,8 @@ function WardSection({ runtime }: { runtime: AppRuntime }) {
       setWards(
         sorted.map((w) => ({
           id: w.id,
-          label: w.label || w.title || '',
+          label: w.label || '',
+          title: w.title || '',
           updatedAt: w.updatedAt || 0,
         })),
       );
@@ -1017,6 +1031,60 @@ function WardSection({ runtime }: { runtime: AppRuntime }) {
     }
   }
 
+  async function commitRename(row: WardRow): Promise<void> {
+    const next = renameDraft.trim();
+    setRenamingId(null);
+    if (!next || next === (row.label || '')) return;
+    try {
+      await store.storage.renameBundle(row.id, next);
+      runtime.bump(); // active 改名時のヘッダーラベル同期 + 一覧再取得 (revision)
+    } catch (e) {
+      console.error('ws rename failed:', e);
+      toast.show(t('io.ws.rename.failed'), 'error');
+    }
+  }
+
+  async function commitAdd(): Promise<void> {
+    const label = addDraft.trim();
+    setAdding(false);
+    setAddDraft('');
+    if (!label || busy) return;
+    setBusy(true);
+    try {
+      // fail-closed: 現病棟の保存に失敗したら createWorkspace が throw → 作成中断
+      await store.createWorkspace(label);
+    } catch (e) {
+      console.error('workspace create failed:', e);
+      toast.show(t('io.ws.create.failed'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 削除: 削除前にその病棟の患者を REASON.DELETE スナップショットへ控える (14日 TTL の復旧網)
+  async function runDelete(row: WardRow): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const bundle = await store.storage.loadBundle(row.id);
+      const patients = bundle ? ((getSection(bundle, SECTION.PATIENTS) as Patient[]) ?? []) : [];
+      await runtime.snapshots.capture(
+        REASON.DELETE,
+        row.id,
+        { title: row.title || row.label || '', patients: Array.isArray(patients) ? patients : [] },
+        String(countActivePatients(Array.isArray(patients) ? patients : [])),
+      );
+      await store.storage.deleteBundle(row.id);
+      runtime.bump();
+    } catch (e) {
+      console.error('workspace delete failed:', e);
+      toast.show(t('io.ws.delete.failed'), 'error');
+    } finally {
+      setBusy(false);
+      setDeleteTarget(null);
+    }
+  }
+
   return (
     <div className="card card--pad settingsSection">
       <div className="section-label">{t('settings.title.workspaces')}</div>
@@ -1029,27 +1097,114 @@ function WardSection({ runtime }: { runtime: AppRuntime }) {
           const isCurrent = w.id === activeId;
           return (
             <div key={w.id} className={`formatListRow${isCurrent ? ' activeRow' : ''}`} data-ui={UI.settings.wardRow}>
-              <button
-                type="button"
-                className="pickerRowMain"
-                disabled={busy || isCurrent}
-                onClick={() => void switchTo(w.id)}
-              >
-                <span className="pickerRowLabel">{w.label || t('io.ws.untitled')}</span>
-                <span className="pickerRowMeta">
-                  {isCurrent ? t('settings.ward.current') : fmtTimestamp(w.updatedAt)}
-                </span>
-              </button>
+              {renamingId === w.id ? (
+                <input
+                  className="input pickerRenameInput"
+                  type="text"
+                  value={renameDraft}
+                  autoComplete="off"
+                  aria-label={t('io.ws.rename.title')}
+                  // 明示的な rename クリック後の単一入力 (中央ルールの明示経路)
+                  autoFocus
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={() => void commitRename(w)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void commitRename(w);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setRenamingId(null);
+                    }
+                  }}
+                />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="pickerRowMain"
+                    disabled={busy || isCurrent}
+                    onClick={() => void switchTo(w.id)}
+                  >
+                    <span className="pickerRowLabel">{w.label || t('io.ws.untitled')}</span>
+                    <span className="pickerRowMeta">
+                      {isCurrent ? t('settings.ward.current') : fmtTimestamp(w.updatedAt)}
+                    </span>
+                  </button>
+                  <span className="formatListActions">
+                    <IconButton
+                      label={t('io.ws.rename.title')}
+                      dataUi={UI.settings.wardRename}
+                      onClick={() => {
+                        setRenamingId(w.id);
+                        setRenameDraft(w.label || w.title || '');
+                      }}
+                    >
+                      <Icon name="edit" size={16} />
+                    </IconButton>
+                    {/* active 病棟は削除不可 (storage 側でも防御) */}
+                    {!isCurrent ? (
+                      <IconButton
+                        label={t('common.delete')}
+                        dataUi={UI.settings.wardDelete}
+                        onClick={() => setDeleteTarget(w)}
+                      >
+                        <Icon name="delete" size={16} />
+                      </IconButton>
+                    ) : null}
+                  </span>
+                </>
+              )}
             </div>
           );
         })}
       </div>
       <div className="settingsRowActions">
-        <Button dataUi={UI.settings.wardManage} onClick={() => setPickerOpen(true)}>
-          {t('settings.ward.manage')}
-        </Button>
+        {adding ? (
+          <input
+            className="input pickerAddInput"
+            type="text"
+            value={addDraft}
+            placeholder={t('io.ws.create.placeholder')}
+            autoComplete="off"
+            aria-label={t('io.ws.create.action')}
+            autoFocus
+            onChange={(e) => setAddDraft(e.target.value)}
+            onBlur={() => void commitAdd()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void commitAdd();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setAdding(false);
+                setAddDraft('');
+              }
+            }}
+          />
+        ) : (
+          <Button dataUi={UI.settings.wardAdd} onClick={() => setAdding(true)}>
+            {t('io.ws.create.action')}
+          </Button>
+        )}
       </div>
-      {pickerOpen ? <WsPicker runtime={runtime} onClose={() => setPickerOpen(false)} /> : null}
+
+      {deleteTarget ? <OverlayBinding onClose={() => setDeleteTarget(null)} /> : null}
+      {deleteTarget ? (
+        <ConfirmDialog
+          title={t('common.delete')}
+          body={t('io.ws.delete.confirm', { name: deleteTarget.label || t('io.ws.untitled') })}
+          confirmLabel={t('common.delete')}
+          cancelLabel={t('common.cancel')}
+          danger
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            const target = deleteTarget;
+            setDeleteTarget(null);
+            if (target) void runDelete(target);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

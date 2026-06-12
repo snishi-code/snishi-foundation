@@ -29,6 +29,7 @@ import { APP_KEY_BYTES } from '../qr/appKey';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, statusClass, STATUS_MARK } from './patientDisplay';
 import { QrDialog } from './QrCard';
+import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
 import { TagFilterPicker } from './TagPicker';
 import { patientMatchesSharedFilter } from './tags';
@@ -64,6 +65,8 @@ export function HomeView({
   // 患者追加直後に開く編集ポップアップの対象 (部屋番号入力でソートされても取り違えない
   // よう index でなく pid で捕捉する — v1 add-patient.js の patient取り違え防止)
   const [addPid, setAddPid] = useState<string | null>(null);
+  // 患者カード右端の埋め込み QR ボタンで開く電子カルテ転記 QR の対象 (pid 捕捉)
+  const [qrPid, setQrPid] = useState<string | null>(null);
 
   const trash = isTrashActive(store);
 
@@ -219,21 +222,39 @@ export function HomeView({
           const label = formatPatientLabel(p, String(no));
           const cls = statusClass(p.status);
           return (
-            <button
-              key={p.pid}
-              type="button"
-              className={`patientBtn ${cls}`}
-              aria-label={label}
-              data-ui={UI.patient.card}
-              onClick={() => onOpenPatient(no)}
-            >
-              {p.status && p.status !== STATUS.NONE ? (
-                <span className="patientBtnMark" aria-hidden="true">
-                  {STATUS_MARK[p.status]}
-                </span>
+            <div key={p.pid} className="patientCardRow">
+              <button
+                type="button"
+                className={`patientBtn ${cls}`}
+                aria-label={label}
+                data-ui={UI.patient.card}
+                onClick={() => onOpenPatient(no)}
+              >
+                {p.status && p.status !== STATUS.NONE ? (
+                  <span className="patientBtnMark" aria-hidden="true">
+                    {STATUS_MARK[p.status]}
+                  </span>
+                ) : null}
+                {label}
+              </button>
+              {/* 埋め込み QR: ホームから直接その患者の電子カルテ転記 QR を出す */}
+              {!trash ? (
+                <button
+                  type="button"
+                  className="patientQrBtn"
+                  title={t('home.patientQr.title')}
+                  aria-label={t('home.patientQr.aria', { label })}
+                  data-ui={UI.home.patientQr}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    runtime.eventlog.log(EVENT.QR_SHOW, { kind: 'TAB' });
+                    setQrPid(p.pid);
+                  }}
+                >
+                  <Icon name="qr" size={22} />
+                </button>
               ) : null}
-              {label}
-            </button>
+            </div>
           );
         })}
         {trash && !appState.patients.some(isPatientDeleted) ? (
@@ -275,6 +296,17 @@ export function HomeView({
           onConfirm={() => void runClear()}
         />
       ) : null}
+
+      {qrPid != null
+        ? (() => {
+            // 患者は pid で引き直す (並び替えで別患者の QR を出さない)
+            const target = appState.patients.find((x) => x.pid === qrPid);
+            if (!target) return null;
+            return (
+              <DetailQrDialog patient={target} settings={store.getSettings()} onClose={() => setQrPid(null)} />
+            );
+          })()
+        : null}
 
       {addPid != null
         ? (() => {

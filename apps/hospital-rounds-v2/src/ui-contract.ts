@@ -19,6 +19,7 @@ export const UI = {
     start: 'home.start',
     grid: 'home.grid',
     addPatient: 'home.addPatient',
+    patientQr: 'home.patientQr',
   },
   patient: {
     card: 'patient.card',
@@ -70,8 +71,6 @@ export const UI = {
     prev: 'qr.prev',
     next: 'qr.next',
     scan: 'qr.scan',
-    recvText: 'qr.recv.text',
-    recvRead: 'qr.recv.read',
     recvStatus: 'qr.recv.status',
   },
   recv: {
@@ -122,8 +121,7 @@ export const UI = {
     qrShow: 'settings.qr.show',
     qrReceiveOpen: 'settings.qr.receiveOpen',
     qrReceiveDialog: 'settings.qr.receiveDialog',
-    qrReceiveArea: 'settings.qr.receiveArea',
-    qrReceiveRead: 'settings.qr.receiveRead',
+    qrReceiveScan: 'settings.qr.receiveScan',
     ioImport: 'settings.io.import',
     ioExport: 'settings.io.export',
     ioDeviceImport: 'settings.io.deviceImport',
@@ -140,7 +138,9 @@ export const UI = {
     userDelete: 'settings.users.delete',
     wardList: 'settings.wards.list',
     wardRow: 'settings.wards.row',
-    wardManage: 'settings.wards.manage',
+    wardRename: 'settings.wards.rename',
+    wardDelete: 'settings.wards.delete',
+    wardAdd: 'settings.wards.add',
   },
   picker: {
     userDialog: 'picker.user.dialog',

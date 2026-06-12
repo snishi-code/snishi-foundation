@@ -108,6 +108,22 @@ function AppShell({ runtime }: { runtime: AppRuntime }) {
     return () => runtime.setSaveErrorHandler(null);
   }, [runtime, toast]);
 
+  // ヘッダー実測高を CSS 変数へ (v1 main.js の --headerH 相当)。各 view の上部ツールバー
+  // (.viewToolbar) がヘッダー直下へ sticky で貼り付くための基準値。内容 wrap で高さが
+  // 変わるので ResizeObserver で追従する。
+  useEffect(() => {
+    if (!ready) return;
+    const el = document.querySelector('.app-header');
+    if (!el) return;
+    const set = () =>
+      document.documentElement.style.setProperty('--hr-header-h', `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    set();
+    if (typeof ResizeObserver === 'undefined') return; // jsdom 等は初期値のみ
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ready]);
+
   // ── スクロール体験 (P1):
   //   - ホーム一覧の位置は「患者詳細へ行って戻るだけ」なら保持する (openPatient で控え、
   //     home へ戻った描画後に復元)。明示的なホーム遷移 (ヘッダー/メニュー) はトップから。

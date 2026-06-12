@@ -160,6 +160,15 @@ export function DetailView({
     s.dirty = true;
   }
 
+  // number/fraction 常時入力欄の Undo セッション (フォーカスごとに 1 回だけ capture)
+  const numericRef = useRef<{
+    formatId: string;
+    i: number;
+    openPid: string | null;
+    orig: unknown;
+    captured: boolean;
+  } | null>(null);
+
   const cb: PanelCardCallbacks = {
     onEnterInline(format, item, i) {
       if (!freshTapRef.current || !patient) return;
@@ -218,6 +227,45 @@ export function DetailView({
     onOpenSheet(format) {
       if (!freshTapRef.current) return;
       setSheetFormat(format);
+    },
+    onNumericFocus(format, i) {
+      if (!patient) return;
+      const slot = patient.formatValues?.[format.id];
+      const stored: Record<string, unknown> = slot && typeof slot === 'object' ? slot : {};
+      numericRef.current = {
+        formatId: format.id,
+        i,
+        openPid: patient.pid ?? null,
+        orig: stored[String(i)],
+        captured: false,
+      };
+    },
+    onNumericWrite(format, _item, i, value) {
+      const p = store.getAppState().patients[selectedNo - 1];
+      if (!p) return;
+      const liveSettings = store.getSettings();
+      const s = numericRef.current;
+      const session =
+        s && s.formatId === format.id && s.i === i && s.openPid === (p.pid ?? null) ? s : null;
+      if (!session || !session.captured) {
+        // フォーカスセッション内の最初の実変更で 1 回だけ Undo 起点 + 自動付与タグ
+        const slot = p.formatValues?.[format.id];
+        const orig = session
+          ? session.orig
+          : slot && typeof slot === 'object'
+            ? (slot as Record<string, unknown>)[String(i)]
+            : undefined;
+        const a = readNumericEntry(value);
+        const b = readNumericEntry(orig);
+        if (a.value === b.value && a.note === b.note) return; // 実変更なし → 何も書かない
+        undo.capture(p, 'format', { tagsAdded: formatTagsToAdd(format, p, liveSettings) });
+        writeFormatValue(store, p, selectedNo, format, i, value);
+        applyFormatTags(format, p, liveSettings);
+        if (session) session.captured = true;
+        setUndoTick((n) => n + 1);
+        return;
+      }
+      writeFormatValue(store, p, selectedNo, format, i, value);
     },
   };
 
@@ -290,7 +338,7 @@ export function DetailView({
       ) : null}
 
       {/* problem パネルはフォーマットではなく患者ごとの独立データ (ProblemListCard) */}
-      <ProblemListCard runtime={runtime} patient={patient} patientNo={selectedNo} />
+      <ProblemListCard runtime={runtime} patient={patient} />
       {FORMAT_PANELS.filter((panel) => panel !== 'problem').map((panel) => (
         <PanelCard key={panel} panel={panel} patient={patient} settings={settings} inline={inlineForRender} cb={cb} />
       ))}
