@@ -1,8 +1,7 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/store.js L40-434 (正規化部の忠実移植)
 //
-// 方針 (v1 から不変): **型不一致 → デフォルトに倒す + 未知フィールド温存 = forward compat**。
-// 旧バージョンが新版で追加されたフィールドを読み戻し→再保存する経路で未知フィールドが
-// 消失しないよう、known フィールドだけを validation 付きで上書きし、残りはそのまま持ち越す。
+// 方針: **型不一致 → デフォルトに倒す**。v2 は後方互換不要 (開発者のみ使用)。
+// 未知フィールドは破棄し、明示フィールドのみで正規化結果を組み立てる。
 
 import {
   DEFAULT_CLEAR_TARGETS,
@@ -12,8 +11,6 @@ import {
   DEFAULT_LABEL_SEP_OTHER,
   DEFAULT_LABEL_SEP_TEXT,
   DEFAULT_PATIENT_COUNT,
-  DEFAULT_QR_ENCRYPTION,
-  DEFAULT_QR_REDISTRIBUTION,
   DEFAULT_TAGS,
   DEFAULT_APP_TITLE,
   FORMAT_ITEM_KINDS,
@@ -122,10 +119,6 @@ export function defaultSettings(): Settings {
     // DEFAULT_TAGS は defaults.json の string[] → TagDef[] に変換する
     tags: migrateLegacyTagList(DEFAULT_TAGS),
     deviceId: '',
-    // QR セキュリティ: kind 別の暗号化フラグ ("HM" → true/false)
-    qrEncryption: clone(DEFAULT_QR_ENCRYPTION) as Settings['qrEncryption'],
-    // QR 受信したデータの再配布制限: kind 別 ("restricted" | "free")
-    qrRedistribution: clone(DEFAULT_QR_REDISTRIBUTION) as Settings['qrRedistribution'],
   };
 }
 
@@ -277,19 +270,13 @@ export function hasBackfilledDefaultFormats(raw: unknown, normalized: Settings):
 export function normalizeSettings(raw: unknown): Settings {
   const out = defaultSettings();
   if (!isRecord(raw)) return out;
-  // 未知フィールド温存 (forward compatibility): 旧バージョンが新版で追加されたフィールドを
-  // 読んだ時に消失しないように、out に無いキーは raw からそのまま持ち越す。
-  // 既知フィールドは下で validation + デフォルト補完されて上書きされる。
-  for (const k of Object.keys(raw)) {
-    if (!(k in out)) (out as Record<string, unknown>)[k] = raw[k];
-  }
   // formats: 新規登録された設定。空または欠落ならデフォルトを採用。
   if (Array.isArray(raw.formats)) {
     const cleaned = raw.formats.map(normalizeFormat).filter((f): f is Format => !!f);
     if (cleaned.length) out.formats = cleaned;
   }
   if (isRecord(raw.clearTargets)) {
-    // clearTargets は panel キー (problem/S/O/A/P/shared) + statusXxx。
+    // clearTargets は panel キー (S/O/A/P) + statusXxx。
     // 各 panel は FORMAT_PANELS から、status は固定キーから validation する。
     const ct = raw.clearTargets;
     out.clearTargets = {};
@@ -342,12 +329,6 @@ export function normalizeSettings(raw: unknown): Settings {
     // 再構築 (= 必ず 1 つ存在の不変条件)。
     out.formatGroups = makeDefaultFormatGroups(out.formats);
   }
-  // QR セキュリティ: v1 authority (qr-protocol.js) と同じくコード内固定で常時動作させる。
-  // ユーザー設定 UI には露出しない (v1 v7.1+ と同方針)。保存データに旧 UI 由来の値が
-  // 残っていても、ここで常にデフォルト (全 kind 暗号化 ON / HM・MM のみ再配布制限) に
-  // 正規化する。患者画面の電子カルテ転記用 QR はこのマトリクス外 (常に平文)。
-  out.qrEncryption = clone(DEFAULT_QR_ENCRYPTION) as Settings['qrEncryption'];
-  out.qrRedistribution = clone(DEFAULT_QR_REDISTRIBUTION) as Settings['qrRedistribution'];
   // 各パネルに既定フォーマットカードを常設する補完 (formats + formatGroups が確定した後に実行)。
   backfillPanelDefaults(out);
   // 修正1: 各グループが「含むパネル」で展開フォーマットを最低 1 つ持つよう補修する。
@@ -382,8 +363,6 @@ export function makeDefaultPatient(): Patient {
     deletedFromWorkspaceLabel: '',
     activeFormatGroupId: '',
     formatValues: {},
-    problems: [],
-    origin: '',
   };
 }
 
@@ -410,8 +389,6 @@ export function isPatientEmpty(p: Patient | null | undefined): boolean {
       }
     }
   }
-  // プロブレムリスト (患者ごとの独立データ) に入力があれば空ではない
-  if (Array.isArray(p.problems) && p.problems.some((x) => String(x ?? '').trim())) return false;
   // 「移動済」マーカーが立っているスロットは履歴として残してあるので空ではない
   if (p.transferredAt) return false;
   // 「削除済み退避」マーカーが立っているスロット (Trash 内) も空ではない
@@ -434,12 +411,7 @@ export function normalizePatientArray(arr: readonly unknown[] | null | undefined
     const rawEntry = arr ? arr[i] : null;
     const r: Record<string, unknown> | null = isRecord(rawEntry) ? rawEntry : null;
     const d = makeDefaultPatient();
-    // 未知フィールド温存 (forward compatibility): r をまず spread し、その後 known フィールドを
-    // validation 付きで上書きする。(未知フィールドの妥当性は保証しないので、誤フィールドや
-    // 混入データもそのまま保持されることに留意。パイロット前は許容範囲)
-    const base = r ? { ...r } : {};
     out[i] = {
-      ...base,
       pid: r && typeof r.pid === 'string' && r.pid ? r.pid : d.pid,
       status:
         r && typeof r.status === 'string' && VALID_STATUSES.includes(r.status)
@@ -465,12 +437,6 @@ export function normalizePatientArray(arr: readonly unknown[] | null | undefined
         r && typeof r.activeFormatGroupId === 'string' ? r.activeFormatGroupId : '',
       formatValues:
         r && isRecord(r.formatValues) ? (r.formatValues as Patient['formatValues']) : {},
-      // 機能撤去済み・保存データ温存のみ (UI なし)。local-first: 既存ユーザーのデータを消さない。
-      problems:
-        r && Array.isArray(r.problems)
-          ? r.problems.filter((x): x is string => typeof x === 'string').map((x) => String(x))
-          : [],
-      origin: r && r.origin === 'external' ? 'external' : '',
     };
   }
   return out;

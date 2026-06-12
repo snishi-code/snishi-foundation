@@ -1,5 +1,5 @@
 {
-  "_comment": "アプリの初期値。ユーザーが何も触らずに保存ボタンを押した状態 = この JSON。プログラム内にベタ打ちせずここに集約してメンテナンスしやすくする。プロブレムリストはフォーマットではなく患者ごとの独立データ (patient.problems) になったため、problem パネルの既定フォーマットは置かない (既存データの problem フォーマットは温存される)。",
+  "_comment": "アプリの初期値。ユーザーが何も触らずに保存ボタンを押した状態 = この JSON。プログラム内にベタ打ちせずここに集約してメンテナンスしやすくする。パネルは S/O/A/P の4種類のみ。",
 
   "formats": [
     {
@@ -80,7 +80,7 @@
     }
   ],
 
-  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。S/O/A/P の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。shared パネルの既定フォーマットは機能撤去済みのため削除。",
+  "_formatGroups_comment": "起動時に必ず 1 つ存在するデフォルトグループ。formatIndexes は上の formats 配列への index 参照 (ID は実行時生成のため index で束ねる)。S/O/A/P の既定フォーマットを expandFormatIndexes に入れ、患者画面に常時タップ可能なカードとして出す。defaultFormatIndexes (旧: 空欄補完の規定文) は未使用 (空のまま)。",
   "formatGroups": [
     {
       "name": "標準",
@@ -92,12 +92,10 @@
   ],
 
   "clearTargets": {
-    "problem": false,
     "S": true,
     "O": true,
     "A": false,
     "P": true,
-    "shared": false,
     "statusYellow": true,
     "statusGreen": true,
     "statusGray": true,

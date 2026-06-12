@@ -32,7 +32,7 @@ import { normalizePatientArray } from '../../domain/normalize';
 import { formatRemovalBreaksAnyGroupExpand } from '../../domain/formatValues';
 import { encodeSettingsPayload } from '../../qr/settingsQr';
 import { getDefaultFormatGroup } from '../../domain/payload';
-import { APP_KEY_BYTES } from '../../qr/appKey';
+import { APP_KEY_BYTES, QR_ENCRYPT } from '../../qr/appKey';
 import { isArchive, isDeviceArchive } from '../../data/store';
 import { REASON, countActivePatients } from '../../data/snapshots';
 import { EVENT } from '../../data/eventlog';
@@ -87,7 +87,6 @@ function envPrefix(): string {
 // クリア対象 (診察開始で消す項目)
 // ============================
 
-// problem と shared は UI から除外 (機能撤去済み)。データのキー自体は normalize が温存するので触らない。
 const CLEAR_KEY_ORDER = ['S', 'O', 'A', 'P', 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue'] as const;
 
 const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.freeze({
@@ -105,7 +104,7 @@ function clearItemTitle(key: string): string {
 }
 
 /** チップの中身 (v1 buildClearTargetLabelContent):
- *  problem/shared = アイコン、S/O/A/P = 短いテキスト、ステータス = 色スウォッチ + 形マーク。
+ *  S/O/A/P = 短いテキスト、ステータス = 色スウォッチ + 形マーク。
  *  文言は aria-label / title で読める (色だけに依存しない)。 */
 function ClearTargetLabel({ key_ }: { key_: string }) {
   const status = CLEAR_STATUS_BY_KEY[key_];
@@ -295,9 +294,6 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
     <>
       {FORMAT_PANELS.map((panel) => {
         const list = all.filter((f) => f.panel === panel);
-        // problem / shared はフォーマットとしての機能が撤去済みのため、
-        // legacy フォーマットが残っている場合のみ (削除導線として) 出す。
-        if ((panel === 'problem' || panel === 'shared') && list.length === 0) return null;
         return (
           <div key={panel} className="card card--pad settingsSection settingsFormatPanel" data-ui={UI.settings.formatList}>
             <div className="settingsFormatPanelHead">
@@ -314,9 +310,8 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
             {list.map((f) => {
               // このフォーマットが、いずれかのセットのいずれかのパネルで「最後の展開
               // フォーマット」なら削除不可 (ワンタップ入力カードが欠ける)。
-              // problem パネルは患者画面に出ない legacy のため、この制約から除外する。
               const soleExpand =
-                f.panel !== 'problem' && formatRemovalBreaksAnyGroupExpand(f.id, all, settings.formatGroups);
+                formatRemovalBreaksAnyGroupExpand(f.id, all, settings.formatGroups);
               return (
                 <div key={f.id} className="formatListRow" data-ui={UI.settings.formatRow}>
                   <span className="formatListName">{f.name}</span>
@@ -366,11 +361,8 @@ function FormatsSection({ runtime }: { runtime: AppRuntime }) {
             const target = deleteTarget;
             setDeleteTarget(null);
             const live = store.getSettings();
-            // 防御的に再判定 (確認中に状態が変わった場合)。problem パネルは制約外 (legacy)。
-            if (
-              target.panel !== 'problem' &&
-              formatRemovalBreaksAnyGroupExpand(target.id, live.formats, live.formatGroups)
-            ) {
+            // 防御的に再判定 (確認中に状態が変わった場合)。
+            if (formatRemovalBreaksAnyGroupExpand(target.id, live.formats, live.formatGroups)) {
               return;
             }
             const idx = live.formats.findIndex((f) => f.id === target.id);
@@ -435,7 +427,7 @@ function QrSection({ runtime }: { runtime: AppRuntime }) {
     decodePayload: () => {
       throw new Error('display-only');
     },
-    shouldEncrypt: () => !!store.getSettings().qrEncryption?.ST,
+    shouldEncrypt: () => QR_ENCRYPT.ST,
     compress: true,
     onApply: () => {},
   });

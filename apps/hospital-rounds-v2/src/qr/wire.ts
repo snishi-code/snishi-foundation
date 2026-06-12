@@ -1,15 +1,14 @@
 // 移植元: snishi-code-medical/hospital-rounds/src/features/qr-protocol.js のドメイン wire 変換部
 //
 // ============================================================================
-// QR Wire Format Authority — ドメイン層 (v1 と wire 完全一致 = QR 互換の核心)
+// QR Wire Format Authority — ドメイン層 (v2 自己完結)
 //
 // transport 層 (ページ分割 RND_<KIND> / 圧縮・暗号 prefix) は foundation の
 // qr/protocol.ts + qr/crypto.ts。このファイルはその上に乗る **ドメイン wire 変換**
 // (Format / FormatGroup / Patient ↔ 短キー JSON) を定義する。各 kind モジュール
 // (patientList / settingsQr) は本ファイルのヘルパーを **必ず経由**
 // すること。独自の wire format を定義しないこと。
-// FMT (フォーマット単体 QR) / FS (フォーマットセット QR) は廃止済み。
-// 変換ヘルパー (formatToWire / formatGroupToWire 等) は ST (settingsQr.ts) が引き続き使用。
+// v1 互換は正式終了 (2026-06)。このアプリの新旧バージョン間でのみ互換を考える。
 //
 // ── 設計 2 原則 ──
 //
@@ -93,14 +92,13 @@ import {
 // ============================
 // kind 別 WIRE_V (一箇所集約)
 //
-// **現行 v1 アプリの実装値と一致させること** (v1 Phase 7 で panel enum 拡張のため
-// ST 5→6 に bump 済み。患者リスト系 HM は v3)。
-// ここを変える = v1 端末との QR 互換を破壊する。
-// MM/SH は機能撤去済み。FMT/FS は廃止のため WIRE_V から削除。
+// v2 自己完結の wire バージョン。v1 互換は正式終了 (2026-06)。
+// このアプリの新旧バージョン間でのみ互換を考える。
+// bump 条件: 既存フィールドの意味変更・削除 / enum 許容値の追加 / 短キー名の変更。
 // ============================
 export const WIRE_V = Object.freeze({
-  HM: 3,
-  ST: 6,
+  HM: 4,
+  ST: 7,
 } as const);
 
 // ============================
@@ -109,7 +107,7 @@ export const WIRE_V = Object.freeze({
 // WIRE_V を bump する必要がある (旧版が未知 index を解釈できない)。
 // ============================
 
-export const PANEL_BY_INDEX: readonly FormatPanel[] = Object.freeze(FORMAT_PANELS.slice()); // ["problem","S","O","A","P","shared"]
+export const PANEL_BY_INDEX: readonly FormatPanel[] = Object.freeze(FORMAT_PANELS.slice()); // ["S","O","A","P"]
 export const KIND_BY_INDEX: readonly FormatItem['kind'][] = Object.freeze(
   FORMAT_ITEM_KINDS.slice(),
 ); // ["text","number","fraction"]
@@ -340,8 +338,7 @@ export function formatGroupFromWire(
 // ============================
 // Patient ↔ wire (HM/MM/SH 用)
 //   content は呼び出し側が注入する (Phase 7 で patient[field] 直読みを廃止)。
-//   HM では content=null/undefined で content を省く。MM/SH では合成済みテキスト
-//   (composeExpandedForPanel("problem"/"shared")) を渡して載せる。
+//   HM では content=null/undefined で content を省く。
 // ============================
 
 export function patientToWire(

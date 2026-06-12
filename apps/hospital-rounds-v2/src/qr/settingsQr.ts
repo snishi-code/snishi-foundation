@@ -3,17 +3,17 @@
 // 設定 QR (ST) — 設定全体 (formats + formatGroups + clearTargets + tags)。
 // wire format の詳細は qr/wire.ts の Wire Format Authority コメントを参照。
 //
-// 形式 (v6):
+// 形式 (v7):
 //   {
-//     "v": 6,
+//     "v": 7,
 //     "td": ["内科","外科"],           // tag dictionary
 //     "f":  [<formatToWire>, ...],     // formats
 //     "fg": [<formatGroupToWire>, ...] // フォーマットセット (f への 1-based index 参照)
-//     "ct": {problem:false,S:true,...} // clearTargets
+//     "ct": {S:true,O:true,...}        // clearTargets
 //   }
 //
-// v1 Phase 7: panel enum 拡張 (problem/shared 追加 → PANEL_BY_INDEX) のため WIRE_V を
-// 5→6 に bump 済み。旧版 QR (v5 以前) は明示エラーで弾く。
+// v2: パネル縮小 (S/O/A/P のみ) のため WIRE_V を 6→7 に bump。
+// v7 のみ受理し、それ以外は version mismatch エラー。
 // 端末固有値 (deviceId 等) は wire に載せない。
 //
 // 受信フローの apply (confirm ダイアログ・saveSettingsOrThrow + ロールバック) は UI 層の
@@ -139,6 +139,6 @@ export function decodeSettingsPayload(payload: string): DecodedSettingsPatch {
       if (typeof val === 'boolean') out.clearTargets[k] = val;
     }
   }
-  // v7.6 以前 (v1) の tge / tgs / tga (タグ・カテゴリ機能) は無視する (撤去済み機能)
+  // 未知フィールド (tge / tgs / tga 等の v1 遺残) は無視する。
   return out;
 }

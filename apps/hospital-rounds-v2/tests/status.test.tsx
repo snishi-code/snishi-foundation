@@ -3,7 +3,7 @@
 //     シート内ステータス (色 + 形マークのみ・シートは開いたまま)。
 import './setup';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { STATUS } from '../src/domain/types';
 import { renderApp, seedBundle } from './helpers';
@@ -53,8 +53,10 @@ describe('診察開始: clearOnStart タグ除去', () => {
     // ダイアログが出るのを待つ
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: '診察開始' }));
-    // 保存完了を待つ (ダイアログが消えたら完了)
-    await screen.findByRole('button', { name: '診察開始' });
+    // runClear はスナップショット取得 (async) の後に反映されるため、状態の変化自体を待つ
+    await waitFor(() => {
+      expect(runtime.store.getAppState().patients[0]!.tags).not.toContain('重症');
+    });
 
     const p0 = runtime.store.getAppState().patients[0]!;
     const p1 = runtime.store.getAppState().patients[1]!;

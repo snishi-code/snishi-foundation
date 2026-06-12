@@ -39,7 +39,7 @@ export async function applySettingsPatch(store: HrStore, patch: DecodedSettingsP
   const prev = store.getSettings(); // 保存失敗時のロールバック用
   const next: Settings = { ...prev };
   for (const k of ST_APPLIED_FIELDS) {
-    if (patch[k] !== undefined) (next as Record<string, unknown>)[k] = patch[k];
+    if (patch[k] !== undefined) (next as unknown as Record<string, unknown>)[k] = patch[k];
   }
   // 取り込んだ全セットを「含むパネルで展開フォーマットを最低 1 つ持つ」よう補修
   // (setSettings は normalize を通さないので、壊れた外部設定が保存される前に直す)。

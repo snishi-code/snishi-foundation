@@ -4,9 +4,9 @@
 // Wire Format Authority コメントを参照。ここでは「患者配列 + タグ辞書」のエンベロープを
 // 組み立てる。
 //
-// 形式 (v3):
+// 形式 (v4):
 //   {
-//     "v": 3,
+//     "v": 4,
 //     "td": ["内科","外科"],          // tag dictionary (settings.tags のスナップショット)
 //     "p": [
 //       {},                            ← HM の空 slot
@@ -26,12 +26,11 @@
 import type { Patient, Settings } from '../domain/types';
 import { WIRE_V, buildTagDict, patientFromWire, patientToWire, type WirePatient } from './wire';
 
-const PATIENT_LIST_WIRE_V = WIRE_V.HM; // HM (v3)
+const PATIENT_LIST_WIRE_V = WIRE_V.HM; // HM (v4)
 
-// HM のみ: content (c) は使わない (null 固定)、全 slot を includeEmpty=true で並べる。
-// MM/SH (contentOf / includeEmpty=false オプション) は機能撤去済み。
+// HM のみ: content (c) は使わない (null 固定)、全 slot を並べる。
 export interface EncodePatientListConfig {
-  /** QR 種別。現在は "HM" のみ。再配布制限 (qrRedistribution) の判定に使う */
+  /** QR 種別。現在は "HM" のみ */
   kind: string;
   /** 任意フィルタ。指定があれば該当患者だけを対象に */
   matchesFilter?: (p: Patient) => boolean;
@@ -43,23 +42,11 @@ export function encodePatientList(
   cfg: EncodePatientListConfig,
 ): string {
   const matchesFilter = cfg.matchesFilter || (() => true);
-
-  // 再配布制限 (settings.qrRedistribution[kind] === "restricted") が ON なら
-  // origin === "external" の患者 = 他端末から QR で受信したデータを送信時に除外。
-  const kind = cfg.kind || '';
-  const restrict =
-    !!settings.qrRedistribution &&
-    (settings.qrRedistribution as Record<string, string>)[kind] === 'restricted';
-
   const tagDict = buildTagDict(settings);
 
-  // HM: 全 slot をその順で並べる。restricted な kind では external 患者を空スロット扱い。
+  // HM: 全 slot をその順で並べる。
   const patientArr: WirePatient[] = [];
   for (const p of patients) {
-    if (restrict && p && p.origin === 'external') {
-      patientArr.push({});
-      continue;
-    }
     if (!matchesFilter(p)) {
       patientArr.push({});
       continue;

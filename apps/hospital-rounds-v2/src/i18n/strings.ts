@@ -9,12 +9,10 @@ export const STRINGS_JA = {
   'app.title': '回診',
 
   // パネル名
-  'panel.problem': 'プロブレムリスト',
   'panel.S': 'S',
   'panel.O': 'O',
   'panel.A': 'A',
   'panel.P': 'P',
-  'panel.shared': '共有',
 
   // 共通
   'common.save': '保存',

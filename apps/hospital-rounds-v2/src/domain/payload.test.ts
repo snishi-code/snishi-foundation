@@ -1,9 +1,9 @@
-// 移植元 v1 test/check.mjs の payload SOAP compose / Phase 7 problem/shared ケース相当。
+// 移植元 v1 test/check.mjs の payload SOAP compose ケース相当。
 
 import { describe, expect, it } from 'vitest';
 import type { Format, Settings } from './types';
 import { defaultSettings, makeDefaultPatient } from './normalize';
-import { buildSoapParts, buildTabPayload, composeExpandedForPanel } from './payload';
+import { buildSoapParts, buildTabPayload } from './payload';
 import { composeFormatFromValues } from './formatValues';
 
 function fmt(over: Partial<Format>): Format {
@@ -46,27 +46,6 @@ const subjective = fmt({
   items: [{ label: '', kind: 'text', normal: '特になし' }],
 });
 
-const problem = fmt({
-  id: 'f_prob',
-  name: 'プロブレムリスト',
-  panel: 'problem',
-  joiner: '\n',
-  labelSep: '',
-  items: [
-    { label: '#', kind: 'number', unit: '' },
-    { label: '', kind: 'text', normal: '' },
-  ],
-});
-
-const shared = fmt({
-  id: 'f_sh',
-  name: '共有',
-  panel: 'shared',
-  joiner: '\n',
-  labelSep: '：',
-  items: [{ label: '', kind: 'text', normal: '' }],
-});
-
 describe('composeFormatFromValues (代表ケース)', () => {
   it('number の注記が末尾に付く (SpO2 96% O2 2L)、fraction は a/b + 単位', () => {
     const { text, hasValue } = composeFormatFromValues(vitals, {
@@ -91,7 +70,7 @@ describe('composeFormatFromValues (代表ケース)', () => {
 });
 
 describe('buildTabPayload / buildSoapParts', () => {
-  const settings = settingsWith([problem, subjective, vitals, shared]);
+  const settings = settingsWith([subjective, vitals]);
 
   it('タップ (formatValues) した欄だけ出る / 未タップ欄は空', () => {
     const p = makeDefaultPatient();
@@ -108,26 +87,10 @@ describe('buildTabPayload / buildSoapParts', () => {
     expect(payload).toBe('(S)\n頭痛あり\n――\n(O)\n（バイタル）\nSpO2 96%\n――\n(A)\n\n――\n(P)\n');
   });
 
-  it('problem / shared パネルは患者画面 QR に出ない (機能撤去済み)', () => {
+  it('formatValues が空なら全パネル出力が空文字', () => {
     const p = makeDefaultPatient();
-    p.formatValues = {
-      f_prob: { 0: { value: '1', note: 'HF' } },
-      f_sh: { 0: '家族へ説明済み' },
-    };
-    const payload = buildTabPayload(p, settings);
-    // problem パネル機能は撤去済み → 患者画面 QR に problem 出力は含まれない
-    expect(payload).not.toContain('#1 HF');
-    // shared も患者画面 QR には出ない
-    expect(payload).not.toContain('家族へ説明済み');
-    // S/O/A/P のみ出る
-    expect(payload.startsWith('(S)')).toBe(true);
-    // composeExpandedForPanel は shared データを正しく合成できる (データは温存)
-    expect(composeExpandedForPanel('shared', p.formatValues, settings)).toBe('家族へ説明済み');
-  });
-
-  it('formatValues に無い形 (旧自由記述などの未知フィールド) は出力されない', () => {
-    const p = makeDefaultPatient();
-    (p as Record<string, unknown>).s = '旧自由記述 (不可視データ)';
-    expect(buildTabPayload(p, settings)).not.toContain('旧自由記述');
+    const result = buildTabPayload(p, settings);
+    expect(result.startsWith('(S)')).toBe(true);
+    expect(result).not.toContain('頭痛');
   });
 });

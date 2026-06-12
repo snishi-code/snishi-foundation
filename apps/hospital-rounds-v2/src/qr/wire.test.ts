@@ -1,10 +1,7 @@
-// QR wire の v1 互換歩哨テスト。
+// QR wire の v2 自己一致歩哨テスト。
 //
-// EXPECTED_* の fixture は **移植元 v1 実装 (snishi-code-medical/hospital-rounds) を
-// Node で実行して生成した正本** (qr-protocol.js / qr-patient-list.js / qr-settings.js /
-// qr-format.js / qr-set.js の実出力)。v2 のエンコード結果がこれと 1 フィールドでも
-// ずれたら v1 端末との QR 互換が壊れている。**このテストを直すために fixture を
-// 書き換えてはならない** (直すのは実装の方)。
+// v1 互換は正式終了 (2026-06)。EXPECTED_* は v2 の実装値と一致する正本。
+// このアプリの新旧バージョン間でのみ互換を保証する。
 
 import { describe, expect, it } from 'vitest';
 import type { Format, FormatGroup, Patient, Settings, TagDef } from '../domain/types';
@@ -62,27 +59,13 @@ const fmtFindings: Format = {
   ],
 };
 
-const fmtProblem: Format = {
-  id: 'fmt_c',
-  name: 'プロブレムリスト',
-  panel: 'problem',
-  joiner: '\n',
-  labelSep: '',
-  titleWrap: '',
-  tags: [],
-  items: [
-    { label: '#', kind: 'number', unit: '' },
-    { label: '', kind: 'text', normal: '' },
-  ],
-};
-
 const group: FormatGroup = {
   id: 'grp_x',
   name: '標準',
   isDefault: true,
-  formatIds: ['fmt_a', 'fmt_b', 'fmt_c', 'fmt_missing'],
+  formatIds: ['fmt_a', 'fmt_b', 'fmt_missing'],
   defaultFormatIds: ['fmt_b'],
-  expandFormatIds: ['fmt_a', 'fmt_c'],
+  expandFormatIds: ['fmt_a'],
 };
 
 function makePatient(over: Partial<Patient>): Patient {
@@ -99,7 +82,7 @@ function settingsWith(over: Partial<Settings>): Settings {
 
 const EXPECTED_FORMAT_DICT = {
   n: 'バイタル',
-  p: 2,
+  p: 1,
   ls: ' ',
   tw: '（）',
   t: [1],
@@ -112,7 +95,7 @@ const EXPECTED_FORMAT_DICT = {
 
 const EXPECTED_FORMAT_NODICT = {
   n: 'バイタル',
-  p: 2,
+  p: 1,
   ls: ' ',
   tw: '（）',
   t: ['内科', '未知タグ'],
@@ -125,7 +108,7 @@ const EXPECTED_FORMAT_NODICT = {
 
 const EXPECTED_FORMAT_TEXT = {
   n: '身体所見',
-  p: 2,
+  p: 1,
   j: '\n',
   ls: '：',
   i: [
@@ -134,7 +117,7 @@ const EXPECTED_FORMAT_TEXT = {
   ],
 };
 
-const EXPECTED_GROUP = { n: '標準', d: 1, fi: [1, 2, 3], df: [2], xf: [1, 3] };
+const EXPECTED_GROUP = { n: '標準', d: 1, fi: [1, 2], df: [2], xf: [1] };
 
 const EXPECTED_PATIENT = {
   r: '203',
@@ -146,30 +129,18 @@ const EXPECTED_PATIENT = {
 const EXPECTED_WIRE_FORMATS = [
   EXPECTED_FORMAT_DICT,
   EXPECTED_FORMAT_TEXT,
-  {
-    n: 'プロブレムリスト',
-    p: 0,
-    j: '\n',
-    ls: '',
-    i: [
-      { l: '#', k: 1 },
-      { l: '', k: 0 },
-    ],
-  },
 ];
 
 const EXPECTED_ST = {
-  v: 6,
+  v: 7,
   td: tagDict,
   f: EXPECTED_WIRE_FORMATS,
   fg: [EXPECTED_GROUP],
   ct: {
-    problem: false,
     S: true,
     O: true,
     A: false,
     P: true,
-    shared: false,
     statusYellow: true,
     statusGreen: true,
     statusGray: true,
@@ -178,17 +149,17 @@ const EXPECTED_ST = {
 };
 
 // ============================
-// enum 表と WIRE_V (ここを変える = v1 端末との互換を破壊する)
+// enum 表と WIRE_V (v2 自己一致歩哨)
 // ============================
 
-describe('wire enum tables / WIRE_V (v1 互換)', () => {
-  it('PANEL_BY_INDEX / KIND_BY_INDEX は v1 と同一 (追加・並び替えは WIRE_V bump)', () => {
-    expect(PANEL_BY_INDEX).toEqual(['problem', 'S', 'O', 'A', 'P', 'shared']);
+describe('wire enum tables / WIRE_V (v2 自己一致)', () => {
+  it('PANEL_BY_INDEX は FORMAT_PANELS と一致する (S/O/A/P の4パネル)', () => {
+    expect(PANEL_BY_INDEX).toEqual(['S', 'O', 'A', 'P']);
     expect(KIND_BY_INDEX).toEqual(['text', 'number', 'fraction']);
   });
 
-  it('kind 別 WIRE_V は現行実装値と一致する (MM/SH/FMT/FS は機能撤去済みのため除外)', () => {
-    expect(WIRE_V).toEqual({ HM: 3, ST: 6 });
+  it('kind 別 WIRE_V は v2 バンプ後の期待値と一致する', () => {
+    expect(WIRE_V).toEqual({ HM: 4, ST: 7 });
   });
 });
 
@@ -210,7 +181,7 @@ describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
   });
 
   it('formatGroupToWire: f 配列への 1-based index 参照。解決できない ID は除外', () => {
-    const idToIndex = (id: string) => ({ fmt_a: 1, fmt_b: 2, fmt_c: 3 })[id as 'fmt_a'];
+    const idToIndex = (id: string) => ({ fmt_a: 1, fmt_b: 2 })[id as 'fmt_a'];
     expect(formatGroupToWire(group, idToIndex)).toEqual(EXPECTED_GROUP);
   });
 
@@ -263,73 +234,53 @@ describe('format/group/patient wire 歩哨 (v1 実出力 fixture)', () => {
 });
 
 // ============================
-// HM/MM/SH (qr-patient-list v3)
+// HM (qr-patient-list v4)
 // ============================
 
-describe('encodePatientList / decodePatientList (HM/MM/SH v3)', () => {
-  const patients: Patient[] = [
+describe('encodePatientList / decodePatientList (HM v4)', () => {
+  const patients = [
     makePatient({ pid: 'p1', status: 'yellow', name: 'テスト太郎', room: '203', tags: ['内科'] }),
     makePatient({ pid: 'p2' }),
-    makePatient({
-      pid: 'p3',
-      status: 'green',
-      name: '外部花子',
-      room: '204',
-      tags: ['外科'],
-      origin: 'external',
-    }),
+    makePatient({ pid: 'p3', status: 'green', name: '花子', room: '204', tags: ['外科'] }),
     makePatient({ pid: 'p4' }),
   ];
 
-  it('HM restricted: origin=external を空スロット化し、末尾連続空をトリム (v1 実出力)', () => {
+  it('HM: 末尾連続空をトリムして全患者を載せる', () => {
     const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
-    settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'restricted' };
     const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
     expect(out).toEqual({
-      v: 3,
+      v: 4,
       td: tagDict,
-      p: [{ r: '203', n: 'テスト太郎', t: [1] }],
-    });
-  });
-
-  it('HM free: external 患者も載る (v1 実出力)', () => {
-    const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
-    settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'free' };
-    const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
-    expect(out).toEqual({
-      v: 3,
-      td: tagDict,
-      p: [{ r: '203', n: 'テスト太郎', t: [1] }, {}, { r: '204', n: '外部花子', t: [2] }],
+      p: [{ r: '203', n: 'テスト太郎', t: [1] }, {}, { r: '204', n: '花子', t: [2] }],
     });
   });
 
   it('decode round-trip: tagIdxs (sender 辞書 1-based) を復元', () => {
     const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
-    settings.qrRedistribution = { ...settings.qrRedistribution, HM: 'free' };
     const payload = encodePatientList(patients, settings, { kind: 'HM' });
     const decoded = decodePatientList(payload);
     expect(decoded.tagNames).toEqual(tagDict);
     expect(decoded.patients).toEqual([
       { room: '203', name: 'テスト太郎', tagIdxs: [1], content: '' },
       { room: '', name: '', tagIdxs: [], content: '' },
-      { room: '204', name: '外部花子', tagIdxs: [2], content: '' },
+      { room: '204', name: '花子', tagIdxs: [2], content: '' },
     ]);
   });
 
   it('version 不一致は明示エラーで弾く (fail-closed)', () => {
-    expect(() => decodePatientList(JSON.stringify({ v: 2, td: [], p: [] }))).toThrow(/version/);
+    expect(() => decodePatientList(JSON.stringify({ v: 3, td: [], p: [] }))).toThrow(/version/);
   });
 });
 
 // ============================
-// ST v6 / FMT v3 / FS v2 (envelope の v1 実出力一致 + round-trip)
+// ST v7 (envelope の v2 自己一致 + round-trip)
 // ============================
 
-describe('settingsQr (ST v6)', () => {
-  it('encodeSettingsPayload は v1 実出力と一致する (clearOnStart=false のタグは tc 省略)', () => {
+describe('settingsQr (ST v7)', () => {
+  it('encodeSettingsPayload は v2 期待値と一致する (clearOnStart=false のタグは tc 省略)', () => {
     const settings = settingsWith({
       tags: tagDefsFrom(tagDict),
-      formats: [fmtVitals, fmtFindings, fmtProblem],
+      formats: [fmtVitals, fmtFindings],
       formatGroups: [group],
     });
     expect(JSON.parse(encodeSettingsPayload(settings))).toEqual(EXPECTED_ST);
@@ -338,19 +289,19 @@ describe('settingsQr (ST v6)', () => {
   it('decode round-trip: formats 新 ID 採番 + groups がその ID を参照', () => {
     const settings = settingsWith({
       tags: tagDefsFrom(tagDict),
-      formats: [fmtVitals, fmtFindings, fmtProblem],
+      formats: [fmtVitals, fmtFindings],
       formatGroups: [group],
     });
     const out = decodeSettingsPayload(encodeSettingsPayload(settings));
     expect(out.tags).toEqual(tagDefsFrom(tagDict));
-    expect(out.formats).toHaveLength(3);
+    expect(out.formats).toHaveLength(2);
     expect(out.formats?.[0]?.name).toBe('バイタル');
     expect(out.formats?.[0]?.id).toMatch(/^fmt_/);
     expect(out.formats?.[0]?.id).not.toBe('fmt_a'); // 新 ID 採番
     const ids = (out.formats ?? []).map((f) => f.id);
     expect(out.formatGroups?.[0]?.formatIds).toEqual(ids);
     expect(out.formatGroups?.[0]?.defaultFormatIds).toEqual([ids[1]]);
-    expect(out.formatGroups?.[0]?.expandFormatIds).toEqual([ids[0], ids[2]]);
+    expect(out.formatGroups?.[0]?.expandFormatIds).toEqual([ids[0]]);
     expect(out.formatGroups?.[0]?.isDefault).toBe(true);
     expect(out.clearTargets).toEqual(EXPECTED_ST.ct);
   });
@@ -377,8 +328,8 @@ describe('settingsQr (ST v6)', () => {
     expect(decodeSettingsPayload(JSON.stringify(out)).tags).toEqual([]);
   });
 
-  it('旧版 (v5 以前) payload は明示エラーで弾く', () => {
-    expect(() => decodeSettingsPayload(JSON.stringify({ v: 5, td: [] }))).toThrow(/version/);
+  it('旧版 (v6 以前) payload は明示エラーで弾く', () => {
+    expect(() => decodeSettingsPayload(JSON.stringify({ v: 6, td: [] }))).toThrow(/version/);
   });
 });
 

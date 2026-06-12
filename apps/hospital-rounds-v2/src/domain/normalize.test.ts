@@ -17,16 +17,11 @@ import { migrateLegacyTagList } from './legacyMigrate';
 import { FORMAT_PANELS, STATUS } from './types';
 import type { FormatGroup, TagDef } from './types';
 
-// problem / shared は機能撤去済みのため、既定フォーマットを置かない (既存データは温存)。
-const PANELS_WITH_DEFAULT_FORMATS = FORMAT_PANELS.filter((p) => p !== 'problem' && p !== 'shared');
-
 describe('defaultSettings (cold boot)', () => {
-  it('S/O/A/P に既定フォーマットを持つ (problem / shared は対象外)', () => {
+  it('S/O/A/P 全パネルに既定フォーマットを持つ', () => {
     const s = defaultSettings();
     const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
-    expect(panels.has('problem')).toBe(false);
-    expect(panels.has('shared')).toBe(false);
+    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
   });
 
   it('デフォルトグループがちょうど 1 つ存在し、全 format を展開に持つ', () => {
@@ -39,13 +34,10 @@ describe('defaultSettings (cold boot)', () => {
     expect(def.expandFormatIds).toEqual(def.formatIds);
   });
 
-  it('qrEncryption / qrRedistribution の既定値 (MM/SH/FMT/FS は機能撤去済み)', () => {
+  it('qrEncryption / qrRedistribution は Settings に含まれない (QR_ENCRYPT 固定定数に移行)', () => {
     const s = defaultSettings();
-    expect(s.qrEncryption).toEqual({ HM: true, ST: true });
-    expect(s.qrRedistribution).toEqual({
-      HM: 'restricted',
-      ST: 'free',
-    });
+    expect('qrEncryption' in s).toBe(false);
+    expect('qrRedistribution' in s).toBe(false);
   });
 });
 
@@ -58,18 +50,15 @@ describe('normalizeSettings', () => {
     }
   });
 
-  it('未知フィールドを温存する (forward compat roundtrip)', () => {
+  it('未知フィールドは破棄される (後方互換不要の v2 設計)', () => {
     const raw = {
       ...defaultSettings(),
       futureFeature: { nested: [1, 2, 3] },
       tagGroups: ['旧 v7.6 の撤去済みフィールド'],
     };
     const s1 = normalizeSettings(raw);
-    expect(s1.futureFeature).toEqual({ nested: [1, 2, 3] });
-    expect(s1.tagGroups).toEqual(['旧 v7.6 の撤去済みフィールド']);
-    // 再正規化 (読み戻し→再保存経路) でも消えない
-    const s2 = normalizeSettings(JSON.parse(JSON.stringify(s1)));
-    expect(s2.futureFeature).toEqual({ nested: [1, 2, 3] });
+    expect('futureFeature' in s1).toBe(false);
+    expect('tagGroups' in s1).toBe(false);
   });
 
   it('clearTargets: 型不一致キーは既定値、boolean は尊重', () => {
@@ -103,9 +92,9 @@ describe('normalizeSettings', () => {
     };
     const s = normalizeSettings(custom);
     expect(s.formats.some((f) => f.panel === 'O' && f.name === '所見')).toBe(true);
-    // 各パネル (problem 以外) が埋まる
+    // 各パネル (S/O/A/P) が埋まる
     const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
+    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
   });
 
   it('formatGroups: malformed を除外し「ちょうど 1 つ default」を担保。df/xf は部分集合に正規化', () => {
@@ -133,23 +122,19 @@ describe('normalizeSettings', () => {
     // 修正1 が「含む全パネルに expand あり」を担保する (f1 = S パネルも expand に昇格)
     expect(g1.expandFormatIds).toContain('f1');
     const panels = new Set(s.formats.map((f) => f.panel));
-    for (const p of PANELS_WITH_DEFAULT_FORMATS) expect(panels.has(p)).toBe(true);
+    for (const p of FORMAT_PANELS) expect(panels.has(p)).toBe(true);
     expect(
       g1.expandFormatIds.every((id) => g1.formatIds.includes(id)),
     ).toBe(true);
   });
 
-  it('qrEncryption / qrRedistribution: 保存値に関わらずコード内固定値へ正規化する (v1 authority)', () => {
-    // 旧 UI 由来の値が保存に残っていても、常にデフォルト (全 kind 暗号化 ON /
-    // HM のみ再配布制限) で動作する。ユーザー設定としては露出しない。
+  it('qrEncryption / qrRedistribution: 旧データに残っていても破棄される (QR_ENCRYPT 固定定数に移行)', () => {
     const s = normalizeSettings({
       qrEncryption: { HM: false, XX: true, ST: 'yes' },
       qrRedistribution: { HM: 'free', ST: 'restricted' },
     });
-    expect(s.qrEncryption.HM).toBe(true);
-    expect(s.qrEncryption.ST).toBe(true);
-    expect(s.qrRedistribution.HM).toBe('restricted');
-    expect(s.qrRedistribution.ST).toBe('free');
+    expect('qrEncryption' in s).toBe(false);
+    expect('qrRedistribution' in s).toBe(false);
   });
 });
 
@@ -236,7 +221,6 @@ describe('normalizePatientArray / normalizeLoaded', () => {
         room: '203',
         tags: ['a', '', 7, ' '], // 文字列かつ非空白のみ
         updatedAt: 'yesterday', // 不正 → 0
-        origin: 'somewhere', // 'external' 以外 → ''
         formatValues: 'broken', // 不正 → {}
       },
     ]);
@@ -247,20 +231,17 @@ describe('normalizePatientArray / normalizeLoaded', () => {
     expect(p?.room).toBe('203');
     expect(p?.tags).toEqual(['a']);
     expect(p?.updatedAt).toBe(0);
-    expect(p?.origin).toBe('');
+    expect('origin' in (p ?? {})).toBe(false);
     expect(p?.formatValues).toEqual({});
   });
 
-  it('未知フィールドを温存する (forward compat roundtrip)', () => {
+  it('未知フィールドは破棄される (後方互換不要の v2 設計)', () => {
     const [p1] = normalizePatientArray([
       { pid: 'p1', name: 'A', futureFlag: true, nested: { a: 1 } },
     ]);
-    expect(p1?.futureFlag).toBe(true);
-    expect(p1?.nested).toEqual({ a: 1 });
-    // 再正規化でも消えない
-    const [p2] = normalizePatientArray([JSON.parse(JSON.stringify(p1))]);
-    expect(p2?.futureFlag).toBe(true);
-    expect(p2?.name).toBe('A');
+    expect('futureFlag' in (p1 ?? {})).toBe(false);
+    expect('nested' in (p1 ?? {})).toBe(false);
+    expect(p1?.name).toBe('A');
   });
 
   it('normalizeLoaded: bundle / 配列 / {patients} を appState 形に正規化', () => {

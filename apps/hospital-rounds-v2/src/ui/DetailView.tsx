@@ -5,7 +5,7 @@
 // 詳細 (患者) ビュー:
 //   - 患者ヘッダ: 前後ナビ + メタボタン (ステータス形マーク + 部屋 + 氏名 + タグ概要)
 //     → 患者情報ポップアップ / 転棟済バナー / 転棟ボタン
-//   - 6 パネル (problem/S/O/A/P/shared) の展開フォーマットカード + inline 編集
+//   - S/O/A/P の展開フォーマットカード + inline 編集
 //   - 患者画面 QR (平文)
 //
 // inline 編集セッションは ref で保持 (1 文字ごとに React 再描画しない = v1 と同じ
@@ -324,9 +324,7 @@ export function DetailView({
         </div>
       ) : null}
 
-      {/* problem / shared パネルは機能撤去済み (キーは保存データ・wire 互換のため温存)。
-          表示するのは S/O/A/P のみ。 */}
-      {FORMAT_PANELS.filter((panel) => panel !== 'problem' && panel !== 'shared').map((panel) => (
+      {FORMAT_PANELS.map((panel) => (
         <PanelCard key={panel} panel={panel} patient={patient} settings={settings} inline={inlineForRender} cb={cb} />
       ))}
 

@@ -19,10 +19,9 @@ export const STATUS = Object.freeze({
 } as const);
 export type PatientStatus = (typeof STATUS)[keyof typeof STATUS];
 
-// Phase 7 (v1): 患者入力本文は problem / S / O / A / P / shared の6パネルすべてを
-// settings.formats + patient.formatValues で扱う。problem = プロブレムリスト、
-// shared = 共有。**この並びは QR wire の PANEL_BY_INDEX と一致する** (qr/wire.ts)。
-export const FORMAT_PANELS = Object.freeze(['problem', 'S', 'O', 'A', 'P', 'shared'] as const);
+// v2: 患者入力本文は S / O / A / P の4パネルを settings.formats + patient.formatValues で扱う。
+// **この並びは QR wire の PANEL_BY_INDEX と一致する** (qr/wire.ts)。
+export const FORMAT_PANELS = Object.freeze(['S', 'O', 'A', 'P'] as const);
 export type FormatPanel = (typeof FORMAT_PANELS)[number];
 
 // item ごとに kind を持つ:
@@ -41,25 +40,9 @@ export const DEFAULT_LABEL_SEP_TEXT = '：';
 export const DEFAULT_LABEL_SEP_OTHER = ' ';
 
 // QR 種別 (kind コード)。患者画面 QR (clinical text → 電子カルテ貼付) は電子カルテ端末の
-// 標準カメラで読む前提のため、この暗号化マトリクスに含まれない (常に平文・常に再配布可)。
-// FMT (フォーマット単体) / FS (フォーマットセット) は廃止。設定共有は ST のみ。
-// MM (プロブレムリスト共有 QR) / SH (共有欄 QR) は機能撤去済み (UI なし)。
+// 標準カメラで読む前提のため、常に平文・常に再配布可。
 export const QR_KINDS = Object.freeze(['HM', 'ST'] as const);
 export type QrKind = (typeof QR_KINDS)[number];
-
-export type QrRedistribution = 'restricted' | 'free';
-
-// それぞれ「暗号化のデフォルト」「再配布のデフォルト」。設定 UI から変更可。
-//   redistribution: "restricted" = 受信データの再配布禁止 (= origin=external を送信時に除外)
-export const DEFAULT_QR_ENCRYPTION: Readonly<Record<QrKind, boolean>> = Object.freeze({
-  HM: true,
-  ST: true,
-});
-export const DEFAULT_QR_REDISTRIBUTION: Readonly<Record<QrKind, QrRedistribution>> =
-  Object.freeze({
-    HM: 'restricted',
-    ST: 'free',
-  });
 
 // アプリ表示名の既定 (= v1 の t("app.title"))。ドメイン層は i18n に依存しないため
 // ここに定数で持ち、UI 層は必要なら呼び出し時に引数で上書きする。
@@ -186,7 +169,7 @@ export interface Patient {
   name: string;
   room: string;
   tags: string[];
-  // Phase 7 (v1): 臨床入力本文は formatValues に一本化 (旧 s/memo/shared/oFree/a/p は撤去)。
+  // 臨床入力本文は formatValues に一本化 (旧 s/memo/shared/oFree/a/p は撤去)。
   updatedAt: number;
   // 他ワークスペースへ移動した時に立つマーカー。元データ (name/room) は触らず表示時のみ装飾。
   //   transferredAt: 移動した時刻 (ms epoch)。0 = 未移動。
@@ -199,18 +182,6 @@ export interface Patient {
   /** この患者で active なフォーマットグループ ID。"" = デフォルトグループに解決 */
   activeFormatGroupId: string;
   formatValues: FormatValues;
-  /**
-   * プロブレムリスト (患者ごとの独立データ)。機能撤去済み・保存データ温存のみ (UI なし)。
-   * local-first 原則: 既存ユーザーのデータを黙って消さないため、フィールドは維持する。
-   */
-  problems: string[];
-  /**
-   * 患者識別データの出所マーカー。"external" = 他端末から QR で受信 = 再配布制限対象。
-   * "" = この端末で作成 = 再配布可。
-   */
-  origin: '' | 'external';
-  /** 未知フィールド温存 (forward compat): 新版が追加したフィールドを消さない */
-  [key: string]: unknown;
 }
 
 /**
@@ -224,21 +195,15 @@ export interface TagDef {
 
 /**
  * ユーザーごとの設定 (v1 の __settings__::<userId> レコード相当)。
- * 未知フィールドは normalizeSettings が温存する (forward compat)。
  */
 export interface Settings {
   v: number;
   formats: Format[];
   formatGroups: FormatGroup[];
-  /** panel キー (problem/S/O/A/P/shared) + statusYellow/Green/Gray/Blue */
+  /** panel キー (S/O/A/P) + statusYellow/Green/Gray/Blue */
   clearTargets: Record<string, boolean>;
   tags: TagDef[];
   deviceId: string;
-  /** QR セキュリティ: kind 別の暗号化フラグ */
-  qrEncryption: Record<QrKind, boolean>;
-  /** QR 受信データの再配布制限: kind 別 */
-  qrRedistribution: Record<QrKind, QrRedistribution>;
-  [key: string]: unknown;
 }
 
 export interface AppState {

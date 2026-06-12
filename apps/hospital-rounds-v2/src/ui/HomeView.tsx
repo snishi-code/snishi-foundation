@@ -25,7 +25,7 @@ import { SECTION, projectBundle } from '../data/bundle';
 import { REASON, countActivePatients } from '../data/snapshots';
 import { EVENT } from '../data/eventlog';
 import { encodePatientList, decodePatientList, type DecodedPatientList } from '../qr/patientList';
-import { APP_KEY_BYTES } from '../qr/appKey';
+import { APP_KEY_BYTES, QR_ENCRYPT } from '../qr/appKey';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, statusClass, STATUS_MARK } from './patientDisplay';
 import { QrDialog } from './QrCard';
@@ -77,7 +77,7 @@ export function HomeView({
     encodePayload: () =>
       encodePatientList(store.getAppState().patients, store.getSettings(), { kind: 'HM' }),
     decodePayload: (plain) => decodePatientList(plain),
-    shouldEncrypt: () => !!store.getSettings().qrEncryption?.HM,
+    shouldEncrypt: () => QR_ENCRYPT.HM,
     onApply(decoded, ctrl) {
       if (!decoded.patients.length) {
         toast.show(t('qr.import.empty.home'), 'error');
@@ -107,8 +107,6 @@ export function HomeView({
         p.room = r.room || '';
         p.name = r.name || '';
         p.tags = (r.tagIdxs || []).map((idx) => senderTagNames[idx - 1]).filter((x): x is string => !!x);
-        // 受信患者は外部由来マーク (qrRedistribution=restricted の再配布制限対象)
-        if (p.room || p.name || p.tags.length) p.origin = 'external';
       }
       newPatients.push(p);
     }

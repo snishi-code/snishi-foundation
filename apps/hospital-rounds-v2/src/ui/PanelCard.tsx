@@ -72,12 +72,10 @@ export interface PanelCardCallbacks {
 }
 
 const PANEL_LABEL_KEY = {
-  problem: 'panel.problem',
   S: 'panel.S',
   O: 'panel.O',
   A: 'panel.A',
   P: 'panel.P',
-  shared: 'panel.shared',
 } as const;
 
 function isRowEditing(inline: InlineSession | null, format: Format, i: number): boolean {
