@@ -325,7 +325,7 @@ export const STRINGS_JA = {
   'settings.title.workspaces': '病棟管理',
   'settings.io.section': 'データの保存と復元',
   'settings.workspace.hint':
-    '病棟の切替・新規作成・名前変更・削除はヘッダーの病棟名をタップ。ここでは JSON 取込/保存ができます。',
+    '病棟の切替・名前変更・削除・追加は上の「病棟管理」でできます。ここでは JSON 取込/保存ができます。',
   'io.json.import.label': 'JSON 取り込み',
   'io.json.export.label': 'JSON 書き出し',
   'settings.device.section': '端末まるごと',

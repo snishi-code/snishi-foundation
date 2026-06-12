@@ -78,7 +78,7 @@ export function DetailView({
   const [, setUndoTick] = useState(0);
 
   // 誤タップガード (ゴーストクリック抑止): detail 入場後、新しい pointerdown が来るまで
-  // 入力シート / inline 編集を開かない (v1 _freshTapSinceEntry)。
+  // 入力シート / inline 編集 / 正常チェックを開かない (v1 _freshTapSinceEntry)。
   const freshTapRef = useRef(false);
   useEffect(() => {
     freshTapRef.current = false;
@@ -88,6 +88,13 @@ export function DetailView({
     window.addEventListener('pointerdown', onDown);
     return () => window.removeEventListener('pointerdown', onDown);
   }, []);
+
+  // 前/次の患者切替は DetailView が再マウントされないため、患者 (pid) が変わったら
+  // ガードを掛け直す (前患者での pointerdown を次患者へ持ち越さない — 監査指摘)。
+  const pid = patient?.pid ?? null;
+  useEffect(() => {
+    freshTapRef.current = false;
+  }, [pid]);
 
   // inline 編集の終了 (編集 UI を閉じるだけ。write-through 済みなので値は失われない)。
   // dirty なら QR 等も含めて全体反映 (v1 cancelInlineFormatEdit)。
@@ -111,16 +118,27 @@ export function DetailView({
     };
   }, []);
 
-  // 入力欄の外をタップしたら inline 編集を終了し、フォーカス (キーボード) も解除する。
+  // 入力欄の外をタップしたら、inline 編集 (text) の終了に加えて、バイタル等の常時入力欄も
+  // 含めてフォーカス (キーボード) を完全に解除する (監査指摘: 常時入力化した欄にも適用)。
   // endInline は安定参照 (ref / runtime) のみ触るため初回登録のままでよい。
   useEffect(() => {
     const onDownOutside = (e: PointerEvent) => {
-      if (!inlineRef.current) return;
       const target = e.target instanceof Element ? e.target : null;
-      if (target && target.closest('.formatCardItem.editing')) return;
-      endInline();
+      // text の inline 編集セッション終了
+      if (inlineRef.current && !(target && target.closest('.formatCardItem.editing'))) {
+        endInline();
+      }
+      // 入力欄 (input/textarea) の外をタップしたらフォーカス解除 (常時入力欄も対象)。
+      // 別の入力欄へのタップはブラウザ既定のフォーカス移動に、編集中セル内の操作
+      // (正常 ✓ で流し込み等) はそのセルに任せる。
       const active = document.activeElement;
-      if (active instanceof HTMLElement) active.blur();
+      if (
+        active instanceof HTMLElement &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') &&
+        (!target || (target !== active && !target.closest('input, textarea, .formatCardItem.editing')))
+      ) {
+        active.blur();
+      }
     };
     window.addEventListener('pointerdown', onDownOutside);
     return () => window.removeEventListener('pointerdown', onDownOutside);

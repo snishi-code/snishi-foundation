@@ -30,4 +30,34 @@ describe('正常チェックの誤タップガード', () => {
       sFormat.items[0]!.normal,
     );
   });
+
+  it('前/次で患者を切り替えた直後もガードが掛け直される (pid 変更でリセット — 監査指摘)', async () => {
+    const { runtime } = await renderApp({
+      bundle: seedBundle([
+        { name: '一人目', room: '101' },
+        { name: '二人目', room: '102' },
+      ]),
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: '101 一人目' }));
+    await screen.findByRole('region', { name: 'S' });
+
+    // 次の患者へ (このタップで pointerdown 済みだが、患者切替でガードが掛け直される)
+    await user.click(screen.getByRole('button', { name: '次の患者' }));
+    await screen.findByText(/102 二人目/);
+
+    const p2 = runtime.store.getAppState().patients[1]!;
+    const sFormat = runtime.store.getSettings().formats.find((f) => f.panel === 'S')!;
+    const normalBtn = screen.getAllByRole('button', { name: '正常' })[0] as HTMLElement;
+
+    // 切替直後のゴーストタップ相当 (新しい pointerdown なし) は保存されない
+    fireEvent.click(normalBtn);
+    expect(readTextValue(p2.formatValues[sFormat.id]?.['0'])).toBe('');
+
+    // 新しい pointerdown の後は通常どおり書かれる
+    fireEvent.pointerDown(window);
+    fireEvent.click(normalBtn);
+    expect(readTextValue(p2.formatValues[sFormat.id]?.['0'])).toBe(sFormat.items[0]!.normal);
+  });
 });
