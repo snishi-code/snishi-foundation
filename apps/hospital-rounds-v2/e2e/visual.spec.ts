@@ -51,8 +51,7 @@ for (const vp of VIEWPORTS) {
     });
 
     // 設定
-    await page.locator(ui('nav.menu')).click();
-    await page.locator(ui('nav.menu.settings')).click();
+    await page.locator(ui('nav.settings')).click();
     await expect(page.locator(ui('settings.view'))).toBeVisible();
     await expectNoHorizontalScroll(page, `settings ${vp.name}`);
     await page.screenshot({

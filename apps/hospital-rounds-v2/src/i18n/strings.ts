@@ -40,12 +40,10 @@ export const STRINGS_JA = {
   'home.start.confirm':
     '新しい診察を開始します。前回の記録をクリアしてよろしいですか？\n（クリアする項目は設定画面で選べます）',
   'home.qr.show': 'ホームQR表示',
-  'home.empty': '患者がいません',
   'home.patientQr.title': 'この患者の電子カルテ転記用QRを表示',
   'home.patientQr.aria': '{label} の電子カルテ転記用QRを表示',
 
   // ステータス
-  'status.picker.title': 'ステータスを選択',
   'tagStatus.none': '白',
   'tagStatus.yellow': '黄',
   'tagStatus.green': '緑',
@@ -124,11 +122,7 @@ export const STRINGS_JA = {
   'detail.qr.tooLong': '分割してもQRに入りません（1文字でも不可）',
 
   // 共通 (settings/pickers 追加分)
-  'common.add': '追加',
   'common.import': '取込',
-  'common.export': '保存',
-  'common.reset': '初期化',
-  'common.name': '名前',
 
   // 患者ライフサイクル (削除 / 復元 / 完全削除)
   'patient.add': '患者を追加する',
@@ -153,7 +147,6 @@ export const STRINGS_JA = {
   'patientSheet.tags': 'タグ',
   'tag.add.title': '新規タグ',
   'tag.add.aria': '新規タグ',
-  'tag.sheet.title': 'タグを選ぶ',
   'tag.sheet.filterTitle': 'タグで絞り込む',
   'tag.placeholder': 'タグ名',
   'tag.filter.empty': 'タグが登録されていません',
@@ -177,9 +170,6 @@ export const STRINGS_JA = {
   'settings.clear.statusBlue': 'ステータス：青（追記）',
 
   // 設定: フォーマット CRUD
-  'format.title': 'フォーマット',
-  'format.new': '新規フォーマット',
-  'format.new.aria': '新規フォーマット',
   'format.editTitle.new': '{panel} のフォーマット 新規作成',
   'format.editTitle.edit': '{panel} のフォーマット 編集',
   'format.panelSection': '{panel}',
@@ -195,7 +185,6 @@ export const STRINGS_JA = {
   'format.placeholder.unit': '単位',
   'format.placeholder.normal': '正常文',
   'format.addItem': '＋ 項目追加',
-  'format.deleteItem.title': 'この項目を削除',
   'format.deleteItem.aria': 'この項目を削除',
   'format.itemDelete.blocked':
     'この項目には入力済みデータがあります。削除する場合は項目の × から削除してください',
@@ -216,14 +205,12 @@ export const STRINGS_JA = {
   'format.fracMode.text': '文字',
   'format.fracMode.title': '分数の入力方式（数字 / 文字）',
   'format.fracMode.aria': '分数の入力方式を選ぶ（数字 / 文字）',
-  'format.tags.title': 'このフォーマットに付くタグ',
   'format.name.required': 'フォーマット名を入力してください。',
   'format.name.duplicate': '既に同名のフォーマットがあります。別の名前にしてください。',
   'format.delete.confirm': 'フォーマット「{name}」を削除します。よろしいですか？',
   'format.delete.soleExpandBlocked':
     'このフォーマットはどこかのセットで S/O/A/P の最後の入力カードなので削除できません。先に別のフォーマットをそのパネルの入力カードに設定してください。',
   'settings.format.list.empty': '未登録。右上の + から追加してください。',
-  'settings.addFormat.title': 'フォーマット追加',
   'settings.addFormat.aria': 'フォーマット追加',
 
   // 設定: カード表示の構成編集 (デフォルトグループのみ。複数セット運用 UI は撤去済み)

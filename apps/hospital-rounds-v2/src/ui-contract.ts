@@ -69,7 +69,6 @@ export const UI = {
     view: 'settings.view',
     clearTarget: 'settings.clearTarget',
     tagList: 'settings.tags.list',
-    tagAdd: 'settings.tags.add',
     tagRow: 'settings.tags.row',
     tagDelete: 'settings.tags.delete',
     formatList: 'settings.formats.list',

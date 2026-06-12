@@ -403,11 +403,6 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   margin-bottom: var(--space-2);
 }
 
-.formatGroupPickerRow.selected {
-  background: var(--primary-light);
-  border-radius: var(--radius-sm);
-}
-
 /* ── 詳細: 患者メタ / ツールバー ── */
 .detailToolbar {
   align-items: center;
@@ -840,81 +835,8 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   padding: var(--space-2) 0;
 }
 
-/* ── メモ / 共有一覧 (v1 memo-shared.css の縮約移植) ── */
-.memoList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.memoRow {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: var(--space-2) var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.memoNoBtn {
-  position: relative;
-  align-self: flex-start;
-  min-height: var(--hr-cell-h);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--status-none-bd);
-  background: var(--status-none-bg);
-  font-weight: 800;
-  font-size: 16px;
-  padding: 4px 12px 4px 24px;
-}
-
-.memoNoBtn .patientBtnMark {
-  top: 50%;
-  transform: translateY(-50%);
-  left: 6px;
-}
-
-/* 一覧の患者ボタンにもステータス色を反映する (ホームの患者ボタンと同じ 3 層)。
-   .memoNoBtn の既定 background/border が後勝ちで status-* を打ち消していたため、
-   複合セレクタで明示的に上書きする。 */
-.memoNoBtn.status-yellow {
-  background: var(--status-yellow-bg);
-  border-color: var(--status-yellow-bd);
-  color: var(--status-yellow-fg);
-}
-
-.memoNoBtn.status-green {
-  background: var(--status-green-bg);
-  border-color: var(--status-green-bd);
-  color: var(--status-green-fg);
-}
-
-.memoNoBtn.status-gray {
-  background: var(--status-gray-bg);
-  border-color: var(--status-gray-bd);
-  color: var(--status-gray-fg);
-}
-
-.memoNoBtn.status-blue {
-  background: var(--status-blue-bg);
-  border-color: var(--status-blue-bd);
-  color: var(--status-blue-fg);
-}
-
-.memoRowEdit {
-  display: flex;
-  gap: var(--space-2);
-}
-
 .roomInput {
   flex: 0 0 6em;
-}
-
-.memoNameInput {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 /* ── QR 表示の中身 (Modal ポップアップ内に置くため余白は持たない) ── */
