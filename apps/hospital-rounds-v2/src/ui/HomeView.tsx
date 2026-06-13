@@ -133,7 +133,11 @@ export function HomeView({
     });
     try {
       const newId = await store.storage.createWorkspaceRecord(label, bundle);
-      // switchWorkspace は切替前に現病棟 + 設定 (タグ union 込み) を fail-closed 保存する
+      // switchWorkspace は切替前に現病棟 + 設定 (タグ union 込み) を fail-closed 保存する。
+      // 注: 厳密な all-or-nothing ではない。createWorkspaceRecord 成功後に switchWorkspace
+      // が失敗すると新病棟レコードだけ残り得る (= 非破壊の孤児病棟。既存データは無傷で、
+      // ユーザーは病棟一覧から削除できる)。可視状態 (close/成功 toast) は durable 書込の
+      // 後にしか進めないので fail-closed の本質 (可視状態を先に進めない) は保つ。
       await store.switchWorkspace(newId);
     } catch (e) {
       console.error('qr import: create/switch new ws failed:', e);

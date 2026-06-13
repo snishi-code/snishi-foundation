@@ -22,6 +22,7 @@ vi.mock('@snishi/foundation/qr/scan', () => ({
   },
 }));
 import { encodePatientList } from '../src/qr/patientList';
+import { SECTION, getSection } from '../src/data/bundle';
 import { encodePages, newBatchId } from '@snishi/foundation/qr/protocol';
 import { packPayload } from '@snishi/foundation/qr/crypto';
 import { APP_KEY_BYTES, QR_ENCRYPT } from '../src/qr/appKey';
@@ -102,15 +103,26 @@ describe('ホーム QR (HM)', () => {
       });
     }
 
+    const oldWsId = runtime.store.storage.getActiveWorkspaceId();
+
     // 全ページ揃うと onApply → applyRoster が走り、新病棟へ切替 (確認ダイアログなし)
     await waitFor(() =>
       expect(runtime.store.getAppState().patients.some((p) => p.name === '受信太郎')).toBe(true),
     );
     // 旧 pendingImport ConfirmDialog の文言が出ないこと
     expect(screen.queryByText(/件の名簿を.*新規病棟/)).toBeNull();
-    // 既存病棟は破壊されず別病棟として残る (非破壊 = 自動展開を許容する根拠)
+
+    // 別病棟へ切り替わっている (新病棟が active)
+    const newWsId = runtime.store.storage.getActiveWorkspaceId();
+    expect(newWsId).not.toBe(oldWsId);
+
+    // 既存病棟は破壊されず内容も保持される (= 自動展開を許容する根拠)
     const wards = await runtime.store.storage.listBundles();
     expect(wards.length).toBeGreaterThanOrEqual(2);
+    const oldBundle = await runtime.store.storage.loadBundle(oldWsId);
+    const oldPatients = (getSection(oldBundle, SECTION.PATIENTS) as Array<{ name: string }>) ?? [];
+    expect(oldPatients.some((p) => p.name === '既存患者')).toBe(true);
+    expect(oldPatients.some((p) => p.name === '受信太郎')).toBe(false);
   });
 
   it('buildHmPages が正常にページ列を生成できる (encode/crypto round-trip)', async () => {

@@ -79,6 +79,31 @@ describe('useWakeLock', () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
+  it('取得中に visible が来ても request は二重に走らない (sentinel リーク防止)', async () => {
+    // 初回 request を保留 (pending) にして、解決前に visible を発火させる
+    let resolveFirst: (() => void) | null = null;
+    request.mockImplementationOnce(
+      () =>
+        new Promise<FakeSentinel>((res) => {
+          resolveFirst = () => {
+            const s = makeSentinel();
+            sentinels.push(s);
+            res(s);
+          };
+        }),
+    );
+    renderHook(() => useWakeLock(true));
+    // 初回 request は pending。requesting ガードにより 2 本目は wl.request を呼ばない
+    setVisibility('visible');
+    expect(request).toHaveBeenCalledTimes(1);
+
+    // 初回を解決 → sentinel は 1 本だけ
+    resolveFirst!();
+    await flush();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(sentinels.length).toBe(1);
+  });
+
   it('wakeLock 非対応環境では何もしない (no-op)', async () => {
     delete (navigator as unknown as { wakeLock?: unknown }).wakeLock;
     const { unmount } = renderHook(() => useWakeLock(true));

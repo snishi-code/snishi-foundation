@@ -26,8 +26,13 @@ export function useWakeLock(active: boolean): void {
 
     let sentinel: WakeLockSentinelLike | null = null;
     let cancelled = false;
+    // 取得中フラグ。初回 request() の解決前に visibilitychange が来ても 2 本目を
+    // 走らせない (両方 resolve すると sentinel を 1 本しか保持できず他がリークする)。
+    let requesting = false;
 
     const request = async (): Promise<void> => {
+      if (requesting || sentinel) return; // 取得中 or 取得済みなら何もしない
+      requesting = true;
       try {
         const s = await wl.request('screen');
         if (cancelled) {
@@ -51,11 +56,13 @@ export function useWakeLock(active: boolean): void {
         }
       } catch {
         // 権限拒否・非対応・background など。抑止は補助なので握り潰す
+      } finally {
+        requesting = false;
       }
     };
 
     const onVisibility = (): void => {
-      if (document.visibilityState === 'visible' && !sentinel) void request();
+      if (document.visibilityState === 'visible') void request();
     };
 
     void request();
