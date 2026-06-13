@@ -93,6 +93,9 @@ describe('ホーム QR (HM)', () => {
     await user.click(screen.getByRole('button', { name: 'カメラで QR を読む' }));
     await waitFor(() => expect(scanMock.current).not.toBeNull());
 
+    // 受信 (変異) が始まる前に旧 active 病棟 ID を控える (deterministic)
+    const oldWsId = runtime.store.storage.getActiveWorkspaceId();
+
     // HM ページ列を実経路で生成し、カメラ読み取りとして 1 枚ずつ注入する
     const pages = await buildHmPages([{ name: '受信太郎', room: '201' }]);
     expect(pages.length).toBeGreaterThan(0);
@@ -102,8 +105,6 @@ describe('ホーム QR (HM)', () => {
         await Promise.resolve();
       });
     }
-
-    const oldWsId = runtime.store.storage.getActiveWorkspaceId();
 
     // 全ページ揃うと onApply → applyRoster が走り、新病棟へ切替 (確認ダイアログなし)
     await waitFor(() =>
