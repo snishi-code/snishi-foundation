@@ -284,6 +284,15 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M12 3v12" />
     </>
   ),
+  // 再生 (自動送り開始)
+  play: <polygon points="5 3 19 12 5 21 5 3" />,
+  // 一時停止 (自動送り停止)
+  pause: (
+    <>
+      <rect x="6" y="4" width="4" height="16" />
+      <rect x="14" y="4" width="4" height="16" />
+    </>
+  ),
 };
 
 export function Icon({
@@ -335,6 +344,8 @@ export function Icon({
     search: 'search',
     download: 'download',
     upload: 'upload',
+    play: 'play',
+    pause: 'pause',
   };
   const glyphKey = CONCEPT_TO_GLYPH[name];
   const paths = PATHS[glyphKey] ?? null;

@@ -3,7 +3,7 @@
 //
 // ホーム: 患者グリッド (タップで詳細へ / ステータスバッジ / 転棟メニュー)、
 // 診察開始 (= 記録クリア: snapshot → clear → fail-closed 保存 → rollback)、
-// HM QR カード (送信 = 名簿 / 受信 = 常に新規病棟として作成 + 切替)。
+// HM QR カード (送信 = 名簿 / 受信 = 確認なしで自動展開。常に新規病棟として作成 + 切替)。
 
 import { useEffect, useState } from 'react';
 import { Button } from '@snishi/foundation/ui/Button';
@@ -64,7 +64,6 @@ export function HomeView({
   ensureRoomOrder(appState.patients);
 
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [pendingImport, setPendingImport] = useState<{ decoded: DecodedPatientList; close: () => void } | null>(null);
   // 患者追加直後に開く編集ポップアップの対象 (部屋番号入力でソートされても取り違えない
   // よう index でなく pid で捕捉する — v1 add-patient.js の patient取り違え防止)
   const [addPid, setAddPid] = useState<string | null>(null);
@@ -88,8 +87,8 @@ export function HomeView({
         toast.show(t('qr.import.empty.home'), 'error');
         return;
       }
-      // 適用はユーザー確認後 (ConfirmDialog) — fail-closed は applyRoster 側
-      setPendingImport({ decoded, close: ctrl.close });
+      // 確認なしで自動展開 (HM は非破壊の新規病棟作成。fail-closed は applyRoster 側)
+      void applyRoster(decoded, ctrl.close);
     },
   });
 
@@ -357,27 +356,6 @@ export function HomeView({
             );
           })()
         : null}
-
-      {pendingImport ? (
-        <OverlayBinding onClose={() => setPendingImport(null)} />
-      ) : null}
-      {pendingImport ? (
-        <ConfirmDialog
-          title={t('qr.kind.home')}
-          body={t('home.qrImport.newWs.confirm', {
-            count: pendingImport.decoded.patients.length,
-            label: formatRecvLabel(),
-          })}
-          confirmLabel={t('common.save')}
-          cancelLabel={t('common.cancel')}
-          onCancel={() => setPendingImport(null)}
-          onConfirm={() => {
-            const item = pendingImport;
-            setPendingImport(null);
-            if (item) void applyRoster(item.decoded, item.close);
-          }}
-        />
-      ) : null}
     </section>
   );
 }

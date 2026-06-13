@@ -92,6 +92,8 @@ export const STRINGS_JA = {
   'format.note.aria': '{label} の備考を編集',
 
   // QR 共通
+  'qr.autoplay.pause': '自動送りを一時停止',
+  'qr.autoplay.play': '自動送りを再開',
   'qr.prev.tooltip': '前',
   'qr.next.tooltip': '次',
   'qr.scan.tooltip': 'カメラで QR を読む',
@@ -108,10 +110,8 @@ export const STRINGS_JA = {
   'qr.kind.home': 'ホームQR',
   'qr.import.empty.home': '取込内容が空でした。',
 
-  // ホームQR 受信 (新規病棟として取込)
+  // ホームQR 受信 (確認なしで新規病棟として自動展開)
   'home.qrImport.newWs.label': '受信 {ts}',
-  'home.qrImport.newWs.confirm':
-    '{count} 件の名簿を「{label}」として新規病棟に作成して切り替えますか？\n（現在の病棟には影響しません）',
   'home.qrImport.newWs.done': '「{label}」({count} 件) を作成して切り替えました。',
   'io.ws.switch.failed': '病棟切替に失敗しました',
 

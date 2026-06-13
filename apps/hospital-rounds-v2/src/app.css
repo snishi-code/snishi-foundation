@@ -1072,6 +1072,77 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   margin-top: var(--space-2);
 }
 
+/* ── QR 受信カウンタ パルス (新ページ受理時に一瞬スケール+背景変化) ── */
+@keyframes qrRecvPulse {
+  0% {
+    transform: scale(1);
+    background: var(--primary-light);
+    color: var(--primary-strong);
+  }
+  40% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    background: transparent;
+    color: var(--muted);
+  }
+}
+
+/* 完了時は少し強めに (長めのスケール + 成功色) */
+@keyframes qrRecvPulseDone {
+  0% {
+    transform: scale(1);
+    background: var(--success-light);
+    color: var(--success);
+  }
+  35% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    background: transparent;
+    color: var(--muted);
+  }
+}
+
+.qrRecvStatus.pulse {
+  display: inline-block;
+  animation: qrRecvPulse 0.3s ease-out forwards;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+.qrRecvStatus.pulseDone {
+  display: inline-block;
+  animation: qrRecvPulseDone 0.4s ease-out forwards;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+/* ── QR ページドット (自動送りの視覚インジケータ) ── */
+.qrPageDots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 0 var(--space-2);
+}
+
+.qrPageDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s, transform 0.2s;
+  flex-shrink: 0;
+}
+
+.qrPageDot.active {
+  background: var(--primary);
+  transform: scale(1.35);
+}
+
 .qrTextPreview {
   word-break: break-all;
   white-space: pre-wrap;

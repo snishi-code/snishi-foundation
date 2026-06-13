@@ -3,11 +3,14 @@
 //
 // 電子カルテ転記用 QR: buildTabPayload の **平文** を分割表示する。電子カルテ端末の
 // 標準カメラで読む前提のため暗号化マトリクスの対象外 (常に平文・qr/crypto を通さない)。
+// 自動ページ送りは useAutoPager で制御 (送信のみ・受信なし)。
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Modal } from '@snishi/foundation/ui/Modal';
 import { IconButton } from '@snishi/foundation/ui/IconButton';
 import { Icon } from '@snishi/foundation/ui/Icon';
+import { useAutoPager } from '@snishi/foundation/qr/useAutoPager';
+import { useWakeLock } from '@snishi/foundation/ui/useWakeLock';
 import { drawQrToCanvas } from '@snishi/foundation/qr/render';
 import type { Patient, Settings } from '../domain/types';
 import { buildTabPayload } from '../domain/payload';
@@ -15,6 +18,8 @@ import { splitTextToFitQr } from './qrText';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
 import { useRegisterOverlay } from './registries';
+import { QR_AUTO_ADVANCE_MS } from './QrCard';
+import { useState } from 'react';
 
 export function DetailQrDialog({
   patient,
@@ -27,7 +32,6 @@ export function DetailQrDialog({
 }) {
   useRegisterOverlay(onClose);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [pageIndex, setPageIndex] = useState(0);
   const [error, setError] = useState('');
 
   const payload = useMemo(() => buildTabPayload(patient, settings), [patient, settings]);
@@ -42,7 +46,14 @@ export function DetailQrDialog({
   }, [payload]);
 
   const total = pages ? pages.length : 0;
-  const page = pages ? (pages[Math.min(pageIndex, total - 1)] ?? '') : '';
+
+  // 自動ページ送り (送信のみ。このダイアログは受信なし)
+  const pager = useAutoPager(total, { intervalMs: QR_AUTO_ADVANCE_MS, active: true });
+
+  // QR 表示中は画面スリープを抑止
+  useWakeLock(true);
+
+  const page = pages ? (pages[Math.min(pager.index, total - 1)] ?? '') : '';
 
   useEffect(() => {
     // 描画は次 tick に defer する (effect 本体での同期 setState を避ける)
@@ -75,21 +86,34 @@ export function DetailQrDialog({
     >
       <div className="qrCardHead">
         <span className="mono qrPageMeta" data-ui={UI.qr.pageMeta}>
-          {total > 1 ? `(${Math.min(pageIndex, total - 1) + 1}/${total})` : ''}
+          {total > 1 ? `(${Math.min(pager.index, total - 1) + 1}/${total})` : ''}
         </span>
         <span className="qrCardHeadSpacer" />
+        {/* 再生/一時停止トグル */}
+        <IconButton
+          label={pager.playing ? t('qr.autoplay.pause') : t('qr.autoplay.play')}
+          onClick={pager.toggle}
+          dataUi={UI.qr.playToggle}
+        >
+          {pager.playing ? (
+            <Icon name="pause" size={18} />
+          ) : (
+            <Icon name="play" size={18} />
+          )}
+        </IconButton>
+        {/* 手動ページ送り (自動が不安定な時の逃げ道) */}
         <IconButton
           label={t('qr.prev.tooltip')}
-          onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
-          disabled={pageIndex <= 0}
+          onClick={pager.prev}
+          disabled={pager.index <= 0}
           dataUi={UI.qr.prev}
         >
           <Icon name="chevronRight" size={18} className="iconFlipX" />
         </IconButton>
         <IconButton
           label={t('qr.next.tooltip')}
-          onClick={() => setPageIndex((i) => Math.min(total - 1, i + 1))}
-          disabled={pageIndex >= total - 1}
+          onClick={pager.next}
+          disabled={pager.index >= total - 1}
           dataUi={UI.qr.next}
         >
           <Icon name="chevronRight" size={18} />

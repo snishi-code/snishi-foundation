@@ -57,6 +57,8 @@ export const CONCEPT = {
   search: 'search', // 検索
   download: 'download', // ダウンロード
   upload: 'upload', // アップロード
+  play: 'play', // 再生 (自動送り開始)
+  pause: 'pause', // 一時停止 (自動送り停止)
 } as const;
 
 export type IconName = keyof typeof CONCEPT;

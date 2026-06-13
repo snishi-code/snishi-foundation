@@ -59,6 +59,7 @@ export const UI = {
     next: 'qr.next',
     scan: 'qr.scan',
     recvStatus: 'qr.recv.status',
+    playToggle: 'qr.playToggle',
   },
   move: {
     dialog: 'move.dialog',
