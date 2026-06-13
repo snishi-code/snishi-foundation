@@ -2,10 +2,25 @@
 // 受信はカメラ読み取りのみ (テキスト貼り付け受信は 2026-06 に撤去済み)。
 // 受信完了で確認なしに自動展開 (pendingImport ConfirmDialog は廃止)。
 import './setup';
-import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp, seedBundle } from './helpers';
+
+// カメラ scan をモックし、注入したテキストを onResult へ流す (jsdom は getUserMedia/
+// canvas frame を持たないため、受信→自動展開の経路はこの seam で実テストする)。
+const scanMock = vi.hoisted(() => ({ current: null as ((t: string) => boolean | void) | null }));
+vi.mock('@snishi/foundation/qr/scan', () => ({
+  isScannerSupported: () => true,
+  scanQrStream: (_video: unknown, onResult: (t: string) => boolean | void) => {
+    scanMock.current = onResult;
+    return {
+      stop() {
+        scanMock.current = null;
+      },
+    };
+  },
+}));
 import { encodePatientList } from '../src/qr/patientList';
 import { encodePages, newBatchId } from '@snishi/foundation/qr/protocol';
 import { packPayload } from '@snishi/foundation/qr/crypto';
@@ -65,47 +80,37 @@ describe('ホーム QR (HM)', () => {
     expect(await screen.findByRole('button', { name: '自動送りを再開' })).toBeInTheDocument();
   });
 
-  it('HM 受信完了で確認ダイアログが出ない (自動展開=ConfirmDialog 廃止)', async () => {
+  it('HM 受信が完了すると確認なしで新規病棟に自動展開される (カメラ注入)', async () => {
     const { runtime } = await renderApp({
       bundle: seedBundle([{ name: '既存患者', room: '101' }]),
     });
     const user = userEvent.setup();
 
-    // QR ダイアログを開く
+    // QR ダイアログ → カメラ受信を開く (scanQrStream モックが onResult を捕捉)
     await user.click(screen.getByRole('button', { name: 'ホームQR表示' }));
     await screen.findByText(/^\(1\/\d+\)$/);
+    await user.click(screen.getByRole('button', { name: 'カメラで QR を読む' }));
+    await waitFor(() => expect(scanMock.current).not.toBeNull());
 
-    // HM ページを生成して flow.receivePage を直接呼び出す
+    // HM ページ列を実経路で生成し、カメラ読み取りとして 1 枚ずつ注入する
     const pages = await buildHmPages([{ name: '受信太郎', room: '201' }]);
     expect(pages.length).toBeGreaterThan(0);
+    for (const page of pages) {
+      await act(async () => {
+        scanMock.current?.(page);
+        await Promise.resolve();
+      });
+    }
 
-    // receivePage を全ページ分呼ぶ
-    const flow = runtime.store.getAppState; // store は公開 API を通じてアクセス
-    void flow; // 直接アクセスは難しいため: QrDialog 経由の UI テストで代替
-
-    // 確認ダイアログ系の文言が出ないことを確認 (旧 pendingImport ConfirmDialog)
+    // 全ページ揃うと onApply → applyRoster が走り、新病棟へ切替 (確認ダイアログなし)
+    await waitFor(() =>
+      expect(runtime.store.getAppState().patients.some((p) => p.name === '受信太郎')).toBe(true),
+    );
+    // 旧 pendingImport ConfirmDialog の文言が出ないこと
     expect(screen.queryByText(/件の名簿を.*新規病棟/)).toBeNull();
-    expect(screen.queryByText('キャンセル')).toBeNull(); // 確認ダイアログのキャンセルボタンが出ない
-
-    // 自動展開ではカメラ経路で receivePage が complete になると即 applyRoster が呼ばれる
-    // (jsdom でカメラ callback を発火できないため、ここでは ConfirmDialog 不在の確認を主とする)
-  });
-
-  it('HM flow.receivePage で progress/complete が呼ばれると視覚フィードバック要素が存在する', async () => {
-    // useQrFlow を直接使わずに QrCardBody の data-ui 要素の存在で代替検証する
-    await renderApp({
-      bundle: seedBundle([{ name: 'テスト', room: '101' }]),
-    });
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'ホームQR表示' }));
-    await screen.findByText(/^\(1\/\d+\)$/);
-
-    // qr.recv.status は receivable=true (HM) の場合に DOM 上に存在する
-    // (初期値は空文字なので要素自体は表示されていないが、recvStatus が更新されると表示される)
-    // 存在確認: QrCardBody は receivable=true で aria-live='polite' を持つ要素が準備されている
-    // (recvStatus が空の場合は条件レンダリングで出ない)
-    // → recvStatus 非空を強制するには camera callback が必要。ここでは pass とする
-    expect(true).toBe(true); // カメラ依存のテストは jsdom で困難なため最小限の smoke test
+    // 既存病棟は破壊されず別病棟として残る (非破壊 = 自動展開を許容する根拠)
+    const wards = await runtime.store.storage.listBundles();
+    expect(wards.length).toBeGreaterThanOrEqual(2);
   });
 
   it('buildHmPages が正常にページ列を生成できる (encode/crypto round-trip)', async () => {

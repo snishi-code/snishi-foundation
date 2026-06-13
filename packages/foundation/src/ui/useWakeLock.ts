@@ -8,10 +8,13 @@
 
 import { useEffect } from 'react';
 
-type WakeLockSentinelLike = { release(): Promise<void> } | null;
+interface WakeLockSentinelLike {
+  release(): Promise<void>;
+  addEventListener?(type: 'release', listener: () => void): void;
+}
 
 interface WakeLockNavigator {
-  wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void> }> };
+  wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinelLike> };
 }
 
 export function useWakeLock(active: boolean): void {
@@ -21,7 +24,7 @@ export function useWakeLock(active: boolean): void {
     const wl = (navigator as Navigator & WakeLockNavigator).wakeLock;
     if (!wl || typeof wl.request !== 'function') return;
 
-    let sentinel: WakeLockSentinelLike = null;
+    let sentinel: WakeLockSentinelLike | null = null;
     let cancelled = false;
 
     const request = async (): Promise<void> => {
@@ -37,6 +40,15 @@ export function useWakeLock(active: boolean): void {
           return;
         }
         sentinel = s;
+        // OS が背面化等で自動解放したら ref を空にする (visible 復帰で再取得するため)。
+        // これが無いと sentinel が「解放済みなのに非 null」のまま再取得をスキップする。
+        try {
+          s.addEventListener?.('release', () => {
+            if (sentinel === s) sentinel = null;
+          });
+        } catch {
+          /* addEventListener 非対応でも致命ではない */
+        }
       } catch {
         // 権限拒否・非対応・background など。抑止は補助なので握り潰す
       }
