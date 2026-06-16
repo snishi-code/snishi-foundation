@@ -16,11 +16,14 @@ describe('App シェル', () => {
     const taro = await screen.findByRole('button', { name: '203 テスト太郎' });
     expect(screen.getByRole('button', { name: '101 テスト次郎' })).toBeInTheDocument();
 
-    // 患者タップ → detail (S/O/A/P パネルカード + 患者メタ)
+    // 患者タップ → detail (プロブレムリスト + S/O/A/P パネルカード + 自由記述 + 患者メタ)
     await user.click(taro);
     expect(await screen.findByText('203 テスト太郎')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'S' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'プロブレムリスト' })).toBeNull();
+    // 患者ページ内のプロブレムリスト・自由記述は復活している
+    expect(screen.getByRole('region', { name: 'プロブレムリスト' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '自由記述' })).toBeInTheDocument();
+    // ただし旧「共有」パネル / 専用一覧は復活させない
     expect(screen.queryByRole('region', { name: '共有' })).toBeNull();
 
     // 選択患者は部屋順ソート後の index に一致する (203 = 2 番目)

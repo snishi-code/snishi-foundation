@@ -13,6 +13,9 @@ export const STRINGS_JA = {
   'panel.O': 'O',
   'panel.A': 'A',
   'panel.P': 'P',
+  // プロブレムリスト / 自由記述 (フォーマットとは別構造の患者ごと独立データ)
+  'panel.problem': 'プロブレムリスト',
+  'panel.freeText': '自由記述',
 
   // 共通
   'common.save': '保存',
@@ -77,6 +80,16 @@ export const STRINGS_JA = {
   'move.done': '「{dest}」へ移動しました',
   'move.banner': '{dest} へ転棟済 ({date})',
   'move.namePrefix': '(移)',
+
+  // プロブレムリスト (患者ごとの独立データ)
+  'problem.placeholder': '病名・問題',
+  'problem.input.aria': 'プロブレム #{n}',
+  'problem.add': 'プロブレム追加',
+  'problem.delete.aria': 'プロブレム #{n} を削除',
+  'problem.delete.confirm': '「{text}」を削除します。よろしいですか？',
+
+  // 自由記述欄 (患者ごとの独立データ)
+  'freeText.placeholder': '自由記述',
 
   // フォーマット入力
   'format.input.clear': '消去',
@@ -172,6 +185,8 @@ export const STRINGS_JA = {
   'settings.clear.statusBlue': 'ステータス：青（追記）',
   'settings.clear.tagAmber': 'タグ：色付き',
   'settings.clear.tagGray': 'タグ：グレー',
+  'settings.clear.problems': 'プロブレムリスト',
+  'settings.clear.freeText': '自由記述',
 
   // 設定: フォーマット CRUD
   'format.editTitle.new': '{panel} のフォーマット 新規作成',

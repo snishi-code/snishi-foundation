@@ -29,6 +29,7 @@ import {
   type Settings,
 } from './types';
 import { formatValueHasInput } from './formatValues';
+import { problemsHaveInput } from './problems';
 import { deriveLegacyDisplayMap, migrateLegacyTagList } from './legacyMigrate';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -249,6 +250,11 @@ export function normalizeSettings(raw: unknown): Settings {
       out.clearTargets[k] =
         typeof ct[k] === 'boolean' ? (ct[k] as boolean) : !!DEFAULT_CLEAR_TARGETS[k];
     }
+    // プロブレムリスト / 自由記述 (フォーマットとは別構造)。既定は両方 false。
+    for (const k of ['problems', 'freeText']) {
+      out.clearTargets[k] =
+        typeof ct[k] === 'boolean' ? (ct[k] as boolean) : !!DEFAULT_CLEAR_TARGETS[k];
+    }
   }
   if (Array.isArray(raw.tags)) {
     // migrateLegacyTagList: 旧 string[] と新 TagDef[] の両方を受け付ける (一回限り移行)
@@ -276,6 +282,8 @@ export function makeDefaultPatient(): Patient {
     name: '',
     room: '',
     tags: [],
+    problems: [],
+    freeText: '',
     updatedAt: 0,
     transferredAt: 0,
     transferredTo: '',
@@ -299,6 +307,10 @@ export function isPatientEmpty(p: Patient | null | undefined): boolean {
   if (p.name) return false;
   if (p.room) return false;
   if (Array.isArray(p.tags) && p.tags.length > 0) return false;
+  // プロブレムリスト / 自由記述 (フォーマットとは別構造の患者ごと独立データ) に
+  // 入力があれば空ではない (= 削除候補にしない)。
+  if (problemsHaveInput(p.problems)) return false;
+  if (typeof p.freeText === 'string' && p.freeText.trim() !== '') return false;
   // 展開(A)フォーマットに入力値があれば空ではない (値は文字列でも { value, note }
   // オブジェクトでも formatValueHasInput が正しく判定する)
   if (p.formatValues && typeof p.formatValues === 'object') {
@@ -345,6 +357,12 @@ export function normalizePatientArray(arr: readonly unknown[] | null | undefined
               .filter((t): t is string => typeof t === 'string' && !!t.trim())
               .map((t) => String(t))
           : [],
+      // プロブレムリストは保存値の string 行のみ採用 (番号は保存しない)。空行は表示側で扱う。
+      problems:
+        r && Array.isArray(r.problems)
+          ? r.problems.filter((x): x is string => typeof x === 'string')
+          : [],
+      freeText: r && typeof r.freeText === 'string' ? r.freeText : '',
       updatedAt: r && typeof r.updatedAt === 'number' ? r.updatedAt : 0,
       transferredAt: r && typeof r.transferredAt === 'number' ? r.transferredAt : 0,
       transferredTo: r && typeof r.transferredTo === 'string' ? r.transferredTo : '',

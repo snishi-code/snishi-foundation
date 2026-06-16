@@ -176,6 +176,9 @@ export function HomeView({
       else if (p.status === STATUS.GRAY && ct.statusGray) p.status = STATUS.NONE;
       else if (p.status === STATUS.BLUE && ct.statusBlue) p.status = STATUS.NONE;
       if (drop.size) p.tags = p.tags.filter((tg) => !drop.has(tg));
+      // プロブレムリスト / 自由記述 (既定では両方 false = 残す)。
+      if (ct.problems) p.problems = [];
+      if (ct.freeText) p.freeText = '';
       p.updatedAt = now;
     }
     try {

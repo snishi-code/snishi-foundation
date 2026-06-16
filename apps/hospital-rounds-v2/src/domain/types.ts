@@ -164,6 +164,11 @@ export interface Patient {
   room: string;
   tags: string[];
   // 臨床入力本文は formatValues に一本化 (旧 s/memo/shared/oFree/a/p は撤去)。
+  // ただしプロブレムリストと自由記述欄はフォーマットとは別構造の患者ごと独立データ。
+  /** プロブレムリスト。`#1`/`#2` 等の番号は保存せず、表示・QR 出力時に配列順から自動付番する。 */
+  problems: string[];
+  /** 自由記述欄 (患者ごとの自由 textarea)。QR には含めない (電子カルテ転記対象外)。 */
+  freeText: string;
   updatedAt: number;
   // 他ワークスペースへ移動した時に立つマーカー。元データ (name/room) は触らず表示時のみ装飾。
   //   transferredAt: 移動した時刻 (ms epoch)。0 = 未移動。

@@ -102,6 +102,7 @@ export function decodeSettingsPayload(payload: string): DecodedSettingsPatch {
       ...FORMAT_PANELS,
       'statusYellow', 'statusGreen', 'statusGray', 'statusBlue',
       ...TAG_COLORS.map(tagClearKey),
+      'problems', 'freeText',
     ]);
     out.clearTargets = {};
     for (const [k, val] of Object.entries(rec.ct as Record<string, unknown>)) {

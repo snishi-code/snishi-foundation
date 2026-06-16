@@ -7,6 +7,7 @@
 
 import type { Format, FormatPanel, Patient, Settings } from './types';
 import { composeFormatFromValues } from './formatValues';
+import { composeProblemsText } from './problems';
 
 // v1 では payload.js に utf8ByteLength があったが、v2 は foundation qr/protocol の
 // utf8ByteLength を使う (重複定義しない)。
@@ -68,12 +69,19 @@ export function buildSoapParts(patient: Patient | null | undefined, settings: Se
 }
 
 /**
- * 患者画面 QR の本文 = S/O/A/P。プロブレムリスト機能は撤去済み。
+ * 患者画面 QR の本文 = プロブレムリスト + S/O/A/P。
+ * 先頭に patient.problems (`#n 本文`・空行スキップ)、続けて S/O/A/P。
+ * 自由記述 (patient.freeText) は QR には含めない (電子カルテ転記対象外)。
  */
 export function buildTabPayload(patient: Patient | null | undefined, settings: Settings): string {
+  const problemOut = composeProblemsText(patient?.problems);
   const { sOut, oOut, aOut, pOut } = buildSoapParts(patient, settings);
 
   const parts: string[] = [];
+  if (problemOut) {
+    parts.push(problemOut);
+    parts.push('――');
+  }
   parts.push('(S)');
   parts.push(sOut);
   parts.push('――');

@@ -28,6 +28,8 @@ import { EVENT } from '../data/eventlog';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { formatPatientLabel, isPatientTransferred, statusClass, STATUS_MARK } from './patientDisplay';
 import { PanelCard, type InlineSession, type PanelCardCallbacks } from './PanelCard';
+import { ProblemListCard } from './ProblemListCard';
+import { FreeTextCard } from './FreeTextCard';
 import { FormatSheet } from './FormatSheet';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
@@ -386,9 +388,15 @@ export function DetailView({
         </div>
       ) : null}
 
+      {/* プロブレムリストはフォーマットではなく患者ごとの独立データ。S/O/A/P の前 (QR 順と一致) */}
+      <ProblemListCard runtime={runtime} patient={patient} />
+
       {FORMAT_PANELS.map((panel) => (
         <PanelCard key={panel} panel={panel} patient={patient} settings={settings} inline={inlineForRender} cb={cb} />
       ))}
+
+      {/* 自由記述欄: S/O/A/P の後・患者管理の前。フォーマットとは別構造・QR には載せない。 */}
+      <FreeTextCard runtime={runtime} patient={patient} />
 
       <PatientLifecyclePanel
         runtime={runtime}

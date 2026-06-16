@@ -139,6 +139,8 @@ const EXPECTED_ST = {
     statusBlue: false,
     tagGray: false,
     tagAmber: true,
+    problems: false,
+    freeText: false,
   },
 };
 
