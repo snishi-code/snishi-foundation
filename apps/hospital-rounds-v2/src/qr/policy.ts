@@ -25,15 +25,15 @@
 //   domain / apply / UI 側は読みやすい名前 (redistribution, presentationDefault,
 //   keyProfile, rosterAuthorityId, rosterWardId, rosterPatientId 等) を使う。
 //   短縮するのは QR payload に載せる **wire 境界だけ** (src/qr/wire.ts の責務)。
-//   UI や apply 処理に短縮キーを直書きしない。短縮対応の予定:
-//     redistribution      -> rd
-//     presentationDefault -> pd
-//     keyProfile          -> kp
-//     rosterAuthorityId   -> aid
-//     rosterWardId        -> wid
-//     rosterPatientId     -> rpid
-//   ※ 本段階では HM payload への正本 ID 追加はしない (第二段階)。鍵そのものは
-//      いかなる場合も QR payload に載せない。
+//   UI や apply 処理に短縮キーを直書きしない。HM v5 で実装済みの短縮キー:
+//     redistribution      -> rd    (HM v5 m.rd)
+//     rosterAuthorityId   -> aid   (HM v5 m.wn と並ぶ m.aid)
+//     rosterWardId        -> wid   (HM v5 m.wid)
+//     rosterPatientId     -> rpid  (HM v5 p[].rpid)
+//   ※ presentationDefault / keyProfile は code 固定 policy であり QR には載せない
+//      (将来ユーザー鍵 profile を足しても鍵そのものは載せない)。
+//   ※ HM payload への正本 ID (aid/wid/rpid) は第二段階で実装済み
+//      (src/qr/wire.ts WIRE_V.HM=5)。localRole は載せない。鍵は載せない。
 // ============================================================================
 
 import { APP_KEY_BYTES } from './appKey';

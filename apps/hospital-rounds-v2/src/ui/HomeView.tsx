@@ -22,6 +22,12 @@ import {
   type AppState,
 } from '../domain/types';
 import { makeDefaultPatient } from '../domain/normalize';
+import {
+  defaultRosterMeta,
+  newRosterPatientId,
+  newRosterWardId,
+  type RosterMeta,
+} from '../domain/roster';
 import { clearPanelClinicalInput } from '../domain/formatValues';
 import { SECTION, projectBundle } from '../data/bundle';
 import { REASON, countActivePatients } from '../data/snapshots';
@@ -73,13 +79,24 @@ export function HomeView({
   const [statusPid, setStatusPid] = useState<string | null>(null);
 
   const trash = isTrashActive(store);
+  // 受信端末 (recipient) は名簿を再配布しない。ただし「次の名簿更新を受信」する導線は
+  // 同じ QR ダイアログ内なので、ボタンは無効化せず、送信 (QR ページ生成) だけ止める。
+  const hmRecipient = store.getActiveRosterMeta().localRole === 'recipient';
 
   const flow = useQrFlow<DecodedPatientList>({
     kind: 'HM',
     kindLabel: t('qr.kind.home'),
     keyBytes: getQrKeyBytes('HM'),
-    encodePayload: () =>
-      encodePatientList(store.getAppState().patients, store.getSettings(), { kind: 'HM' }),
+    encodePayload: () => {
+      // recipient (受信端末) は名簿を再配布しない: 空 payload → QR ページを生成しない。
+      // ダイアログ自体は開いて受信導線 (カメラ) を残す (= 次の名簿更新を受け取れる)。
+      if (store.getActiveRosterMeta().localRole === 'recipient') return '';
+      // ensureAuthorityForHmQr() が表示前に managed/正本 ID を確定させている。
+      return encodePatientList(store.getAppState().patients, store.getSettings(), {
+        kind: 'HM',
+        rosterMeta: store.getActiveRosterMeta(),
+      });
+    },
     decodePayload: (plain) => decodePatientList(plain),
     shouldEncrypt: () => shouldEncryptQr('HM'),
     onApply(decoded, ctrl) {
@@ -98,9 +115,11 @@ export function HomeView({
     void refreshQr();
   }, [revision, refreshQr]);
 
-  // 受信名簿 → 常に新規病棟として作成 + 切替 (v7.6+ 統一。上書き事故ゼロ)
+  // 受信名簿 → 常に新規病棟として作成 + 切替 (v7.6+ 統一。上書き事故ゼロ)。
+  // v5 (managed) は受信病棟を managed recipient として保存する (再配布・氏名/部屋編集を抑止)。
+  // v4 / m なしは従来通り unmanaged 新規病棟。既存病棟は探さない・更新しない (次タスク)。
   async function applyRoster(decoded: DecodedPatientList, close: () => void): Promise<void> {
-    const { tagNames: senderTagNames, patients: roster } = decoded;
+    const { rosterMeta: srcMeta, tagNames: senderTagNames, patients: roster } = decoded;
     const label = formatRecvLabel();
     const slotCount = Math.max(DEFAULT_PATIENT_COUNT, roster.length);
     const newPatients = [];
@@ -111,6 +130,12 @@ export function HomeView({
         p.room = r.room || '';
         p.name = r.name || '';
         p.tags = (r.tagIdxs || []).map((idx) => senderTagNames[idx - 1]).filter((x): x is string => !!x);
+        // 患者は新しいローカル pid を発番済み (makeDefaultPatient)。pid と rosterPatientId は
+        // 混ぜない。正本由来の rosterPatientId だけ受け継ぎ managed にする。
+        if (srcMeta && r.rosterManaged && r.rosterPatientId) {
+          p.rosterPatientId = r.rosterPatientId;
+          p.rosterManaged = true;
+        }
       }
       newPatients.push(p);
     }
@@ -126,9 +151,23 @@ export function HomeView({
       title: store.getAppState().title,
       patients: newPatients,
     };
+    // 受信病棟の名簿メタ: payload にメタがあれば managed recipient、無ければ unmanaged。
+    const wardRosterMeta: RosterMeta = srcMeta
+      ? {
+          managed: true,
+          localRole: 'recipient',
+          rosterAuthorityId: srcMeta.rosterAuthorityId,
+          rosterWardId: srcMeta.rosterWardId,
+          wardName: srcMeta.wardName,
+          // 受信側は再配布不可。payload の rd を踏襲しつつ recipient は常に prohibited。
+          redistribution: 'prohibited',
+          receivedAt: new Date().toISOString(),
+        }
+      : defaultRosterMeta();
     const bundle = projectBundle({
       appState: newAppState,
       settings: liveSettings,
+      rosterMeta: wardRosterMeta,
       sections: [SECTION.META, SECTION.PATIENTS],
     });
     try {
@@ -148,6 +187,79 @@ export function HomeView({
     }
     close();
     toast.show(t('home.qrImport.newWs.done', { count: roster.length, label }));
+  }
+
+  // 「実患者」(= 空スロットでない名簿対象)。HM QR に載る非空 wire 患者と揃える。
+  function isRealRosterPatient(p: { name: string; room: string }): boolean {
+    return !!(p.name && p.name.trim()) || !!(p.room && p.room.trim());
+  }
+
+  // 正本側 HM QR を出す前に、正本 ID / 病棟 ID / 患者 ID を確保して保存する (fail-closed)。
+  // 戻り値 false = QR を出さない (recipient・別正本・保存失敗)。
+  async function ensureAuthorityForHmQr(): Promise<boolean> {
+    const prevMeta = store.getActiveRosterMeta();
+    // 受信端末 (recipient) は名簿を再配布できない。
+    if (prevMeta.localRole === 'recipient') {
+      toast.show(t('home.qr.redistributionBlocked'), 'error');
+      return false;
+    }
+    // ローカル端末の正本 ID を確保 (初回はここで生成 + 永続化)。
+    const localAuthId = store.storage.ensureRosterAuthorityId();
+    // localRole:'authority' なのに rosterAuthorityId がローカル正本 ID と一致しない =
+    // 別正本から受け取ったデータ。誤って再配布しないよう fail-closed で出さない。
+    if (prevMeta.rosterAuthorityId && prevMeta.rosterAuthorityId !== localAuthId) {
+      toast.show(t('home.qr.redistributionBlocked'), 'error');
+      return false;
+    }
+
+    // 病棟表示名 (wn) は病棟ラベルから解決する (listBundles 失敗時は既存値を温存)。
+    const activeId = store.storage.getActiveWorkspaceId();
+    let wardName = prevMeta.wardName;
+    try {
+      const list = await store.storage.listBundles();
+      const w = list.find((x) => x.id === activeId);
+      if (w) wardName = w.label || w.title || wardName;
+    } catch {
+      /* 列挙失敗は致命的でない (既存 wardName を使う) */
+    }
+
+    const nextMeta: RosterMeta = {
+      managed: true,
+      localRole: 'authority',
+      rosterAuthorityId: prevMeta.rosterAuthorityId || localAuthId,
+      rosterWardId: prevMeta.rosterWardId || newRosterWardId(),
+      wardName,
+      receivedAt: prevMeta.receivedAt,
+      redistribution: 'prohibited',
+    };
+
+    // 実患者に rosterPatientId を発番 (空スロットには付けない)。rollback 用に旧値を控える。
+    const patients = store.getAppState().patients;
+    const backup = patients.map((p) => ({
+      rosterPatientId: p.rosterPatientId,
+      rosterManaged: p.rosterManaged,
+    }));
+    for (const p of patients) {
+      if (!isRealRosterPatient(p)) continue;
+      if (!p.rosterPatientId) p.rosterPatientId = newRosterPatientId();
+      p.rosterManaged = true;
+    }
+    store.setActiveRosterMeta(nextMeta);
+
+    // ID 確保後は保存してから QR を出す。保存できなければ live を戻して QR を出さない。
+    try {
+      await store.persistActiveOrThrow();
+    } catch (e) {
+      console.error('hm qr: ensure authority persist failed:', e);
+      patients.forEach((p, i) => {
+        p.rosterPatientId = backup[i]!.rosterPatientId;
+        p.rosterManaged = backup[i]!.rosterManaged;
+      });
+      store.setActiveRosterMeta(prevMeta);
+      toast.show(t('save.failed'), 'error');
+      return false;
+    }
+    return true;
   }
 
   // 診察開始 (= 記録クリア)。fail-closed: 保存できなければ live を戻して中断。
@@ -208,14 +320,25 @@ export function HomeView({
           onClick={() => {
             if (flow.isActive) {
               flow.close();
-            } else {
-              runtime.eventlog.log(EVENT.QR_SHOW, { kind: 'HM' });
-              void flow.open().catch((e) => {
+              return;
+            }
+            runtime.eventlog.log(EVENT.QR_SHOW, { kind: 'HM' });
+            void (async () => {
+              // recipient は再配布しない (QR ページは出さない) が、受信のためダイアログは開く。
+              if (!hmRecipient) {
+                // 正本 ID / 病棟 ID / 患者 ID を確保 + 保存してから開く (fail-closed)。
+                const ok = await ensureAuthorityForHmQr();
+                if (!ok) return;
+                runtime.bump(); // roster ID 発番を UI へ反映
+              }
+              try {
+                await flow.open();
+              } catch (e) {
                 // 暗号化失敗 = QR を出さない (fail-closed)。握らず可視化。
                 console.error('qr open failed:', e);
                 toast.show(t('qr.render.failed'), 'error');
-              });
-            }
+              }
+            })();
           }}
         >
           <Icon name="qr" size={18} />
@@ -227,6 +350,7 @@ export function HomeView({
           flow={flow}
           kindLabel={t('qr.kind.home')}
           presentationDefault={getQrPresentationDefault('HM')}
+          notice={hmRecipient ? t('home.qr.recipientReceiveOnly') : undefined}
           onClose={flow.close}
         />
       ) : null}

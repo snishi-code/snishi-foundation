@@ -290,6 +290,8 @@ export function makeDefaultPatient(): Patient {
     deletedAt: 0,
     deletedFromWorkspaceId: '',
     deletedFromWorkspaceLabel: '',
+    rosterPatientId: '',
+    rosterManaged: false,
     formatValues: {},
   };
 }
@@ -371,6 +373,9 @@ export function normalizePatientArray(arr: readonly unknown[] | null | undefined
         r && typeof r.deletedFromWorkspaceId === 'string' ? r.deletedFromWorkspaceId : '',
       deletedFromWorkspaceLabel:
         r && typeof r.deletedFromWorkspaceLabel === 'string' ? r.deletedFromWorkspaceLabel : '',
+      // 名簿 (roster) フィールド: 旧データ・型不一致は unmanaged 既定に倒す。
+      rosterPatientId: r && typeof r.rosterPatientId === 'string' ? r.rosterPatientId : '',
+      rosterManaged: r && typeof r.rosterManaged === 'boolean' ? r.rosterManaged : false,
       formatValues:
         r && isRecord(r.formatValues) ? (r.formatValues as Patient['formatValues']) : {},
     };

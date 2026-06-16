@@ -128,6 +128,12 @@ export const STRINGS_JA = {
   'home.qrImport.newWs.done': '「{label}」({count} 件) を作成して切り替えました。',
   'io.ws.switch.failed': '病棟切替に失敗しました',
 
+  // 名簿 QR (HM) の正本/受信ロール (再配布・編集の協調的 UI 制御)
+  'home.qr.redistributionBlocked': 'この端末では名簿を再配布できません',
+  'home.qr.recipientReceiveOnly': 'この端末は受信専用です（名簿の再配布はできません）。新しい名簿は下のカメラで受け取れます。',
+  'patient.roster.readonly': '氏名・部屋番号は正本端末で管理されています',
+  'patient.roster.managedActionDisabled': '受信した名簿の患者です。転棟・削除は正本端末で行ってください',
+
   // 患者画面 QR (電子カルテ転記用・平文)
   'detail.qr.show': '電子カルテ転記用のQRを表示',
   'detail.qr.dialogAria': '電子カルテ転記用QR',

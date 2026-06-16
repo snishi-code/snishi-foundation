@@ -36,6 +36,7 @@ import {
   normalizePatientArray,
   normalizeSettings,
 } from '../domain/normalize';
+import { defaultRosterMeta, normalizeRosterMeta, type RosterMeta } from '../domain/roster';
 import { needsLegacyResave } from '../domain/legacyMigrate';
 import { collectFormatItemIndicesWithData, remapPatientsFormatValues } from '../domain/formatValues';
 import { SECTION, getSection, parseBundle, projectBundle, type Bundle } from './bundle';
@@ -59,6 +60,8 @@ export interface ArchiveWorkspace {
   label: string;
   title: string;
   patients: Patient[];
+  /** 名簿メタ (HM 正本/受信)。旧 archive に無い場合は取込時 unmanaged へ倒す。 */
+  rosterMeta?: RosterMeta;
 }
 
 export interface Archive {
@@ -133,6 +136,9 @@ export interface HrStore {
   setAppState(s: AppState): void;
   /** ヘッダーのタイトル枠に出す現ユーザー名 (同期キャッシュ) */
   getCurrentUserName(): string;
+  /** アクティブ病棟の名簿メタ (live state)。persistActive で bundle に書く。 */
+  getActiveRosterMeta(): RosterMeta;
+  setActiveRosterMeta(meta: RosterMeta): void;
 
   setDataChangeHandler(fn: ((ev: StoreChangeEvent) => void) | null): void;
 
@@ -222,6 +228,9 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
   // ヘッダーのタイトル枠は「現ユーザー名」を表示する (ユーザー機能, 案B)。
   // 同期で参照したいので、initStore / switchUser で取得した名前をここにキャッシュする。
   let currentUserName = '';
+  // アクティブ病棟の名簿メタ。persistActive() は projectBundle({sections:[META,PATIENTS]}) を
+  // 毎回作るため、ここで live state に保持しないと保存時に rosterMeta が失われる。
+  let activeRosterMeta: RosterMeta = defaultRosterMeta();
   let onChange: ((ev: StoreChangeEvent) => void) | null = null;
   let initPromise: Promise<void> | null = null;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -245,6 +254,8 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       title: currentUserName || defaultTitle,
       patients: normalizePatientArray(Array.isArray(sPatients) ? sPatients : null),
     };
+    // 名簿メタも live へ反映 (bundle 未読み込み・rosterMeta 無しは unmanaged 既定)。
+    activeRosterMeta = bundle ? normalizeRosterMeta(bundle.rosterMeta) : defaultRosterMeta();
   }
 
   // 現ユーザー名を IDB / キャッシュから最新化する。
@@ -264,7 +275,12 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
   // 患者 + meta だけを書く (settings section は出さない)。
   async function persistActive(): Promise<void> {
     await storage.saveBundle(
-      projectBundle({ appState, settings, sections: [SECTION.META, SECTION.PATIENTS] }),
+      projectBundle({
+        appState,
+        settings,
+        rosterMeta: activeRosterMeta,
+        sections: [SECTION.META, SECTION.PATIENTS],
+      }),
     );
     await storage.saveGlobalSettings(settings);
   }
@@ -330,6 +346,10 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
       appState = s;
     },
     getCurrentUserName: () => currentUserName,
+    getActiveRosterMeta: () => activeRosterMeta,
+    setActiveRosterMeta(meta) {
+      activeRosterMeta = normalizeRosterMeta(meta);
+    },
 
     setDataChangeHandler(fn) {
       onChange = fn;
@@ -619,6 +639,7 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
           label: w.label || '',
           title: typeof meta.title === 'string' ? meta.title : w.title || '',
           patients: Array.isArray(patients) ? patients : [],
+          rosterMeta: normalizeRosterMeta(b ? b.rosterMeta : undefined),
         });
       }
       return {
@@ -659,6 +680,7 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
         const bundle = projectBundle({
           appState: norm,
           settings: targetSettings,
+          rosterMeta: normalizeRosterMeta(w ? w.rosterMeta : undefined),
           sections: [SECTION.META, SECTION.PATIENTS],
         });
         workspaceRecords.push(storage.buildWorkspaceRecord(String((w && w.label) || ''), bundle));
@@ -715,6 +737,7 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
             label: w.label || '',
             title: typeof meta.title === 'string' ? meta.title : w.title || '',
             patients: Array.isArray(patients) ? patients : [],
+            rosterMeta: normalizeRosterMeta(b ? b.rosterMeta : undefined),
           });
         }
         outUsers.push({ name: u.name || '', settings: us, workspaces });
@@ -815,6 +838,7 @@ export function createHrStore(deps: HrStoreDeps = {}): HrStore {
           const bundle = projectBundle({
             appState: norm,
             settings: us,
+            rosterMeta: normalizeRosterMeta(w ? w.rosterMeta : undefined),
             sections: [SECTION.META, SECTION.PATIENTS],
           });
           workspaceRecords.push(
