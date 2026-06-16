@@ -34,7 +34,7 @@ import {
 import { SECTION, getSection } from '../../data/bundle';
 import { normalizePatientArray } from '../../domain/normalize';
 import { encodeSettingsPayload } from '../../qr/settingsQr';
-import { APP_KEY_BYTES, QR_ENCRYPT } from '../../qr/appKey';
+import { getQrKeyBytes, shouldEncryptQr, getQrPresentationDefault } from '../../qr/policy';
 import { isArchive, isDeviceArchive } from '../../data/store';
 import { REASON, countActivePatients } from '../../data/snapshots';
 import { EVENT } from '../../data/eventlog';
@@ -430,12 +430,12 @@ function QrSection({ runtime }: { runtime: AppRuntime }) {
   const flow = useQrFlow<never>({
     kind: 'ST',
     kindLabel: t('qr.kind.settings'),
-    keyBytes: APP_KEY_BYTES,
+    keyBytes: getQrKeyBytes('ST'),
     encodePayload: () => encodeSettingsPayload(store.getSettings()),
     decodePayload: () => {
       throw new Error('display-only');
     },
-    shouldEncrypt: () => QR_ENCRYPT.ST,
+    shouldEncrypt: () => shouldEncryptQr('ST'),
     compress: true,
     onApply: () => {},
   });
@@ -471,7 +471,13 @@ function QrSection({ runtime }: { runtime: AppRuntime }) {
       <p className="muted settingsHint">{t('qrReceive.hint')}</p>
 
       {flow.isActive ? (
-        <QrDialog flow={flow} kindLabel={t('qr.kind.settings')} receivable={false} onClose={flow.close} />
+        <QrDialog
+          flow={flow}
+          kindLabel={t('qr.kind.settings')}
+          receivable={false}
+          presentationDefault={getQrPresentationDefault('ST')}
+          onClose={flow.close}
+        />
       ) : null}
 
       {receiveOpen ? <QrReceiveDialog runtime={runtime} onClose={() => setReceiveOpen(false)} /> : null}

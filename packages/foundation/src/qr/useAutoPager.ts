@@ -7,7 +7,8 @@
 //
 // - active && playing && pageCount > 1 のときだけタイマーが回る
 // - 手動 next/prev は自動送りを一時停止する (= 明るさ/距離で自動が不安定な時の逃げ道)
-// - pageCount が変わったら index=0・playing=true にリセット (新しい送信の先頭から)
+// - pageCount が変わったら index=0・playing=initialPlaying にリセット (新しい送信の先頭から)
+// - initialPlaying=false (静的 QR) は表示開始時・pageCount 変化時とも止めたまま開く
 //
 // 外部送信なし・タイマーのみ (no-exfil とは無関係)。
 
@@ -31,25 +32,32 @@ export interface AutoPagerOptions {
   intervalMs?: number;
   /** タイマーを動かす条件 (QR 表示中だけ true 等)。既定 true */
   active?: boolean;
+  /**
+   * 初期 (および pageCount 変化時) の自動送り状態。既定 true (= dynamic QR)。
+   * static QR (例: 電子カルテ転記用 TAB) は false を渡し、表示開始時から止めておく。
+   */
+  initialPlaying?: boolean;
 }
 
 export function useAutoPager(pageCount: number, opts: AutoPagerOptions = {}): AutoPager {
   const intervalMs = opts.intervalMs ?? 900;
   const active = opts.active ?? true;
+  const initialPlaying = opts.initialPlaying ?? true;
   const count = Math.max(0, Math.floor(pageCount) || 0);
 
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(initialPlaying);
 
-  // pageCount が変わったら先頭に戻し自動送りを再開する (新しい送信の頭から見せる)。
+  // pageCount が変わったら先頭に戻し自動送り状態を初期値へ戻す (新しい送信の頭から見せる)。
+  // initialPlaying=false の static QR は新しいページ列でも止めたまま開く。
   const lastCountRef = useRef(count);
   useEffect(() => {
     if (lastCountRef.current !== count) {
       lastCountRef.current = count;
       setIndex(0);
-      setPlaying(true);
+      setPlaying(initialPlaying);
     }
-  }, [count]);
+  }, [count, initialPlaying]);
 
   // 自動送り: active && playing && 複数ページ のときだけループで index を進める。
   useEffect(() => {

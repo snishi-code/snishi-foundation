@@ -23,6 +23,7 @@ import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
 import { useRegisterOverlay } from './registries';
 import { hapticReceive, hapticReceiveDone } from './feedback';
+import type { QrPresentationDefault } from '../qr/policy';
 
 /** 自動ページ送りの間隔 (ms)。受信側カメラ + jsQR が取りこぼしにくい範囲。 */
 export const QR_AUTO_ADVANCE_MS = 900;
@@ -92,6 +93,11 @@ export interface QrCardProps {
   receivable?: boolean;
   /** カード内に閉じる × を出すか。Modal 内 (フロート × がある) では false にする */
   showClose?: boolean;
+  /**
+   * 表示開始時の自動送り (static = 止めて開く / dynamic = 自動送りで開く)。
+   * qr/policy の getQrPresentationDefault(useCase) を渡す。既定 (未指定) は dynamic。
+   */
+  presentationDefault?: QrPresentationDefault;
   onClose: () => void;
 }
 
@@ -100,7 +106,7 @@ export interface QrCardProps {
  * 受信 (receivePage) の例外 = 復号/パース失敗は fail-closed (適用前に中断) として
  * toast で可視化する。consumed=false の入力はテキスト欄を消さない (v1 準拠)。
  */
-export function QrCardBody({ flow, kindLabel, receivable = true, showClose = true, onClose }: QrCardProps) {
+export function QrCardBody({ flow, kindLabel, receivable = true, showClose = true, presentationDefault, onClose }: QrCardProps) {
   const toast = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawError, setDrawError] = useState('');
@@ -113,7 +119,12 @@ export function QrCardBody({ flow, kindLabel, receivable = true, showClose = tru
   const total = flow.pages.length;
 
   // 自動ページ送り。Modal 内で常に表示中なので active:true 固定。
-  const pager = useAutoPager(total, { intervalMs: QR_AUTO_ADVANCE_MS, active: true });
+  // 静的/動的の初期挙動は policy 由来 (presentationDefault)。static は止めて開く。
+  const pager = useAutoPager(total, {
+    intervalMs: QR_AUTO_ADVANCE_MS,
+    active: true,
+    initialPlaying: presentationDefault !== 'static',
+  });
 
   // 表示ページは pager.index で制御 (flow.pageIndex は使わない)
   const page = flow.pages[pager.index] ?? '';

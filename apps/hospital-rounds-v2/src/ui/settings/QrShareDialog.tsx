@@ -9,7 +9,7 @@ import { Modal } from '@snishi/foundation/ui/Modal';
 import { useQrFlow } from '@snishi/foundation/qr/useQrFlow';
 import { useToast } from '@snishi/foundation/ui/toast';
 import type { QrKind } from '../../domain/types';
-import { APP_KEY_BYTES } from '../../qr/appKey';
+import { getQrKeyBytes } from '../../qr/policy';
 import { QrCardBody } from '../QrCard';
 import { useRegisterOverlay } from '../registries';
 import { t } from '../../i18n/strings';
@@ -35,7 +35,7 @@ export function QrShareDialog({
   const flow = useQrFlow<never>({
     kind,
     kindLabel,
-    keyBytes: APP_KEY_BYTES,
+    keyBytes: getQrKeyBytes(kind),
     encodePayload,
     // 表示専用 (receivable=false) のため受信デコードには到達しない
     decodePayload: () => {
