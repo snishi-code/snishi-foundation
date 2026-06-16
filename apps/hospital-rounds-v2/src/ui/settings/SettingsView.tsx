@@ -88,7 +88,10 @@ function envPrefix(): string {
 // クリア対象 (診察開始で消す項目)
 // ============================
 
-const CLEAR_KEY_ORDER = ['S', 'O', 'A', 'P', 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue', 'tagAmber', 'tagGray'] as const;
+const CLEAR_KEY_ORDER = ['S', 'O', 'A', 'P', 'statusYellow', 'statusGreen', 'statusGray', 'statusBlue', 'tagAmber', 'tagGray', 'problems', 'freeText'] as const;
+
+// プロブレムリスト / 自由記述: panel.* ではなく settings.clear.* のラベルを使う
+const CLEAR_EXTRA_KEYS = new Set<string>(['problems', 'freeText']);
 
 const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.freeze({
   statusYellow: STATUS.YELLOW,
@@ -101,7 +104,7 @@ const CLEAR_STATUS_BY_KEY: Readonly<Record<string, PatientStatus>> = Object.free
 const CLEAR_TAG_COLOR_KEYS = new Set<string>(TAG_COLORS.map(tagClearKey));
 
 function clearItemTitle(key: string): string {
-  if (key in CLEAR_STATUS_BY_KEY || CLEAR_TAG_COLOR_KEYS.has(key)) {
+  if (key in CLEAR_STATUS_BY_KEY || CLEAR_TAG_COLOR_KEYS.has(key) || CLEAR_EXTRA_KEYS.has(key)) {
     return t(`settings.clear.${key}` as StringKey);
   }
   return t(`panel.${key}` as StringKey);
@@ -119,8 +122,8 @@ function ClearTargetLabel({ key_ }: { key_: string }) {
       </span>
     );
   }
-  if (CLEAR_TAG_COLOR_KEYS.has(key_)) {
-    // タグ色のクリア対象: clearItemTitle が i18n テキストを返す
+  if (CLEAR_TAG_COLOR_KEYS.has(key_) || CLEAR_EXTRA_KEYS.has(key_)) {
+    // タグ色 / プロブレム・自由記述のクリア対象: settings.clear.* のテキストを返す
     return <span>{t(`settings.clear.${key_}` as StringKey)}</span>;
   }
   return <span>{t(`panel.${key_}` as StringKey)}</span>;

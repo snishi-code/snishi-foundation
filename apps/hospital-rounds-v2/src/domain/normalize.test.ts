@@ -89,6 +89,15 @@ describe('normalizeSettings', () => {
     expect(s.clearTargets.tagAmber).toBe(false);
   });
 
+  it('clearTargets: problems/freeText は既定 false で含まれ、明示 boolean を尊重する', () => {
+    const s = normalizeSettings({});
+    expect(s.clearTargets.problems).toBe(false);
+    expect(s.clearTargets.freeText).toBe(false);
+    const s2 = normalizeSettings({ clearTargets: { problems: true, freeText: 'x' } });
+    expect(s2.clearTargets.problems).toBe(true);
+    expect(s2.clearTargets.freeText).toBe(false); // 型不一致 → 既定 false
+  });
+
   it('formats が空配列ならデフォルト formats を採用する', () => {
     const s = normalizeSettings({ formats: [] });
     expect(s.formats.length).toBeGreaterThan(0);
@@ -275,6 +284,22 @@ describe('normalizePatientArray / normalizeLoaded', () => {
     expect(p1?.name).toBe('A');
   });
 
+  it('problems / freeText を保持する (problems は string 行のみ・freeText は string のみ)', () => {
+    const [p] = normalizePatientArray([
+      { pid: 'p1', problems: ['HF', '', 7, 'DM'], freeText: '自由記述メモ' },
+    ]);
+    expect(p?.problems).toEqual(['HF', '', 'DM']); // 非 string (7) は除外
+    expect(p?.freeText).toBe('自由記述メモ');
+    // 型不一致は既定に倒す
+    const [p2] = normalizePatientArray([{ pid: 'p2', problems: 'broken', freeText: 99 }]);
+    expect(p2?.problems).toEqual([]);
+    expect(p2?.freeText).toBe('');
+    // デフォルト患者にも両フィールドが存在する
+    const [d] = normalizePatientArray([{ pid: 'p3' }]);
+    expect(d?.problems).toEqual([]);
+    expect(d?.freeText).toBe('');
+  });
+
   it('normalizeLoaded: bundle / 配列 / {patients} を appState 形に正規化', () => {
     const fromArr = normalizeLoaded([{ pid: 'x', name: 'N' }]);
     expect(fromArr.v).toBe(3);
@@ -300,6 +325,14 @@ describe('isPatientEmpty', () => {
     expect(isPatientEmpty({ ...makeDefaultPatient(), tags: ['内科'] })).toBe(false);
     expect(isPatientEmpty({ ...makeDefaultPatient(), transferredAt: 123 })).toBe(false);
     expect(isPatientEmpty({ ...makeDefaultPatient(), deletedAt: 123 })).toBe(false);
+  });
+
+  it('problems / freeText に入力があれば空ではない (空配列 / 空白のみは空のまま)', () => {
+    expect(isPatientEmpty({ ...makeDefaultPatient(), problems: ['HF'] })).toBe(false);
+    expect(isPatientEmpty({ ...makeDefaultPatient(), freeText: 'メモ' })).toBe(false);
+    // 空配列・空白だけは入力なし扱い (空のまま)
+    expect(isPatientEmpty({ ...makeDefaultPatient(), problems: ['', '  '] })).toBe(true);
+    expect(isPatientEmpty({ ...makeDefaultPatient(), freeText: '   ' })).toBe(true);
   });
 
   it('YELLOW/GREEN/GRAY/BLUE は他フィールドが空でも空ではない (GRAY=終了マーカー保護)', () => {

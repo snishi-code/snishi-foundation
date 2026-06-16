@@ -39,6 +39,18 @@ export const UI = {
     qrShow: 'detail.qr.show',
     qrDialog: 'detail.qr.dialog',
   },
+  problem: {
+    card: 'problem.card',
+    list: 'problem.list',
+    row: 'problem.row',
+    input: 'problem.input',
+    add: 'problem.add',
+    delete: 'problem.delete',
+  },
+  freeText: {
+    card: 'freeText.card',
+    input: 'freeText.input',
+  },
   format: {
     cell: 'format.cell',
     cellInput: 'format.cell.input',

@@ -703,6 +703,76 @@ dialog.sheet.dialog[data-ui='qr.dialog'] {
   border-top: none;
 }
 
+/* ── プロブレムリスト (患者ごとの独立データ・フォーマットとは別構造) ── */
+.problemList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.problemRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.problemRowNo {
+  flex: 0 0 auto;
+  min-width: 2.2em;
+  text-align: right;
+  font-weight: 800;
+  font-size: var(--hr-label-font);
+  color: var(--muted);
+  padding-top: 12px;
+}
+
+.problemRowInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--hr-cell-h);
+  font-size: var(--hr-input-font);
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+  /* 対応ブラウザは内容に応じて自動で縦に伸びる (非対応は JS autosize がフォールバック) */
+  field-sizing: content;
+}
+
+.problemRow .icon-btn {
+  align-self: center;
+}
+
+.problemAddBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: var(--hr-cell-h);
+  padding: 8px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── 自由記述欄 (患者ごとの独立 textarea・QR には載せない) ── */
+.freeTextInput {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--hr-cell-h);
+  font-size: var(--hr-input-font);
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+  /* 内容に応じて縦に伸びる (非対応ブラウザは JS autosize がフォールバック) */
+  field-sizing: content;
+}
+
 .formatExpandedName {
   font-size: 12px;
   font-weight: 700;
