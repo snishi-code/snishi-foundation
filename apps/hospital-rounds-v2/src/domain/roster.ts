@@ -23,6 +23,14 @@
 export type RosterLocalRole = 'none' | 'authority' | 'recipient';
 export type RosterRedistribution = 'allowed' | 'prohibited';
 
+/**
+ * 受信スナップショットから消えた既存 managed 患者に付ける安全側フォールバックのタグ名。
+ * 正本側の転棟/退院ログを実装するまでの暫定: 非破壊で残し (削除・転棟させない)、未掲載で
+ * あることを可視化する。tag 名は患者データ (patient.tags) と settings に保存・照合される
+ * data なので、i18n 文言ではなく安定値の定数とする (文言が変わると既存データと不一致になる)。
+ */
+export const ROSTER_UNLISTED_TAG = '名簿未掲載';
+
 export interface RosterMeta {
   /** 名簿管理下の病棟か (unmanaged = 通常病棟)。 */
   managed: boolean;
