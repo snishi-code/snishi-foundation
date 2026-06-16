@@ -15,7 +15,7 @@ import { useQrFlow, type QrFlow, type ReceiveResult } from '@snishi/foundation/q
 import { decodePage } from '@snishi/foundation/qr/protocol';
 import { isScannerSupported, scanQrStream } from '@snishi/foundation/qr/scan';
 import { decodeSettingsPayload, type DecodedSettingsPatch } from '../../qr/settingsQr';
-import { APP_KEY_BYTES } from '../../qr/appKey';
+import { getQrKeyBytes } from '../../qr/policy';
 import type { AppRuntime } from '../appRuntime';
 import { OverlayBinding, useRegisterOverlay } from '../registries';
 import {
@@ -94,9 +94,11 @@ export function QrReceiveDialog({ runtime, onClose }: { runtime: AppRuntime; onC
   const stFlow = useQrFlow<DecodedSettingsPatch>({
     kind: 'ST',
     kindLabel: t('qr.kind.settings'),
-    keyBytes: APP_KEY_BYTES,
+    keyBytes: getQrKeyBytes('ST'),
     encodePayload: () => '',
     decodePayload: decodeSettingsPayload,
+    // 受信専用フロー (encodePayload は '' = 送信しない)。shouldEncrypt は送信時のみ
+    // 参照されるため受信側では無関係。復号鍵は keyBytes (policy 由来) が担う。
     shouldEncrypt: () => false,
     onApply(patch) {
       setPending({ kind: 'ST', patch, body: settingsImportConfirmBody(patch) });

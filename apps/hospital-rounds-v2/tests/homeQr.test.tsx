@@ -25,7 +25,8 @@ import { encodePatientList } from '../src/qr/patientList';
 import { SECTION, getSection } from '../src/data/bundle';
 import { encodePages, newBatchId } from '@snishi/foundation/qr/protocol';
 import { packPayload } from '@snishi/foundation/qr/crypto';
-import { APP_KEY_BYTES, QR_ENCRYPT } from '../src/qr/appKey';
+import { APP_KEY_BYTES } from '../src/qr/appKey';
+import { shouldEncryptQr } from '../src/qr/policy';
 import { defaultSettings, makeDefaultPatient } from '../src/domain/normalize';
 
 /** HM QR ページ列を実際に生成する (アプリと同一経路)。 */
@@ -37,7 +38,7 @@ async function buildHmPages(patients: Array<{ name: string; room: string }>): Pr
   }));
   let payload = encodePatientList(patientObjs, settings, { kind: 'HM' });
   payload = await packPayload(payload, {
-    encrypt: QR_ENCRYPT.HM,
+    encrypt: shouldEncryptQr('HM'),
     compress: false,
     keyBytes: APP_KEY_BYTES,
   });
@@ -124,6 +125,20 @@ describe('ホーム QR (HM)', () => {
     const oldPatients = (getSection(oldBundle, SECTION.PATIENTS) as Array<{ name: string }>) ?? [];
     expect(oldPatients.some((p) => p.name === '既存患者')).toBe(true);
     expect(oldPatients.some((p) => p.name === '受信太郎')).toBe(false);
+  });
+
+  it('患者詳細 QR (TAB) は static policy = 一時停止状態で開く (HM/ST は自動送り)', async () => {
+    await renderApp({
+      bundle: seedBundle([{ name: 'テスト太郎', room: '203' }]),
+    });
+    const user = userEvent.setup();
+
+    // 患者カード右端の電子カルテ転記 QR ボタンを開く (空スロットと取り違えないよう氏名で特定)
+    await user.click(screen.getByRole('button', { name: /テスト太郎 の電子カルテ転記用QRを表示/ }));
+
+    // TAB は presentationDefault: 'static' → 初期は止まったまま (再生ボタンが出る)
+    expect(await screen.findByRole('button', { name: '自動送りを再開' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '自動送りを一時停止' })).toBeNull();
   });
 
   it('buildHmPages が正常にページ列を生成できる (encode/crypto round-trip)', async () => {

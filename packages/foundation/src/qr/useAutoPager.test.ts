@@ -73,6 +73,28 @@ describe('useAutoPager', () => {
     expect(result.current.playing).toBe(true);
   });
 
+  it('initialPlaying:false は止まったまま開き、toggle で再生できる (static QR)', () => {
+    const { result } = renderHook(() => useAutoPager(3, { intervalMs: 100, initialPlaying: false }));
+    expect(result.current.playing).toBe(false);
+    act(() => void vi.advanceTimersByTime(500));
+    expect(result.current.index).toBe(0); // 自動送りしない
+    act(() => result.current.toggle());
+    expect(result.current.playing).toBe(true);
+    act(() => void vi.advanceTimersByTime(100));
+    expect(result.current.index).toBe(1);
+  });
+
+  it('initialPlaying:false は pageCount 変化後も止まったまま (static 維持)', () => {
+    const { result, rerender } = renderHook(
+      ({ n }) => useAutoPager(n, { intervalMs: 100, initialPlaying: false }),
+      { initialProps: { n: 2 } },
+    );
+    expect(result.current.playing).toBe(false);
+    rerender({ n: 4 });
+    expect(result.current.index).toBe(0);
+    expect(result.current.playing).toBe(false); // dynamic のように再開しない
+  });
+
   it('pageCount 縮小時も index は範囲内に丸まる', () => {
     const { result, rerender } = renderHook(({ n }) => useAutoPager(n, { intervalMs: 100, active: false }), {
       initialProps: { n: 5 },

@@ -14,6 +14,7 @@ import { useWakeLock } from '@snishi/foundation/ui/useWakeLock';
 import { drawQrToCanvas } from '@snishi/foundation/qr/render';
 import type { Patient, Settings } from '../domain/types';
 import { buildTabPayload } from '../domain/payload';
+import { getQrPresentationDefault } from '../qr/policy';
 import { splitTextToFitQr } from './qrText';
 import { t } from '../i18n/strings';
 import { UI } from '../ui-contract';
@@ -47,8 +48,14 @@ export function DetailQrDialog({
 
   const total = pages ? pages.length : 0;
 
-  // 自動ページ送り (送信のみ。このダイアログは受信なし)
-  const pager = useAutoPager(total, { intervalMs: QR_AUTO_ADVANCE_MS, active: true });
+  // 自動ページ送り (送信のみ。このダイアログは受信なし)。
+  // TAB policy は presentationDefault: 'static' = 表示開始時は止めて開く
+  // (電子カルテ標準カメラで 1 枚ずつ順に読む前提。手動送り/再生は維持)。
+  const pager = useAutoPager(total, {
+    intervalMs: QR_AUTO_ADVANCE_MS,
+    active: true,
+    initialPlaying: getQrPresentationDefault('TAB') === 'dynamic',
+  });
 
   // QR 表示中は画面スリープを抑止
   useWakeLock(true);

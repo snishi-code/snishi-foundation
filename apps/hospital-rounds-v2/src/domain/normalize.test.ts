@@ -36,7 +36,7 @@ describe('defaultSettings (cold boot)', () => {
     expect('formatGroups' in s).toBe(false);
   });
 
-  it('qrEncryption / qrRedistribution は Settings に含まれない (QR_ENCRYPT 固定定数に移行)', () => {
+  it('qrEncryption / qrRedistribution は Settings に含まれない (qr/policy へ移行)', () => {
     const s = defaultSettings();
     expect('qrEncryption' in s).toBe(false);
     expect('qrRedistribution' in s).toBe(false);
@@ -169,7 +169,7 @@ describe('normalizeSettings', () => {
     expect(f2?.display).toBe('quick');
   });
 
-  it('qrEncryption / qrRedistribution: 旧データに残っていても破棄される (QR_ENCRYPT 固定定数に移行)', () => {
+  it('qrEncryption / qrRedistribution: 旧データに残っていても破棄される (qr/policy へ移行)', () => {
     const s = normalizeSettings({
       qrEncryption: { HM: false, XX: true, ST: 'yes' },
       qrRedistribution: { HM: 'free', ST: 'restricted' },

@@ -27,7 +27,7 @@ import { SECTION, projectBundle } from '../data/bundle';
 import { REASON, countActivePatients } from '../data/snapshots';
 import { EVENT } from '../data/eventlog';
 import { encodePatientList, decodePatientList, type DecodedPatientList } from '../qr/patientList';
-import { APP_KEY_BYTES, QR_ENCRYPT } from '../qr/appKey';
+import { getQrKeyBytes, shouldEncryptQr, getQrPresentationDefault } from '../qr/policy';
 import { useRevision, type AppRuntime } from './appRuntime';
 import { ensureRoomOrder, formatPatientLabel, statusClass, STATUS_MARK } from './patientDisplay';
 import { QrDialog } from './QrCard';
@@ -77,11 +77,11 @@ export function HomeView({
   const flow = useQrFlow<DecodedPatientList>({
     kind: 'HM',
     kindLabel: t('qr.kind.home'),
-    keyBytes: APP_KEY_BYTES,
+    keyBytes: getQrKeyBytes('HM'),
     encodePayload: () =>
       encodePatientList(store.getAppState().patients, store.getSettings(), { kind: 'HM' }),
     decodePayload: (plain) => decodePatientList(plain),
-    shouldEncrypt: () => QR_ENCRYPT.HM,
+    shouldEncrypt: () => shouldEncryptQr('HM'),
     onApply(decoded, ctrl) {
       if (!decoded.patients.length) {
         toast.show(t('qr.import.empty.home'), 'error');
@@ -222,7 +222,14 @@ export function HomeView({
         </IconButton>
       </div>
 
-      {flow.isActive ? <QrDialog flow={flow} kindLabel={t('qr.kind.home')} onClose={flow.close} /> : null}
+      {flow.isActive ? (
+        <QrDialog
+          flow={flow}
+          kindLabel={t('qr.kind.home')}
+          presentationDefault={getQrPresentationDefault('HM')}
+          onClose={flow.close}
+        />
+      ) : null}
 
       {trash ? <div className="banner trashBanner">{t('trash.banner')}</div> : null}
 

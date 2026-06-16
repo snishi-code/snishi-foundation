@@ -13,6 +13,9 @@
 //
 // foundation qr/crypto は鍵を持たない設計 (アプリ毎の鍵分離のため)。このアプリ固有の
 // 鍵はここ 1 箇所にだけ置き、packPayload/unpackPayload 呼び出し時に注入する。
+//
+// 「どの QR を暗号化するか」「どの鍵 profile を使うか」の判断は qr/policy.ts に集約した。
+// この鍵は policy (keyProfile: 'app-fixed') から解決される唯一の固定鍵 bytes。
 // ============================================================================
 
 /** アプリ固定鍵 (32 byte = 256 bit)。 */
@@ -20,6 +23,3 @@ export const APP_KEY_BYTES = new Uint8Array([
   0x47, 0xa5, 0x1c, 0x9b, 0x38, 0x6d, 0x2e, 0x71, 0xf4, 0x83, 0x05, 0xcc, 0x9a, 0x4d, 0x62, 0x18,
   0xb7, 0x29, 0x5a, 0xe0, 0x3c, 0x91, 0x8f, 0x46, 0xd2, 0x57, 0x6a, 0x0b, 0xfd, 0xe5, 0x18, 0x73,
 ]);
-
-/** HM/ST は常時暗号化 ON。患者画面 QR (DetailQrDialog) はこのマトリクス外 (常に平文)。 */
-export const QR_ENCRYPT = Object.freeze({ HM: true, ST: true } as const);
