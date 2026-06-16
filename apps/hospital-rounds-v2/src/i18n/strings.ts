@@ -126,6 +126,7 @@ export const STRINGS_JA = {
   // ホームQR 受信 (確認なしで新規病棟として自動展開)
   'home.qrImport.newWs.label': '受信 {ts}',
   'home.qrImport.newWs.done': '「{label}」({count} 件) を作成して切り替えました。',
+  'home.qrImport.updateWs.done': '受信した名簿で病棟を更新しました（{count} 件）。',
   'io.ws.switch.failed': '病棟切替に失敗しました',
 
   // 名簿 QR (HM) の正本/受信ロール (再配布・編集の協調的 UI 制御)

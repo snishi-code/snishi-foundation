@@ -20,22 +20,37 @@ import {
   tagClearKey,
   DEFAULT_PATIENT_COUNT,
   type AppState,
+  type Patient,
+  type Settings,
 } from '../domain/types';
 import { makeDefaultPatient } from '../domain/normalize';
 import {
+  ROSTER_UNLISTED_TAG,
   defaultRosterMeta,
   newRosterPatientId,
   newRosterWardId,
+  normalizeRosterMeta,
   type RosterMeta,
 } from '../domain/roster';
 import { clearPanelClinicalInput } from '../domain/formatValues';
 import { SECTION, projectBundle } from '../data/bundle';
 import { REASON, countActivePatients } from '../data/snapshots';
 import { EVENT } from '../data/eventlog';
-import { encodePatientList, decodePatientList, type DecodedPatientList } from '../qr/patientList';
+import {
+  encodePatientList,
+  decodePatientList,
+  type DecodedPatientList,
+  type DecodedPatientListEntry,
+} from '../qr/patientList';
 import { getQrKeyBytes, shouldEncryptQr, getQrPresentationDefault } from '../qr/policy';
 import { useRevision, type AppRuntime } from './appRuntime';
-import { ensureRoomOrder, formatPatientLabel, statusClass, STATUS_MARK } from './patientDisplay';
+import {
+  ensureRoomOrder,
+  formatPatientLabel,
+  isPatientTransferred,
+  statusClass,
+  STATUS_MARK,
+} from './patientDisplay';
 import { QrDialog } from './QrCard';
 import { DetailQrDialog } from './DetailQrDialog';
 import { PatientEditPopup } from './PatientEditPopup';
@@ -52,6 +67,117 @@ function formatRecvLabel(): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const ts = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return t('home.qrImport.newWs.label', { ts });
+}
+
+/** decode 済み患者の tagIdxs (sender 辞書 1-based) を sender タグ名へ復元する。 */
+function decodeWireTags(tagIdxs: readonly number[] | undefined, senderTagNames: readonly string[]): string[] {
+  return (tagIdxs || []).map((idx) => senderTagNames[idx - 1]).filter((x): x is string => !!x);
+}
+
+/** 既存タグに受信タグを union する (置換しない・既存順を保つ)。 */
+function unionTags(existing: readonly string[], incoming: readonly string[]): string[] {
+  const out = existing.slice();
+  for (const tag of incoming) if (!out.includes(tag)) out.push(tag);
+  return out;
+}
+
+/** 送信側タグ (+ 必要なら未掲載タグ) を受信側 settings に追加する (色は安全な既定 gray)。 */
+function ensureRosterTags(settings: Settings, senderTagNames: readonly string[], includeUnlisted: boolean): void {
+  for (const tag of senderTagNames) {
+    if (!settings.tags.some((x) => x.name === tag)) settings.tags.push({ name: tag, color: 'gray' });
+  }
+  if (includeUnlisted && !settings.tags.some((x) => x.name === ROSTER_UNLISTED_TAG)) {
+    settings.tags.push({ name: ROSTER_UNLISTED_TAG, color: 'gray' });
+  }
+}
+
+/** 受信病棟の名簿メタ (managed recipient)。aid/wid は正本由来、wn/受信時刻は受信ごとに更新。 */
+function buildRecipientMeta(
+  srcMeta: NonNullable<DecodedPatientList['rosterMeta']>,
+  receivedAt: string,
+): RosterMeta {
+  return {
+    managed: true,
+    localRole: 'recipient',
+    rosterAuthorityId: srcMeta.rosterAuthorityId,
+    rosterWardId: srcMeta.rosterWardId,
+    wardName: srcMeta.wardName,
+    // 受信側は再配布不可 (payload の rd によらず recipient は常に prohibited)。
+    redistribution: 'prohibited',
+    receivedAt,
+  };
+}
+
+/** 病棟メタが受信メタ (同一 aid/wid) の更新対象 recipient 病棟か。authority は対象外。 */
+function isRecipientWardMatch(
+  meta: RosterMeta,
+  srcMeta: NonNullable<DecodedPatientList['rosterMeta']>,
+): boolean {
+  return (
+    meta.localRole === 'recipient' &&
+    meta.rosterAuthorityId === srcMeta.rosterAuthorityId &&
+    meta.rosterWardId === srcMeta.rosterWardId
+  );
+}
+
+/**
+ * 受信スナップショットを既存 recipient 病棟の患者配列へ非破壊マージする (照合は rosterPatientId
+ * のみ。氏名・部屋番号では照合しない)。base は呼び出し側が clone 済みの配列を渡すこと
+ * (in-place で更新・追記する)。
+ *   - rpid 一致の既存患者: pid とローカル記録 (status/problems/freeText/formatValues/
+ *     transferred/deleted) を保持し、正本由来の room/name のみ更新、tags は union。
+ *   - 新規 rpid: makeDefaultPatient で末尾追加 (room/name/tags/rpid/managed を受信値から)。
+ *   - スナップショットから消えた既存 managed 患者: 削除・転棟させず status=BLUE + 未掲載タグを
+ *     付与する安全側フォールバック (将来の転棟/退院ログ実装までの暫定)。
+ */
+function buildMergedRosterPatients(
+  base: Patient[],
+  decoded: DecodedPatientList,
+): { patients: Patient[]; usedUnlistedTag: boolean } {
+  const senderTagNames = decoded.tagNames;
+  const incoming = decoded.patients.filter((r) => r.rosterManaged && !!r.rosterPatientId);
+  const incomingByRpid = new Map<string, DecodedPatientListEntry>();
+  for (const r of incoming) incomingByRpid.set(r.rosterPatientId, r);
+  const baseByRpid = new Map<string, Patient>();
+  for (const p of base) if (p.rosterManaged && p.rosterPatientId) baseByRpid.set(p.rosterPatientId, p);
+
+  let usedUnlistedTag = false;
+  // 1) 既存 managed 患者を in-place 更新 / 未掲載化 (順序・ローカル記録を保持)。
+  for (const p of base) {
+    if (!p.rosterManaged || !p.rosterPatientId) continue; // 空スロット・unmanaged はそのまま
+    const inc = incomingByRpid.get(p.rosterPatientId);
+    if (inc) {
+      p.room = inc.room || '';
+      p.name = inc.name || '';
+      // 受信タグを union しつつ、system 注入の未掲載マーカーは外す (再掲載)。このタグは消失時
+      // にのみ付く reserved 名なので、名簿に存在する患者へ残すと実態と矛盾する (clinician の
+      // ローカル注記ではないので除去は仕様の「tags 保持」に反しない)。status は区別不能なので
+      // 触らない (未掲載由来か clinician 意図か判別できず、盲目的に戻すと意図的 status を壊す)。
+      p.tags = unionTags(p.tags, decodeWireTags(inc.tagIdxs, senderTagNames)).filter(
+        (tg) => tg !== ROSTER_UNLISTED_TAG,
+      );
+      p.rosterManaged = true;
+    } else if (!isPatientTransferred(p) && !isPatientDeleted(p)) {
+      // スナップショットから消えた = 未掲載 (非破壊フラグ)。working status は moot として BLUE。
+      // ただし既に転棟(移)/削除(Trash)済みの患者は終端ローカル状態なので触らない
+      // (転棟・退院マーカーを未掲載で上書きしない = 仕様「転棟・退院にも動かさない」)。
+      p.status = STATUS.BLUE;
+      p.tags = unionTags(p.tags, [ROSTER_UNLISTED_TAG]);
+      usedUnlistedTag = true;
+    }
+  }
+  // 2) base に無い rpid を末尾追加 (受信順)。
+  for (const r of incoming) {
+    if (baseByRpid.has(r.rosterPatientId)) continue;
+    const np = makeDefaultPatient();
+    np.room = r.room || '';
+    np.name = r.name || '';
+    np.tags = decodeWireTags(r.tagIdxs, senderTagNames);
+    np.rosterPatientId = r.rosterPatientId;
+    np.rosterManaged = true;
+    base.push(np);
+  }
+  return { patients: base, usedUnlistedTag };
 }
 
 export function HomeView({
@@ -115,11 +241,40 @@ export function HomeView({
     void refreshQr();
   }, [revision, refreshQr]);
 
-  // 受信名簿 → 常に新規病棟として作成 + 切替 (v7.6+ 統一。上書き事故ゼロ)。
-  // v5 (managed) は受信病棟を managed recipient として保存する (再配布・氏名/部屋編集を抑止)。
-  // v4 / m なしは従来通り unmanaged 新規病棟。既存病棟は探さない・更新しない (次タスク)。
+  // 受信名簿の自動展開。
+  //   v5 (managed) で「同じ正本 ID + 同じ病棟 ID」の受信済み recipient 病棟があれば、その病棟を
+  //   更新して切り替える (新規病棟を増やさない)。無ければ従来通り新規 recipient 病棟を作る。
+  //   v4 / m なし (srcMeta=null) は常に unmanaged 新規病棟 (照合しない)。fail-closed は各経路で実施。
   async function applyRoster(decoded: DecodedPatientList, close: () => void): Promise<void> {
-    const { rosterMeta: srcMeta, tagNames: senderTagNames, patients: roster } = decoded;
+    const srcMeta = decoded.rosterMeta;
+    // v5 managed: 既存 recipient 病棟 (同一 aid/wid) を探す。見つかれば更新経路へ。
+    if (srcMeta) {
+      let matchId: string | null;
+      try {
+        matchId = await findMatchingRecipientWardId(srcMeta);
+      } catch (e) {
+        // 候補病棟の読み込みに失敗 = 一致の有無を確認できない。重複 recipient 病棟を作らない
+        // よう中断する (fail-closed)。
+        console.error('qr import: recipient ward scan failed:', e);
+        toast.show(t('io.ws.switch.failed'), 'error');
+        return;
+      }
+      if (matchId) {
+        await updateExistingRecipientWard(matchId, decoded, srcMeta, close);
+        return;
+      }
+    }
+    await createNewRosterWard(decoded, srcMeta, close);
+  }
+
+  // 受信名簿を新規病棟として作成 + 切替 (v7.6+ 統一。上書き事故ゼロ)。
+  // v5 (managed) は managed recipient として保存する (再配布・氏名/部屋編集を抑止)。
+  async function createNewRosterWard(
+    decoded: DecodedPatientList,
+    srcMeta: DecodedPatientList['rosterMeta'],
+    close: () => void,
+  ): Promise<void> {
+    const { tagNames: senderTagNames, patients: roster } = decoded;
     const label = formatRecvLabel();
     const slotCount = Math.max(DEFAULT_PATIENT_COUNT, roster.length);
     const newPatients = [];
@@ -129,7 +284,7 @@ export function HomeView({
       if (r) {
         p.room = r.room || '';
         p.name = r.name || '';
-        p.tags = (r.tagIdxs || []).map((idx) => senderTagNames[idx - 1]).filter((x): x is string => !!x);
+        p.tags = decodeWireTags(r.tagIdxs, senderTagNames);
         // 患者は新しいローカル pid を発番済み (makeDefaultPatient)。pid と rosterPatientId は
         // 混ぜない。正本由来の rosterPatientId だけ受け継ぎ managed にする。
         if (srcMeta && r.rosterManaged && r.rosterPatientId) {
@@ -142,10 +297,7 @@ export function HomeView({
     // 送信側タグを union (rollback できるよう旧値を控える)
     const liveSettings = store.getSettings();
     const prevTags = liveSettings.tags.slice();
-    for (const tag of senderTagNames) {
-      if (!liveSettings.tags.some((t) => t.name === tag))
-        liveSettings.tags.push({ name: tag, color: 'gray' });
-    }
+    ensureRosterTags(liveSettings, senderTagNames, false);
     const newAppState: AppState = {
       v: 3,
       title: store.getAppState().title,
@@ -153,16 +305,7 @@ export function HomeView({
     };
     // 受信病棟の名簿メタ: payload にメタがあれば managed recipient、無ければ unmanaged。
     const wardRosterMeta: RosterMeta = srcMeta
-      ? {
-          managed: true,
-          localRole: 'recipient',
-          rosterAuthorityId: srcMeta.rosterAuthorityId,
-          rosterWardId: srcMeta.rosterWardId,
-          wardName: srcMeta.wardName,
-          // 受信側は再配布不可。payload の rd を踏襲しつつ recipient は常に prohibited。
-          redistribution: 'prohibited',
-          receivedAt: new Date().toISOString(),
-        }
+      ? buildRecipientMeta(srcMeta, new Date().toISOString())
       : defaultRosterMeta();
     const bundle = projectBundle({
       appState: newAppState,
@@ -187,6 +330,83 @@ export function HomeView({
     }
     close();
     toast.show(t('home.qrImport.newWs.done', { count: roster.length, label }));
+  }
+
+  // 「同じ正本 ID + 同じ病棟 ID」の受信済み recipient 病棟を探す (無ければ null)。
+  // 正本側 (authority) は対象外 — 正本を QR 受信で上書きしない。
+  // active 病棟を最優先で判定する: 旧実装は受信ごとに新規病棟を作っていたため、同じ aid/wid の
+  // recipient 病棟が端末に複数残っている場合がある。listBundles 順の先頭一致を返すと、いま開い
+  // ている病棟ではなく古い重複病棟を更新して切り替えてしまう。active が一致するならそれを使う
+  // (live メタを権威に — 未保存のメタ編集も含む)。
+  // 候補 bundle の読み込みに失敗したら throw (照合の有無を確認できないまま重複を作らない)。
+  async function findMatchingRecipientWardId(
+    srcMeta: NonNullable<DecodedPatientList['rosterMeta']>,
+  ): Promise<string | null> {
+    const activeId = store.storage.getActiveWorkspaceId();
+    if (isRecipientWardMatch(store.getActiveRosterMeta(), srcMeta)) return activeId;
+    // active が非一致のときだけ他病棟を走査する (保存済み bundle の rosterMeta を見る)。
+    // 残った非 active の重複は legacy 由来 (重複統合 UI は非ゴール)。最初の一致を返す。
+    for (const w of await store.storage.listBundles()) {
+      if (w.id === activeId) continue; // active は判定済み
+      const b = await store.storage.loadBundle(w.id);
+      if (!b) throw new Error(`recipient ward scan: load failed: ${w.id}`);
+      if (isRecipientWardMatch(normalizeRosterMeta(b.rosterMeta), srcMeta)) return w.id;
+    }
+    return null;
+  }
+
+  // 一致した recipient 病棟を更新する (新規病棟を増やさない)。
+  // active 以外なら先に切替えて live をマージ対象に揃える (単一の fail-closed 保存経路に集約)。
+  // マージは live 患者 (未保存編集を含む) を base にし、rosterPatientId で照合する。
+  async function updateExistingRecipientWard(
+    matchId: string,
+    decoded: DecodedPatientList,
+    srcMeta: NonNullable<DecodedPatientList['rosterMeta']>,
+    close: () => void,
+  ): Promise<void> {
+    if (matchId !== store.storage.getActiveWorkspaceId()) {
+      // 切替前に読込可能か確認 (読めない病棟へ切替えると live が空になりマージで既存記録を失う)。
+      const check = await store.storage.loadBundle(matchId);
+      if (!check) {
+        toast.show(t('io.ws.switch.failed'), 'error');
+        return;
+      }
+      try {
+        // switchWorkspace は現 active + 設定を fail-closed 保存してから matchId を live へ読む。
+        await store.switchWorkspace(matchId);
+      } catch (e) {
+        console.error('qr import: switch to recipient ward failed:', e);
+        toast.show(t('io.ws.switch.failed'), 'error');
+        runtime.bump();
+        return;
+      }
+    }
+    // matchId が active になった。live 患者を base にマージする (clone してロールバック可能に)。
+    const originalState = store.getAppState();
+    const base = originalState.patients.map(clone);
+    const { patients: merged, usedUnlistedTag } = buildMergedRosterPatients(base, decoded);
+    const liveSettings = store.getSettings();
+    const prevTags = liveSettings.tags.slice();
+    ensureRosterTags(liveSettings, decoded.tagNames, usedUnlistedTag);
+    const prevMeta = store.getActiveRosterMeta();
+    store.setAppState({ ...originalState, patients: merged });
+    store.setActiveRosterMeta(buildRecipientMeta(srcMeta, new Date().toISOString()));
+    try {
+      await store.persistActiveOrThrow();
+    } catch (e) {
+      // 保存できなければ可視状態を進めない。live (患者・タグ・メタ) を元へ戻す。
+      console.error('qr import: update recipient ward persist failed:', e);
+      store.setAppState(originalState);
+      liveSettings.tags = prevTags;
+      store.setActiveRosterMeta(prevMeta);
+      runtime.bump();
+      toast.show(t('save.failed'), 'error');
+      return;
+    }
+    close();
+    runtime.bump();
+    const count = decoded.patients.filter((r) => r.rosterManaged && !!r.rosterPatientId).length;
+    toast.show(t('home.qrImport.updateWs.done', { count }));
   }
 
   // 「実患者」(= 空スロットでない名簿対象)。HM QR に載る非空 wire 患者と揃える。
