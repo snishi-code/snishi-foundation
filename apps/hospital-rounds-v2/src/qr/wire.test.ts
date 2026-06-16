@@ -155,7 +155,7 @@ describe('wire enum tables / WIRE_V (v2 自己一致)', () => {
   });
 
   it('kind 別 WIRE_V は v2 バンプ後の期待値と一致する', () => {
-    expect(WIRE_V).toEqual({ HM: 4, ST: 8 });
+    expect(WIRE_V).toEqual({ HM: 5, ST: 8 });
   });
 });
 
@@ -223,15 +223,26 @@ describe('format/patient wire 歩哨 (v1 実出力 fixture)', () => {
       name: 'A',
       tags: ['内科', 'インライン'],
       content: 'x',
+      rosterPatientId: '',
     });
+  });
+
+  it('patientToWire/FromWire: rosterPatientId は rpid として round-trip する', () => {
+    const p = makePatient({ room: '301', name: '名簿太郎', rosterPatientId: 'rp_abc', rosterManaged: true });
+    const wire = patientToWire(p, tagDict, null);
+    expect(wire.rpid).toBe('rp_abc');
+    expect(patientFromWire(wire, tagDict).rosterPatientId).toBe('rp_abc');
+    // 空スロットには rpid を載せない (rosterPatientId があっても name/room が空なら {})。
+    const empty = makePatient({ rosterPatientId: 'rp_should_not_leak' });
+    expect(patientToWire(empty, tagDict, null)).toEqual({});
   });
 });
 
 // ============================
-// HM (qr-patient-list v4)
+// HM (qr-patient-list v5 + v4 受信互換)
 // ============================
 
-describe('encodePatientList / decodePatientList (HM v4)', () => {
+describe('encodePatientList / decodePatientList (HM v5)', () => {
   const patients = [
     makePatient({ pid: 'p1', status: 'yellow', name: 'テスト太郎', room: '203', tags: ['内科'] }),
     makePatient({ pid: 'p2' }),
@@ -239,26 +250,91 @@ describe('encodePatientList / decodePatientList (HM v4)', () => {
     makePatient({ pid: 'p4' }),
   ];
 
-  it('HM: 末尾連続空をトリムして全患者を載せる', () => {
+  it('HM: 末尾連続空をトリムして全患者を載せる (unmanaged は m なし)', () => {
     const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
     const out = JSON.parse(encodePatientList(patients, settings, { kind: 'HM' }));
     expect(out).toEqual({
-      v: 4,
+      v: 5,
       td: tagDict,
       p: [{ r: '203', n: 'テスト太郎', t: [1] }, {}, { r: '204', n: '花子', t: [2] }],
     });
+    // unmanaged (rosterMeta 未指定) は m を載せない
+    expect(out.m).toBeUndefined();
   });
 
-  it('decode round-trip: tagIdxs (sender 辞書 1-based) を復元', () => {
+  it('decode round-trip: tagIdxs (sender 辞書 1-based) を復元・rosterMeta は null', () => {
     const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
     const payload = encodePatientList(patients, settings, { kind: 'HM' });
     const decoded = decodePatientList(payload);
+    expect(decoded.rosterMeta).toBeNull();
     expect(decoded.tagNames).toEqual(tagDict);
     expect(decoded.patients).toEqual([
-      { room: '203', name: 'テスト太郎', tagIdxs: [1], content: '' },
-      { room: '', name: '', tagIdxs: [], content: '' },
-      { room: '204', name: '花子', tagIdxs: [2], content: '' },
+      { room: '203', name: 'テスト太郎', tagIdxs: [1], content: '', rosterPatientId: '', rosterManaged: false },
+      { room: '', name: '', tagIdxs: [], content: '', rosterPatientId: '', rosterManaged: false },
+      { room: '204', name: '花子', tagIdxs: [2], content: '', rosterPatientId: '', rosterManaged: false },
     ]);
+  });
+
+  it('managed: m.aid/m.wid と p[].rpid が載り、decode で readable に復元される', () => {
+    const settings = settingsWith({ tags: tagDefsFrom(tagDict) });
+    const managedPatients = [
+      makePatient({ pid: 'p1', name: '名簿太郎', room: '301', rosterPatientId: 'rp_1', rosterManaged: true }),
+      makePatient({ pid: 'p2' }), // 空スロット → rpid なし
+    ];
+    const rosterMeta = {
+      managed: true,
+      localRole: 'authority' as const,
+      rosterAuthorityId: 'ra_x',
+      rosterWardId: 'rw_y',
+      wardName: '3階東',
+      receivedAt: '',
+      redistribution: 'prohibited' as const,
+    };
+    const raw = JSON.parse(
+      encodePatientList(managedPatients, settings, {
+        kind: 'HM',
+        rosterMeta,
+        generatedAt: '2026-06-16T00:00:00.000Z',
+      }),
+    );
+    // wire 上は短縮キー (m.aid/m.wid/m.wn/m.rd/m.ga, p[].rpid)。localRole は載らない。
+    expect(raw.v).toBe(5);
+    expect(raw.m).toEqual({ aid: 'ra_x', wid: 'rw_y', wn: '3階東', rd: 'prohibited', ga: '2026-06-16T00:00:00.000Z' });
+    expect(raw.m.localRole).toBeUndefined();
+    expect(raw.p[0].rpid).toBe('rp_1');
+    // decode 後は短縮キーを隠した readable な rosterMeta / rosterPatientId
+    const decoded = decodePatientList(JSON.stringify(raw));
+    expect(decoded.rosterMeta).toEqual({
+      rosterAuthorityId: 'ra_x',
+      rosterWardId: 'rw_y',
+      wardName: '3階東',
+      redistribution: 'prohibited',
+      generatedAt: '2026-06-16T00:00:00.000Z',
+    });
+    expect(decoded.patients[0]).toMatchObject({ name: '名簿太郎', rosterPatientId: 'rp_1', rosterManaged: true });
+    // 末尾の空スロットはトリムされる (rpid を持たないので名簿には載らない)
+    expect(decoded.patients).toHaveLength(1);
+  });
+
+  it('v4 payload は unmanaged として decode できる (受信互換)', () => {
+    const v4 = { v: 4, td: tagDict, p: [{ r: '203', n: 'テスト太郎', t: [1] }] };
+    const decoded = decodePatientList(JSON.stringify(v4));
+    expect(decoded.rosterMeta).toBeNull();
+    expect(decoded.patients[0]).toEqual({
+      room: '203',
+      name: 'テスト太郎',
+      tagIdxs: [1],
+      content: '',
+      rosterPatientId: '',
+      rosterManaged: false,
+    });
+  });
+
+  it('managed payload (m あり) で aid / wid が空なら reject する (fail-closed)', () => {
+    const noAid = { v: 5, td: [], m: { aid: '', wid: 'rw_x', wn: '', rd: 'prohibited', ga: '' }, p: [] };
+    expect(() => decodePatientList(JSON.stringify(noAid))).toThrow(/roster authority\/ward id/);
+    const noWid = { v: 5, td: [], m: { aid: 'ra_x', wid: '', wn: '', rd: 'prohibited', ga: '' }, p: [] };
+    expect(() => decodePatientList(JSON.stringify(noWid))).toThrow(/roster authority\/ward id/);
   });
 
   it('version 不一致は明示エラーで弾く (fail-closed)', () => {

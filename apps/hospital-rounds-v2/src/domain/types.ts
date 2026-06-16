@@ -178,6 +178,12 @@ export interface Patient {
   deletedAt: number;
   deletedFromWorkspaceId: string;
   deletedFromWorkspaceLabel: string;
+  // HM 名簿 QR の正本側入院エピソード ID (domain/roster.ts 参照)。病棟 ID に従属させず、
+  // 転棟しても同じ患者エピソードとして維持する。ローカル pid とは別概念 (混ぜない)。
+  // 既存・通常作成の患者は '' (unmanaged)。
+  rosterPatientId: string;
+  /** rosterPatientId を持つ名簿管理下の患者か (受信側の編集ロック判定に使う)。 */
+  rosterManaged: boolean;
   formatValues: FormatValues;
 }
 

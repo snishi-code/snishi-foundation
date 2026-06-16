@@ -31,7 +31,12 @@ export async function listOtherWorkspaces(store: HrStore): Promise<WorkspaceList
   return all.filter((r) => r.id !== activeId).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
 
-// 移動先用コピー (pid 新発番 / status BLUE / 転棟マーカー無し / formatValues deep copy)
+// 移動先用コピー (pid 新発番 / status BLUE / 転棟マーカー無し / formatValues deep copy)。
+// 名簿 (roster) ID はローカル pid と同じく移動先では引き継がない: この手動移動は別病棟への
+// ローカルコピー (元には (移) マーカー) であり、roster の正本エピソード ID を維持する「転棟」
+// (同じ rosterPatientId を保つ機能) は本タスクの非ゴール。別正本病棟の rosterPatientId を
+// 移動先へ持ち込むと、その病棟が将来 HM 正本化された時に他病棟由来の rpid を配布してしまう
+// (取り違え)。安全側に unmanaged へ倒す (rosterAware な転棟は 転棟/退院ログ タスクで実装)。
 function buildDestCopy(src: Patient): Patient {
   return {
     ...src,
@@ -40,6 +45,8 @@ function buildDestCopy(src: Patient): Patient {
     updatedAt: Date.now(),
     transferredAt: 0,
     transferredTo: '',
+    rosterPatientId: '',
+    rosterManaged: false,
     tags: Array.isArray(src.tags) ? src.tags.slice() : [],
     formatValues:
       src.formatValues && typeof src.formatValues === 'object'

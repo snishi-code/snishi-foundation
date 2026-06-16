@@ -31,6 +31,10 @@ export function PatientEditPopup({
   const p = store.getAppState().patients[patientNo - 1];
   if (!p) return null;
 
+  // 受信病棟 (recipient) の名簿管理患者は、氏名・部屋番号が正本由来なので編集不可。
+  // ステータス・タグは受信側でも編集できる (ここでロックしない)。
+  const rosterLocked = store.getActiveRosterMeta().localRole === 'recipient' && p.rosterManaged;
+
   function commit(mutate: () => void): void {
     mutate();
     store.markUpdated(patientNo); // notify → bump (再描画) + updatedAt
@@ -57,7 +61,8 @@ export function PatientEditPopup({
         />
       </div>
 
-      {/* ── 部屋番号 + 氏名 (頻繁に編集しないのでコンパクト横並び) ── */}
+      {/* ── 部屋番号 + 氏名 (頻繁に編集しないのでコンパクト横並び)。
+          受信病棟の名簿管理患者は正本由来のため readOnly。 ── */}
       <div className="patientSheetInfoRow">
         <label className="patientSheetInfoCell patientSheetRoomCell">
           <span className="patientSheetInfoLabel">{t('patientSheet.room')}</span>
@@ -70,7 +75,10 @@ export function PatientEditPopup({
             autoComplete="off"
             defaultValue={p.room}
             data-ui={UI.patient.room}
+            readOnly={rosterLocked}
+            disabled={rosterLocked}
             onInput={(e) => {
+              if (rosterLocked) return;
               const el = e.target as HTMLInputElement;
               const cleaned = sanitizeRoomInput(el.value);
               if (cleaned !== el.value) el.value = cleaned;
@@ -86,13 +94,17 @@ export function PatientEditPopup({
             autoComplete="off"
             defaultValue={p.name}
             data-ui={UI.patient.name}
+            readOnly={rosterLocked}
+            disabled={rosterLocked}
             onInput={(e) => {
+              if (rosterLocked) return;
               const next = (e.target as HTMLInputElement).value;
               commit(() => (p.name = next));
             }}
           />
         </label>
       </div>
+      {rosterLocked ? <p className="muted patientSheetRosterNote">{t('patient.roster.readonly')}</p> : null}
 
       {/* ── 中央: タグ ── */}
       <div className="patientSheetField patientSheetTagsField">

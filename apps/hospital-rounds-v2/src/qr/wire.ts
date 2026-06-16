@@ -90,7 +90,7 @@ import {
 // bump 条件: 既存フィールドの意味変更・削除 / enum 許容値の追加 / 短キー名の変更。
 // ============================
 export const WIRE_V = Object.freeze({
-  HM: 4,
+  HM: 5, // v5: 正本メタ (m: aid/wid/wn/rd/ga) + 患者 rosterPatientId (rpid)。v4 は受信互換で読む。
   ST: 8, // v8: TagDef.color 追加 + tc (clearOnStart index) → tgc (color index) 置換
 } as const);
 
@@ -154,6 +154,64 @@ export interface WirePatient {
   n?: string;
   t?: Array<number | string>;
   c?: string;
+  /** rosterPatientId (HM v5。正本側の入院エピソード ID)。空スロットには載せない。 */
+  rpid?: string;
+}
+
+// ============================
+// Roster meta (HM v5 の m。短キー対応表は本ファイルにだけ置く)
+//   aid = rosterAuthorityId / wid = rosterWardId / wn = wardName
+//   rd  = redistribution    / ga  = generatedAt (送信時刻 ISO)
+//   ※ localRole は載せない (受信端末がさらに正本になるのを防ぐ。domain/roster.ts 参照)。
+//   ※ 鍵そのものは載せない。redistribution は協調的 UI 制御であり署名ではない。
+// ============================
+
+export interface WireRosterMeta {
+  aid: string;
+  wid: string;
+  wn: string;
+  rd: 'allowed' | 'prohibited';
+  ga: string;
+}
+
+/** decode 後に UI/apply 層へ渡す readable な roster meta (短キーを隠す)。 */
+export interface DecodedRosterMeta {
+  rosterAuthorityId: string;
+  rosterWardId: string;
+  wardName: string;
+  redistribution: 'allowed' | 'prohibited';
+  generatedAt: string;
+}
+
+export function rosterMetaToWire(
+  meta: {
+    rosterAuthorityId: string;
+    rosterWardId: string;
+    wardName: string;
+    redistribution: 'allowed' | 'prohibited';
+  },
+  generatedAt: string,
+): WireRosterMeta {
+  return {
+    aid: String(meta.rosterAuthorityId || ''),
+    wid: String(meta.rosterWardId || ''),
+    wn: String(meta.wardName || ''),
+    rd: meta.redistribution === 'prohibited' ? 'prohibited' : 'allowed',
+    ga: String(generatedAt || ''),
+  };
+}
+
+/** wire の m → readable roster meta。m が無い (v4 / 未管理) は null。 */
+export function rosterMetaFromWire(wire: unknown): DecodedRosterMeta | null {
+  if (!wire || typeof wire !== 'object') return null;
+  const w = wire as Record<string, unknown>;
+  return {
+    rosterAuthorityId: typeof w.aid === 'string' ? w.aid : '',
+    rosterWardId: typeof w.wid === 'string' ? w.wid : '',
+    wardName: typeof w.wn === 'string' ? w.wn : '',
+    redistribution: w.rd === 'prohibited' ? 'prohibited' : 'allowed',
+    generatedAt: typeof w.ga === 'string' ? w.ga : '',
+  };
 }
 
 // ============================
@@ -289,6 +347,8 @@ export function patientToWire(
   const hasContent = content != null; // HM は null/undefined (content 省略)
   const c = hasContent ? String(content).trim() : '';
 
+  // rosterPatientId は「実患者 (= 空スロットでない)」のみに載せる。
+  const rpid = String(p.rosterPatientId || '').trim();
   const isEmpty = !room && !name && tagIdxs.length === 0 && !c;
   if (isEmpty) return {};
   const obj: WirePatient = {};
@@ -296,6 +356,7 @@ export function patientToWire(
   if (name) obj.n = name;
   if (tagIdxs.length) obj.t = tagIdxs;
   if (hasContent) obj.c = c;
+  if (rpid) obj.rpid = rpid;
   return obj;
 }
 
@@ -304,6 +365,7 @@ export interface DecodedWirePatient {
   name: string;
   tags: string[];
   content: string;
+  rosterPatientId: string;
 }
 
 export function patientFromWire(
@@ -316,5 +378,6 @@ export function patientFromWire(
     name: String(w.n || ''),
     tags: tagsFromWire(w.t, tagDict),
     content: String(w.c || ''),
+    rosterPatientId: String(w.rpid || ''),
   };
 }

@@ -10,6 +10,7 @@
 // アーカイブを v2 が取り込めるようにするために一致が必要。
 
 import { DEFAULT_APP_TITLE, type AppState, type Settings } from '../domain/types';
+import { defaultRosterMeta, normalizeRosterMeta, type RosterMeta } from '../domain/roster';
 
 export const BUNDLE_FORMAT = 'hospital-rounds-bundle';
 export const BUNDLE_SCHEMA = 1;
@@ -37,7 +38,10 @@ export interface Bundle {
   appVersion: string;
   exportedAt: string;
   owner: { deviceId: string; label: string };
+  /** 旧フィールド。互換のためすぐ消さない (rosterMeta へ移行)。 */
   rosterId: string;
+  /** HM 名簿 QR の正本/受信メタ (domain/roster.ts)。section ではなく top-level に持つ。 */
+  rosterMeta: RosterMeta;
   /** 未知 section も温存するため Record (forward compat) */
   sections: Record<string, unknown>;
 }
@@ -74,6 +78,8 @@ export interface ProjectBundleArgs {
   sections?: readonly string[];
   owner?: { deviceId: string; label: string };
   exportedAt?: string;
+  /** 病棟の名簿メタ。未指定は unmanaged 既定 (通常病棟・空病棟・移動先病棟)。 */
+  rosterMeta?: RosterMeta;
 }
 
 export function projectBundle({
@@ -82,6 +88,7 @@ export function projectBundle({
   sections = FULL_BACKUP_SECTIONS,
   owner,
   exportedAt,
+  rosterMeta,
 }: ProjectBundleArgs): Bundle {
   const want = new Set(sections);
   const out: Bundle = {
@@ -91,6 +98,7 @@ export function projectBundle({
     exportedAt: exportedAt != null ? exportedAt : nowIso(),
     owner: owner || { deviceId: settings?.deviceId || '', label: '' },
     rosterId: '',
+    rosterMeta: rosterMeta ? normalizeRosterMeta(rosterMeta) : defaultRosterMeta(),
     sections: {},
   };
 
@@ -141,6 +149,8 @@ function normalizeBundle(b: Record<string, unknown>): Bundle {
     exportedAt: typeof b.exportedAt === 'string' ? b.exportedAt : '',
     owner,
     rosterId: typeof b.rosterId === 'string' ? b.rosterId : '',
+    // 古い bundle に rosterMeta が無くても unmanaged 既定へ倒す (forward compat)。
+    rosterMeta: normalizeRosterMeta(b.rosterMeta),
     sections: { ...(b.sections as Record<string, unknown>) },
   };
 }

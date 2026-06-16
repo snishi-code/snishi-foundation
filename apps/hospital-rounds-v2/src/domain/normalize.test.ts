@@ -284,6 +284,25 @@ describe('normalizePatientArray / normalizeLoaded', () => {
     expect(p1?.name).toBe('A');
   });
 
+  it('roster フィールド: 旧データ / 型不一致は rosterPatientId:"" / rosterManaged:false に倒す', () => {
+    // 旧患者データ (roster フィールド無し)
+    const [old] = normalizePatientArray([{ pid: 'p1', name: 'A' }]);
+    expect(old?.rosterPatientId).toBe('');
+    expect(old?.rosterManaged).toBe(false);
+    // 型不一致 → 既定
+    const [bad] = normalizePatientArray([{ pid: 'p2', rosterPatientId: 123, rosterManaged: 'yes' }]);
+    expect(bad?.rosterPatientId).toBe('');
+    expect(bad?.rosterManaged).toBe(false);
+    // 正しい値は保持
+    const [ok] = normalizePatientArray([{ pid: 'p3', rosterPatientId: 'rp_x', rosterManaged: true }]);
+    expect(ok?.rosterPatientId).toBe('rp_x');
+    expect(ok?.rosterManaged).toBe(true);
+    // makeDefaultPatient も unmanaged
+    const d = makeDefaultPatient();
+    expect(d.rosterPatientId).toBe('');
+    expect(d.rosterManaged).toBe(false);
+  });
+
   it('problems / freeText を保持する (problems は string 行のみ・freeText は string のみ)', () => {
     const [p] = normalizePatientArray([
       { pid: 'p1', problems: ['HF', '', 7, 'DM'], freeText: '自由記述メモ' },

@@ -98,6 +98,11 @@ export interface QrCardProps {
    * qr/policy の getQrPresentationDefault(useCase) を渡す。既定 (未指定) は dynamic。
    */
   presentationDefault?: QrPresentationDefault;
+  /**
+   * QR ページが無い時 (受信専用の recipient 病棟など) に表示する案内文。
+   * 送信 (再配布) はしないが受信導線は残す、を利用者に伝えるため。
+   */
+  notice?: string;
   onClose: () => void;
 }
 
@@ -106,7 +111,7 @@ export interface QrCardProps {
  * 受信 (receivePage) の例外 = 復号/パース失敗は fail-closed (適用前に中断) として
  * toast で可視化する。consumed=false の入力はテキスト欄を消さない (v1 準拠)。
  */
-export function QrCardBody({ flow, kindLabel, receivable = true, showClose = true, presentationDefault, onClose }: QrCardProps) {
+export function QrCardBody({ flow, kindLabel, receivable = true, showClose = true, presentationDefault, notice, onClose }: QrCardProps) {
   const toast = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawError, setDrawError] = useState('');
@@ -231,6 +236,8 @@ export function QrCardBody({ flow, kindLabel, receivable = true, showClose = tru
         ) : null}
       </div>
       <canvas ref={canvasRef} className="qrCanvas" data-ui={UI.qr.canvas} />
+      {/* 受信専用 (ページ無し) の案内。送信はしないが下のカメラで受信できる旨を伝える。 */}
+      {notice && total === 0 ? <p className="muted qrRecipientNotice">{notice}</p> : null}
       {showDots ? (
         <div className="qrPageDots" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => (

@@ -80,6 +80,12 @@ export const PK_ONBOARDED_AT = 'onboarded_at';
 export const PK_LAST_USER_CONFIRM_AT = 'last_user_confirm_at';
 /** ユーザー再選択インターバル ms (将来 UI から変更可能にする器) */
 export const PK_USER_RESELECT_INTERVAL = 'user_reselect_interval_ms';
+/**
+ * ローカル端末の名簿正本 ID (HM 名簿 QR の rosterAuthorityId の source)。初回 HM QR 表示時に
+ * 生成して永続化する。端末/インストール固有値なので localStorage ポインタに置き、ユーザー設定
+ * (settings) や QR wire には載せない (ST QR は端末固有値を送らない既存方針を壊さない)。
+ */
+export const PK_ROSTER_AUTHORITY_ID = 'roster_authority_id';
 
 /** ユーザー再選択の既定インターバル (1 日) */
 export const DEFAULT_USER_RESELECT_INTERVAL_MS = 24 * 60 * 60 * 1000;

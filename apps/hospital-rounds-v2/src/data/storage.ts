@@ -23,6 +23,7 @@
 import { createDatabase, type DatabaseHandle } from '@snishi/foundation/storage/idb';
 import { createPointerStore, type PointerStore } from '@snishi/foundation/storage/pointers';
 import type { User } from '../domain/types';
+import { newRosterAuthorityId } from '../domain/roster';
 import { parseBundle, type Bundle } from './bundle';
 import {
   DB_NAME,
@@ -35,6 +36,7 @@ import {
   PK_CURRENT_USER,
   PK_LAST_USER_CONFIRM_AT,
   PK_ONBOARDED_AT,
+  PK_ROSTER_AUTHORITY_ID,
   PK_USER_RESELECT_INTERVAL,
   STORE_BUNDLES,
   USERS_ID,
@@ -121,6 +123,11 @@ export interface HrStorage {
   setUserReselectIntervalMs(ms: number): void;
   /** 起動時にユーザー再選択を促すべきか */
   isUserReselectDue(): boolean;
+
+  /** ローカル端末の名簿正本 ID (未生成なら ''。HM QR の正本判定に使う)。 */
+  getRosterAuthorityId(): string;
+  /** ローカル端末の名簿正本 ID を取得 (無ければ生成して永続化)。 */
+  ensureRosterAuthorityId(): string;
 
   getDefaultWorkspaceLabel(): string;
   getDefaultUserName(): string;
@@ -305,6 +312,17 @@ export function createHrStorage(opts: HrStorageOptions = {}): HrStorage {
       const last = api.getLastUserConfirmAt();
       if (!last) return true;
       return now() - last >= api.getUserReselectIntervalMs();
+    },
+
+    getRosterAuthorityId() {
+      return pointers.get(PK_ROSTER_AUTHORITY_ID) || '';
+    },
+    ensureRosterAuthorityId() {
+      const existing = pointers.get(PK_ROSTER_AUTHORITY_ID);
+      if (existing) return existing;
+      const id = newRosterAuthorityId();
+      pointers.set(PK_ROSTER_AUTHORITY_ID, id);
+      return id;
     },
 
     getDefaultWorkspaceLabel: () => defaultWorkspaceLabel,

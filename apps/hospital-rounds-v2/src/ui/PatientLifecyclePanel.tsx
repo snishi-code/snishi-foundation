@@ -138,6 +138,10 @@ export function PatientLifecyclePanel({
   const [busy, setBusy] = useState(false);
 
   const trash = isTrashActive(store);
+  // 受信病棟 (recipient) の名簿管理患者は手動転棟・削除を抑止 (正本端末で行う)。
+  // Trash 内は復元/完全削除を維持するため除外する。
+  const rosterLocked =
+    !trash && store.getActiveRosterMeta().localRole === 'recipient' && patient.rosterManaged;
   const deps = { store, snapshots: runtime.snapshots };
 
   async function exec(action: PendingAction): Promise<void> {
@@ -159,7 +163,9 @@ export function PatientLifecyclePanel({
   }
 
   const buttons: Array<{ key: string; label: string; dataUi: string; danger?: boolean; onClick: () => void }> = [];
-  if (trash) {
+  if (rosterLocked) {
+    // 受信した名簿の患者: 手動転棟・削除を出さない (buttons 空 → 下部に注記を出す)。
+  } else if (trash) {
     buttons.push({
       key: 'restore',
       label: t('patient.restore'),
@@ -226,6 +232,9 @@ export function PatientLifecyclePanel({
   return (
     <div className="lifecycleActions">
       {trash ? <p className="muted lifecycleNote">{t('trash.detail.note')}</p> : null}
+      {rosterLocked ? (
+        <p className="muted lifecycleNote">{t('patient.roster.managedActionDisabled')}</p>
+      ) : null}
       <div className="section-label">{t('patient.lifecycle.actions.title')}</div>
       <div className="lifecycleBtnRow">
         {buttons.map((b) => (

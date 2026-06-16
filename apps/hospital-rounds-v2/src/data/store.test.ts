@@ -16,6 +16,7 @@ import {
 } from './store';
 import { defaultSettings, normalizePatientArray } from '../domain/normalize';
 import type { Patient } from '../domain/types';
+import type { RosterMeta } from '../domain/roster';
 
 // Node 22+ の組み込み localStorage が jsdom のものを隠すため in-memory stub に差し替える。
 function makeStorageStub(): Storage {
@@ -290,6 +291,82 @@ describe('アーカイブ入出力', () => {
     const res2 = await store.importDeviceArchive(device);
     expect(res2.users).toBe(0);
     expect(res2.workspaces).toBe(1);
+  });
+});
+
+describe('roster meta (HM 名簿 QR 下地)', () => {
+  const authorityMeta: RosterMeta = {
+    managed: true,
+    localRole: 'authority',
+    rosterAuthorityId: 'ra_1',
+    rosterWardId: 'rw_1',
+    wardName: '内科',
+    receivedAt: '',
+    redistribution: 'prohibited',
+  };
+
+  it('active rosterMeta は persistActiveOrThrow で失われない', async () => {
+    await store.initStore();
+    store.setActiveRosterMeta(authorityMeta);
+    await store.persistActiveOrThrow();
+    const b = await storage.loadBundle(storage.getActiveWorkspaceId());
+    expect(b?.rosterMeta).toEqual(authorityMeta);
+  });
+
+  it('switchWorkspace で病棟を移ると rosterMeta が切替わり、戻ると復元される', async () => {
+    await store.initStore();
+    store.setActiveRosterMeta(authorityMeta);
+    await store.persistActiveOrThrow();
+    await store.createWorkspace('別病棟'); // 新規 (unmanaged) へ切替
+    expect(store.getActiveRosterMeta().managed).toBe(false);
+    expect(store.getActiveRosterMeta().localRole).toBe('none');
+    await store.switchWorkspace('default'); // 戻ると authority meta が復活
+    expect(store.getActiveRosterMeta().rosterAuthorityId).toBe('ra_1');
+    expect(store.getActiveRosterMeta().localRole).toBe('authority');
+  });
+
+  it('archive export/import で rosterMeta (と患者 rosterPatientId) が保持される', async () => {
+    await store.initStore();
+    const p0 = store.getAppState().patients[0]!;
+    p0.name = '名簿太郎';
+    p0.rosterPatientId = 'rp_1';
+    p0.rosterManaged = true;
+    const recipientMeta: RosterMeta = {
+      managed: true,
+      localRole: 'recipient',
+      rosterAuthorityId: 'ra_z',
+      rosterWardId: 'rw_z',
+      wardName: '3階東',
+      receivedAt: '2026-06-16T00:00:00.000Z',
+      redistribution: 'prohibited',
+    };
+    store.setActiveRosterMeta(recipientMeta);
+    await store.persistActiveOrThrow();
+
+    const archive = await store.exportArchive();
+    const ws = archive.workspaces.find((w) => w.patients.some((p) => p.name === '名簿太郎'));
+    expect(ws?.rosterMeta).toEqual(recipientMeta);
+
+    const before = (await storage.listBundles()).length;
+    await store.importArchive(archive);
+    const list = await storage.listBundles();
+    expect(list.length).toBe(before + 1);
+
+    // 取り込んだ (非アクティブな) 病棟の rosterMeta と患者 rosterPatientId が復元される
+    let importedMeta: RosterMeta | undefined;
+    let importedRpid = '';
+    for (const w of list) {
+      if (w.id === storage.getActiveWorkspaceId()) continue;
+      const b = await storage.loadBundle(w.id);
+      const pats = (getSection(b, SECTION.PATIENTS) as Array<Partial<Patient>>) || [];
+      const hit = pats.find((p) => p.name === '名簿太郎');
+      if (hit) {
+        importedMeta = b?.rosterMeta;
+        importedRpid = hit.rosterPatientId || '';
+      }
+    }
+    expect(importedMeta).toEqual(recipientMeta);
+    expect(importedRpid).toBe('rp_1');
   });
 });
 
